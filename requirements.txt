@@ -1,8 +1,10 @@
 # Core
 torch>=2.4
-transformers>=4.49        # SigLIP2 (Siglip2Model / Siglip2VisionModel / Siglip2TextModel)
+torchvision>=0.19         # required by the SigLIP2 AutoImageProcessor
+transformers>=4.49        # SigLIP2 (loaded via AutoModel: vision_model / text_model towers)
 torchcodec>=0.1           # video decoding (requires a matching FFmpeg install)
 PyYAML>=6.0
 
-# SigLIP2 tokenizer (Gemma/SentencePiece based)
-sentencepiece>=0.1.99
+# Image/text processing
+Pillow>=9.0
+sentencepiece>=0.1.99     # SigLIP2 tokenizer (Gemma/SentencePiece based)
