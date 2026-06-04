@@ -1,0 +1,59 @@
+# Milestone M1 -- video/text alignment spine over frozen SigLIP2.
+#
+# Decimal (not scientific) notation is used for floats on purpose: PyYAML's
+# default resolver does not reliably parse `1e-4` as a float.
+
+seed: 42
+
+# Frame sampling (read by data/video_text_dataset.py).
+num_frames: 64        # T -- frames sampled uniformly across each clip
+resolution: 256       # frames are resized to resolution x resolution for the processor
+
+model:
+  vision_model_name: google/siglip2-base-patch16-256
+  text_model_name: google/siglip2-base-patch16-256
+  proj_dim: null                # null -> use backbone hidden size (768)
+  adapter_hidden: 2048
+  adapter_dropout: 0.0
+  use_adapters: true
+  temporal_pool: mean
+  frame_chunk_size: 256         # frames pushed through the vision tower at once
+  max_text_length: 64
+  unfreeze_text: false          # if true, the text base joins a lower-lr param group
+  unfreeze_vision: false
+  init_logit_scale: 2.302585    # ln(10) -- SigLIP default
+  init_logit_bias: -10.0
+
+data:
+  # Standard MSR-VTT layout. Override these to point at your local copy.
+  root: /data/msrvtt
+  video_dir: /data/msrvtt/videos
+  annotation_train: /data/msrvtt/train_val_videodatainfo.json
+  annotation_eval: /data/msrvtt/test_videodatainfo.json
+  train_split_filter: train     # keep videos whose "split" field == this (null = keep all)
+  eval_split_filter: null
+  eval_captions_per_video: 1    # 1 -> single caption per video for 1:1 retrieval
+
+optim:
+  lr: 0.0001
+  text_lr_mult: 0.1             # text base lr = lr * text_lr_mult when unfreeze_text
+  weight_decay: 0.01
+  betas: [0.9, 0.98]
+  eps: 0.00000001
+  warmup_steps: 200
+  total_steps: 5000
+  grad_clip: 1.0
+
+train:
+  batch_size: 16
+  num_workers: 6
+  log_every: 20
+  save_every: 250
+  ckpt_dir: checkpoints/m1
+  m0_gate_steps: 300            # window over which the M0 "loss decreases" gate is judged
+
+eval:
+  baseline_r1: 30.0             # SigLIP2 zero-shot MSR-VTT video->text R@1 reference
+  batch_size: 64
+  within_margin: 5.0            # M1 passes if R@1 is within this many points of baseline
+  abort_margin: 10.0            # abort / switch encoder if more than this many points worse

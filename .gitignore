@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.venv/
+checkpoints/
+slurm-*.out
+*.egg-info/
+.DS_Store

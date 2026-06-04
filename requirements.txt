@@ -1,0 +1,8 @@
+# Core
+torch>=2.4
+transformers>=4.49        # SigLIP2 (Siglip2Model / Siglip2VisionModel / Siglip2TextModel)
+torchcodec>=0.1           # video decoding (requires a matching FFmpeg install)
+PyYAML>=6.0
+
+# SigLIP2 tokenizer (Gemma/SentencePiece based)
+sentencepiece>=0.1.99
