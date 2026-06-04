@@ -120,9 +120,11 @@ def resolve_outputs(out, loss_fn) -> Tuple[Tensor, Optional[Tensor], Optional[Te
                 )
             loss = loss_fn(zv, zt)
         return loss, zv, zt
-    if isinstance(out, (tuple, list)) and len(out) >= 2 and isinstance(out[0], Tensor):
-        zv, zt = out[0], out[1]
-        return loss_fn(zv, zt), zv, zt
+    if isinstance(out, (tuple, list)) and len(out) >= 1 and isinstance(out[0], Tensor):
+        # SpineM1.forward returns (loss_tensor, metrics_dict). Also tolerate (loss,) and (zv, zt).
+        if len(out) == 1 or isinstance(out[1], Mapping):
+            return out[0], None, None          # (loss, metrics): loss is out[0]; re-embed for diagnostics on log steps
+        return loss_fn(out[0], out[1]), out[0], out[1]   # (zv, zt) embeddings
     raise TypeError(f"Unsupported SpineM1.forward output type: {type(out)!r}")
 
 
