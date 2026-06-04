@@ -52,8 +52,8 @@ def load_spine(cfg: AttrDict, checkpoint: Optional[str], device: torch.device) -
     else:
         print(
             f"[eval] WARNING: checkpoint {checkpoint!r} not found; "
-            f"evaluating the (untrained) spine, which approximates the "
-            f"SigLIP2 zero-shot baseline."
+            f"evaluating the (untrained) spine. Note: This is an untrained "
+            f"projector on frozen V-JEPA, NOT a true SigLIP2 baseline."
         )
     spine.eval()
     return spine
