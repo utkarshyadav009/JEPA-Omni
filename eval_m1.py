@@ -19,30 +19,30 @@ from __future__ import annotations
 
 import argparse
 import os
-from dataclasses import asdict
 from typing import Dict, List, Optional, Tuple
 
 import torch
+import torch.nn.functional as F
 from torch import Tensor
 from torch.utils.data import DataLoader
 
 from data.video_text_dataset import build_dataset, collate_fn
 from models import SpineConfig, SpineM1
-from utils import AttrDict, load_config
+from utils import AttrDict, cfg_get, load_config
 
 
 def load_spine(cfg: AttrDict, checkpoint: Optional[str], device: torch.device) -> SpineM1:
     """Build the spine and load weights from ``checkpoint`` if available."""
-    spine_cfg = SpineConfig(**cfg["model"])
+    model_config = dict(cfg["model"])
     state = None
     if checkpoint and os.path.exists(checkpoint):
         state = torch.load(checkpoint, map_location="cpu")
-        ckpt_cfg = state.get("spine_config")
+        ckpt_cfg = state.get("model_config")
         if ckpt_cfg:
             # Rebuild with the exact architecture the checkpoint was trained with.
-            spine_cfg = SpineConfig(**{**asdict(spine_cfg), **ckpt_cfg})
+            model_config = {**model_config, **ckpt_cfg}
 
-    spine = SpineM1(spine_cfg).to(device)
+    spine = SpineM1(SpineConfig(**model_config)).to(device)
     if state is not None:
         missing, unexpected = spine.load_state_dict(state["model"], strict=False)
         print(
@@ -75,9 +75,9 @@ def embed_split(
     dataset = build_dataset(cfg, "eval", limit=limit, decode_device="cpu")
     loader = DataLoader(
         dataset,
-        batch_size=int(cfg["eval"].get("batch_size", 64)),
+        batch_size=int(cfg_get(cfg, "eval.batch_size", "batch_size", default=64)),
         shuffle=False,
-        num_workers=int(cfg["train"].get("num_workers", 4)),
+        num_workers=int(cfg_get(cfg, "train.num_workers", "num_workers", default=4)),
         collate_fn=collate_fn,
         drop_last=False,
     )
@@ -89,8 +89,9 @@ def embed_split(
         with torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=amp_enabled):
             zv = spine.embed_video(clips)
             zt = spine.embed_text(captions)
-        video_embeds.append(zv.float().cpu())
-        text_embeds.append(zt.float().cpu())
+        # Normalise so the similarity matrix is a cosine ranking.
+        video_embeds.append(F.normalize(zv.float(), dim=-1).cpu())
+        text_embeds.append(F.normalize(zt.float(), dim=-1).cpu())
 
     return torch.cat(video_embeds, dim=0), torch.cat(text_embeds, dim=0)
 
@@ -125,10 +126,9 @@ def _print_metrics(name: str, m: Dict[str, float]) -> None:
 
 def report_m1_gate(r1_v2t: float, cfg: AttrDict) -> bool:
     """Print the M1 gate verdict; return True if PASS."""
-    eval_cfg = cfg["eval"]
-    baseline = float(eval_cfg["baseline_r1"])
-    within = float(eval_cfg.get("within_margin", 5.0))
-    abort = float(eval_cfg.get("abort_margin", 10.0))
+    baseline = float(cfg_get(cfg, "eval.baseline_r1", "baseline_r1", default=0.0))
+    within = float(cfg_get(cfg, "eval.within_margin", "within_margin", default=5.0))
+    abort = float(cfg_get(cfg, "eval.abort_margin", "abort_margin", default=10.0))
     deficit = baseline - r1_v2t  # positive => worse than baseline
 
     print(
@@ -183,7 +183,8 @@ def main() -> None:
     args = parser.parse_args()
 
     cfg = load_config(args.config)
-    checkpoint = args.checkpoint or os.path.join(str(cfg["train"]["ckpt_dir"]), "best.pt")
+    ckpt_dir = str(cfg_get(cfg, "train.ckpt_dir", "ckpt_dir", default="checkpoints/m1"))
+    checkpoint = args.checkpoint or os.path.join(ckpt_dir, "best.pt")
     passed = evaluate(cfg, checkpoint, args.limit)
     raise SystemExit(0 if passed else 1)
 

@@ -285,31 +285,53 @@ class MSRVTTVideoTextDataset(Dataset):
     ) -> "MSRVTTVideoTextDataset":
         """Build a dataset for ``split`` ("train" / "eval") from a config.
 
-        Reads ``cfg.num_frames`` and ``cfg.resolution`` plus the ``cfg.data``
-        section.
+        Reads ``cfg.num_frames`` / ``cfg.resolution`` plus the ``cfg.data``
+        section, tolerating a few common key spellings.
         """
-        data = cfg["data"]
+        from utils import cfg_get  # local import to keep the Dataset standalone
+
+        num_frames = int(cfg_get(cfg, "num_frames", "data.num_frames", default=64))
+        resolution = int(cfg_get(cfg, "resolution", "data.resolution", default=256))
+        video_dir = cfg_get(
+            cfg, "data.video_dir", "data.videos_dir", "data.video_root",
+            "video_dir", default=None,
+        )
+
         if split == "train":
-            annotation = data["annotation_train"]
-            split_filter = data.get("train_split_filter")
-            captions_per_video = data.get("train_captions_per_video")
+            annotation = cfg_get(
+                cfg, "data.annotation_train", "data.train_annotation",
+                "data.train_json", "data.annotations.train", default=None,
+            )
+            split_filter = cfg_get(cfg, "data.train_split_filter", default=None)
+            captions_per_video = cfg_get(cfg, "data.train_captions_per_video", default=None)
         elif split in ("eval", "val", "test"):
-            annotation = data["annotation_eval"]
-            split_filter = data.get("eval_split_filter")
-            captions_per_video = data.get("eval_captions_per_video", 1)
+            annotation = cfg_get(
+                cfg, "data.annotation_eval", "data.eval_annotation",
+                "data.test_annotation", "data.eval_json", "data.annotations.eval",
+                default=None,
+            )
+            split_filter = cfg_get(cfg, "data.eval_split_filter", default=None)
+            captions_per_video = cfg_get(cfg, "data.eval_captions_per_video", default=1)
         else:
             raise ValueError(f"Unknown split={split!r}.")
 
+        if video_dir is None or annotation is None:
+            raise KeyError(
+                "Could not locate the video directory / annotation path in the "
+                f"config for split={split!r}. Expected something like "
+                "cfg.data.video_dir and cfg.data.annotation_train/eval."
+            )
+
         return cls(
-            video_dir=data["video_dir"],
+            video_dir=video_dir,
             annotation_file=annotation,
-            num_frames=int(cfg["num_frames"]),
-            resolution=int(cfg["resolution"]),
+            num_frames=num_frames,
+            resolution=resolution,
             split_filter=split_filter,
             limit=limit,
             captions_per_video=captions_per_video,
             decode_device=decode_device,
-            seed=int(cfg.get("seed", 0)),
+            seed=int(cfg_get(cfg, "seed", default=0)),
         )
 
 

@@ -52,6 +52,29 @@ def load_config(path: str) -> AttrDict:
     return cfg
 
 
+_MISSING = object()
+
+
+def cfg_get(cfg: Any, *paths: str, default: Any = None) -> Any:
+    """Look up the first present dotted ``path`` in ``cfg``.
+
+    Lets the entry points tolerate small differences in the authoritative
+    config layout, e.g. ``cfg_get(cfg, "optim.lr", "lr", default=1e-4)`` finds
+    the learning rate whether it lives under ``optim:`` or at the top level.
+    """
+    for path in paths:
+        cur: Any = cfg
+        for key in path.split("."):
+            if isinstance(cur, dict) and key in cur:
+                cur = cur[key]
+            else:
+                cur = _MISSING
+                break
+        if cur is not _MISSING:
+            return cur
+    return default
+
+
 # --------------------------------------------------------------------------- #
 # Distributed helpers
 # --------------------------------------------------------------------------- #
