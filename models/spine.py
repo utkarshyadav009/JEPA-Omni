@@ -21,8 +21,8 @@ Public interface (consumed by ``train_m1.py`` / ``eval_m1.py``):
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass, field
-from typing import Dict, Iterator, List, Optional, Sequence
+from dataclasses import dataclass
+from typing import Dict, Iterator, Optional, Sequence, Tuple
 
 import torch
 import torch.nn.functional as F
@@ -30,6 +30,13 @@ from torch import Tensor, nn
 
 from .text_encoder import TextEncoder
 from .vision_encoder import VisionEncoder
+
+try:  # transformers imported lazily so logic-only unit tests need no deps
+    from transformers import AutoImageProcessor, AutoModel, AutoTokenizer
+except Exception:  # pragma: no cover - exercised only without transformers installed
+    AutoImageProcessor = None  # type: ignore[assignment]
+    AutoModel = None  # type: ignore[assignment]
+    AutoTokenizer = None  # type: ignore[assignment]
 
 
 @dataclass
@@ -52,8 +59,6 @@ class SpineConfig:
     unfreeze_vision: bool = False
     init_logit_scale: float = math.log(10.0)
     init_logit_bias: float = -10.0
-    # Accept and ignore unknown keys so the YAML can carry extra annotations.
-    extra: Dict[str, object] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         if self.temporal_pool != "mean":
@@ -99,6 +104,93 @@ class _Identity(nn.Module):
         return x
 
 
+def uniformity(x: Tensor, t: float = 2.0) -> Tensor:
+    """Wang & Isola uniformity: log E_{i!=j} exp(-t * ||x_i - x_j||^2)."""
+    if x.shape[0] < 2:
+        return x.new_zeros(())
+    # pdist has no bf16/fp16 kernel; compute in float32.
+    sq_pdist = torch.pdist(x.float(), p=2).pow(2)
+    return sq_pdist.mul(-t).exp().mean().log()
+
+
+def alignment_loss(
+    zv: Tensor,
+    zt: Tensor,
+    logit_scale: Tensor,
+    logit_bias: Tensor,
+) -> Dict[str, Tensor]:
+    """SigLIP sigmoid loss + alignment/uniformity/accuracy metrics.
+
+    ``zv`` and ``zt`` are L2-normalised ``[B, D]`` paired embeddings (positive
+    pair ``i`` lies on the diagonal). Mirrors ``transformers``'
+    ``SiglipModel.forward`` loss.
+    """
+    n = zv.shape[0]
+    scale = logit_scale.exp()
+    logits_per_text = zt @ zv.t() * scale + logit_bias  # [B_t, B_v]
+    eye = torch.eye(n, device=zv.device, dtype=logits_per_text.dtype)
+    m1_diag1 = -torch.ones_like(logits_per_text) + 2.0 * eye
+    loglik = F.logsigmoid(m1_diag1 * logits_per_text)
+    loss = (-loglik.sum(dim=-1)).mean()
+
+    with torch.no_grad():
+        zv_f = zv.float()
+        zt_f = zt.float()
+        sims_v2t = zv_f @ zt_f.t()  # [B_v, B_t]
+        targets = torch.arange(n, device=zv.device)
+        acc_v2t = (sims_v2t.argmax(dim=1) == targets).float().mean()
+        align = (zv_f - zt_f).pow(2).sum(dim=-1).mean()
+        unif = 0.5 * (uniformity(zv_f) + uniformity(zt_f))
+
+    return {
+        "loss": loss,
+        "acc_v2t": acc_v2t,
+        "alignment": align,
+        "uniformity": unif,
+        "logits_per_text": logits_per_text,
+        "zv": zv,
+        "zt": zt,
+    }
+
+
+def _load_backbones(
+    config: SpineConfig,
+) -> Tuple[nn.Module, nn.Module, object, object, object]:
+    """Load the SigLIP backbone(s) and return towers + processor + tokenizer.
+
+    Returns ``(vision_tower, text_tower, image_processor, tokenizer, modules)``
+    where ``modules`` is an ``nn.ModuleDict`` holding the backbone(s) so the
+    owning module registers their parameters exactly once.
+    """
+    if AutoModel is None:
+        raise ImportError(
+            "transformers (and torchvision for the image processor) are "
+            "required for SpineM1. Install them with `pip install "
+            "transformers torchvision`."
+        )
+
+    vision_name = config.vision_model_name
+    text_name = config.text_model_name
+    image_processor = AutoImageProcessor.from_pretrained(vision_name)
+    tokenizer = AutoTokenizer.from_pretrained(text_name)
+
+    modules = nn.ModuleDict()
+    if vision_name == text_name:
+        backbone = AutoModel.from_pretrained(vision_name)
+        modules["backbone"] = backbone
+        vision_tower = backbone.vision_model
+        text_tower = backbone.text_model
+    else:
+        vision_backbone = AutoModel.from_pretrained(vision_name)
+        text_backbone = AutoModel.from_pretrained(text_name)
+        modules["vision_backbone"] = vision_backbone
+        modules["text_backbone"] = text_backbone
+        vision_tower = vision_backbone.vision_model
+        text_tower = text_backbone.text_model
+
+    return vision_tower, text_tower, image_processor, tokenizer, modules
+
+
 class SpineM1(nn.Module):
     """Video/text alignment model for milestone M1."""
 
@@ -106,15 +198,35 @@ class SpineM1(nn.Module):
         super().__init__()
         self.config = config
 
+        (
+            vision_tower,
+            text_tower,
+            image_processor,
+            tokenizer,
+            backbones,
+        ) = _load_backbones(config)
+
+        # Register backbone parameters exactly once. The towers are referenced
+        # (not re-registered) through the lightweight encoder wrappers below.
+        self.backbones = backbones
+
+        # Freeze everything, then selectively unfreeze the requested towers.
+        self.backbones.requires_grad_(False)
+        if config.unfreeze_vision:
+            vision_tower.requires_grad_(True)
+        if config.unfreeze_text:
+            text_tower.requires_grad_(True)
+
+        # Lightweight (non-Module) encode wrappers around the shared towers.
         self.vision_encoder = VisionEncoder(
-            config.vision_model_name,
-            trainable=config.unfreeze_vision,
+            vision_tower,
+            image_processor,
             frame_chunk_size=config.frame_chunk_size,
             temporal_pool=config.temporal_pool,
         )
         self.text_encoder = TextEncoder(
-            config.text_model_name,
-            trainable=config.unfreeze_text,
+            text_tower,
+            tokenizer,
             max_length=config.max_text_length,
         )
 
@@ -152,18 +264,18 @@ class SpineM1(nn.Module):
                 yield p
 
     def text_base_parameters(self) -> Iterator[nn.Parameter]:
-        """Yield trainable parameters of the *text backbone* only.
+        """Yield trainable parameters of the *text tower* only.
 
         Used by the optimiser to place the (optionally unfrozen) text base in
         a separate, lower-learning-rate parameter group.
         """
-        for p in self.text_encoder.backbone.parameters():
+        for p in self.text_encoder.tower.parameters():
             if p.requires_grad:
                 yield p
 
     def vision_base_parameters(self) -> Iterator[nn.Parameter]:
-        """Yield trainable parameters of the vision backbone only."""
-        for p in self.vision_encoder.backbone.parameters():
+        """Yield trainable parameters of the vision tower only."""
+        for p in self.vision_encoder.tower.parameters():
             if p.requires_grad:
                 yield p
 
@@ -185,14 +297,6 @@ class SpineM1(nn.Module):
     # ------------------------------------------------------------------ #
     # Loss / metrics
     # ------------------------------------------------------------------ #
-    @staticmethod
-    def _uniformity(x: Tensor, t: float = 2.0) -> Tensor:
-        """Wang & Isola uniformity: log E_{i!=j} exp(-t * ||x_i - x_j||^2)."""
-        if x.shape[0] < 2:
-            return x.new_zeros(())
-        sq_pdist = torch.pdist(x, p=2).pow(2)
-        return sq_pdist.mul(-t).exp().mean().log()
-
     def forward(
         self,
         clips: Sequence[Tensor],
@@ -205,29 +309,4 @@ class SpineM1(nn.Module):
         """
         zv = self.embed_video(clips)  # [B, D]
         zt = self.embed_text(captions)  # [B, D]
-        n = zv.shape[0]
-
-        # SigLIP sigmoid loss (mirrors transformers' SiglipModel.forward).
-        logit_scale = self.logit_scale.exp()
-        logits_per_text = zt @ zv.t() * logit_scale + self.logit_bias  # [B_t, B_v]
-        eye = torch.eye(n, device=zv.device, dtype=zv.dtype)
-        m1_diag1 = -torch.ones_like(logits_per_text) + 2.0 * eye
-        loglik = F.logsigmoid(m1_diag1 * logits_per_text)
-        loss = (-loglik.sum(dim=-1)).mean()
-
-        with torch.no_grad():
-            sims_v2t = zv @ zt.t()  # [B_v, B_t]
-            targets = torch.arange(n, device=zv.device)
-            acc_v2t = (sims_v2t.argmax(dim=1) == targets).float().mean()
-            alignment = (zv - zt).pow(2).sum(dim=-1).mean()
-            uniformity = 0.5 * (self._uniformity(zv) + self._uniformity(zt))
-
-        return {
-            "loss": loss,
-            "acc_v2t": acc_v2t,
-            "alignment": alignment,
-            "uniformity": uniformity,
-            "logits_per_text": logits_per_text,
-            "zv": zv,
-            "zt": zt,
-        }
+        return alignment_loss(zv, zt, self.logit_scale, self.logit_bias)

@@ -1,107 +1,96 @@
-"""SigLIP2 vision tower used by the M1 spine.
+"""SigLIP2 vision tower wrapper used by the M1 spine.
 
-The :class:`VisionEncoder` wraps a SigLIP2 vision model and turns a *list*
-of video clips into a single embedding per clip by encoding every sampled
-frame with the image tower and mean-pooling over time.
+:class:`VisionEncoder` turns a *list* of video clips into a single embedding
+per clip by encoding every sampled frame with the SigLIP image tower and
+mean-pooling over time.
+
+It is a lightweight wrapper around an already-instantiated vision tower
+(``model.vision_model``) plus its image processor -- it deliberately does not
+own / re-register the tower as a submodule, so the owning :class:`SpineM1`
+registers the backbone parameters exactly once.
+
+Whatever keys the matching image processor produces (standard
+``pixel_values`` for the fixed-resolution SigLIP2 checkpoints, or
+``pixel_values`` + ``pixel_attention_mask`` + ``spatial_shapes`` for the
+NaFlex variants) are forwarded straight to the tower, so the same code path
+works for both.
 
 Interface contract (matched by ``data``/``train_m1``/``eval_m1``):
 
-    encoder = VisionEncoder(model_name, ...)
-    embeds  = encoder.encode(clips)   # clips: List[uint8 Tensor [T, C, H, W]]
-                                      # -> Tensor [B, D]
-
-``encode`` accepts a Python list (clips may have a different number of
-frames each) and never expects a pre-stacked batch tensor.
+    embeds = vision_encoder.encode(clips)   # clips: List[uint8 [T, C, H, W]]
+                                            # -> Tensor [B, D]
 """
 
 from __future__ import annotations
 
 from contextlib import nullcontext
-from typing import List, Sequence
+from typing import Dict, List, Sequence
 
 import torch
 from torch import Tensor, nn
 
-try:  # transformers is an optional import at module load time for fast unit tests
-    from transformers import AutoImageProcessor, Siglip2VisionModel
-except Exception:  # pragma: no cover - exercised only without transformers installed
-    AutoImageProcessor = None  # type: ignore[assignment]
-    Siglip2VisionModel = None  # type: ignore[assignment]
 
-
-class VisionEncoder(nn.Module):
-    """SigLIP2 image tower with temporal mean-pooling.
+class VisionEncoder:
+    """SigLIP image tower + processor with temporal mean-pooling.
 
     Parameters
     ----------
-    model_name:
-        HuggingFace id of the SigLIP2 checkpoint (e.g.
-        ``"google/siglip2-base-patch16-256"``).
-    trainable:
-        If ``False`` (default) the backbone is frozen and its forward pass is
-        run under ``torch.no_grad`` to save memory; only downstream modules
-        (adapters / logit parameters living in the spine) are optimised.
+    tower:
+        An instantiated SigLIP vision tower (e.g. ``siglip_model.vision_model``).
+    processor:
+        The matching HuggingFace image processor.
     frame_chunk_size:
-        Maximum number of frames pushed through the backbone at once. Keeps
-        peak memory bounded when ``batch_size * num_frames`` is large.
+        Maximum number of frames pushed through the tower at once.
     temporal_pool:
         Temporal reduction across frames; only ``"mean"`` is supported.
     """
 
     def __init__(
         self,
-        model_name: str,
+        tower: nn.Module,
+        processor,
         *,
-        trainable: bool = False,
         frame_chunk_size: int = 256,
         temporal_pool: str = "mean",
     ) -> None:
-        super().__init__()
-        if Siglip2VisionModel is None:
-            raise ImportError(
-                "transformers is required for VisionEncoder. "
-                "Install it with `pip install transformers`."
-            )
         if temporal_pool != "mean":
             raise ValueError(f"Unsupported temporal_pool={temporal_pool!r}; only 'mean'.")
-
-        self.model_name = model_name
-        self.temporal_pool = temporal_pool
+        self.tower = tower
+        self.processor = processor
         self.frame_chunk_size = int(frame_chunk_size)
+        self.temporal_pool = temporal_pool
+        self.embed_dim: int = int(tower.config.hidden_size)
 
-        self.backbone = Siglip2VisionModel.from_pretrained(model_name)
-        processor = AutoImageProcessor.from_pretrained(model_name)
+    @property
+    def device(self) -> torch.device:
+        return next(self.tower.parameters()).device
 
-        mean = torch.tensor(processor.image_mean, dtype=torch.float32).view(1, -1, 1, 1)
-        std = torch.tensor(processor.image_std, dtype=torch.float32).view(1, -1, 1, 1)
-        self.register_buffer("pixel_mean", mean, persistent=False)
-        self.register_buffer("pixel_std", std, persistent=False)
+    def _is_trainable(self) -> bool:
+        for p in self.tower.parameters():
+            return bool(p.requires_grad)
+        return False
 
-        size = getattr(processor, "size", {}) or {}
-        self.image_size: int = int(size.get("height") or size.get("shortest_edge") or 256)
+    def _process_frames(self, frames_u8: Tensor) -> Dict[str, Tensor]:
+        """Run the image processor on uint8 [N, C, H, W] frames -> model inputs."""
+        images = [f.permute(1, 2, 0).cpu().numpy() for f in frames_u8]
+        proc = self.processor(images=images, return_tensors="pt")
+        device = self.device
+        return {
+            k: (v.to(device) if isinstance(v, torch.Tensor) else v)
+            for k, v in proc.items()
+        }
 
-        self.embed_dim: int = int(self.backbone.config.hidden_size)
-        self.set_trainable(trainable)
-
-    def set_trainable(self, trainable: bool) -> None:
-        """Freeze/unfreeze the backbone in-place."""
-        self.trainable = bool(trainable)
-        self.backbone.requires_grad_(self.trainable)
-
-    def _normalize(self, frames_u8: Tensor) -> Tensor:
-        """Rescale uint8 [N, C, H, W] frames to the SigLIP2 normalised range."""
-        x = frames_u8.to(self.pixel_mean.dtype) / 255.0
-        return (x - self.pixel_mean) / self.pixel_std
-
-    def _run_backbone(self, pixel_values: Tensor) -> Tensor:
-        """Return pooled per-frame embeddings, chunked to bound memory."""
-        outputs: List[Tensor] = []
-        n = pixel_values.shape[0]
+    def _run_tower(self, inputs: Dict[str, Tensor]) -> Tensor:
+        """Pooled per-frame embeddings, chunked along the frame axis."""
+        n = inputs["pixel_values"].shape[0]
         step = max(1, self.frame_chunk_size)
+        outputs: List[Tensor] = []
         for start in range(0, n, step):
-            chunk = pixel_values[start : start + step]
-            pooled = self.backbone(pixel_values=chunk).pooler_output
-            outputs.append(pooled)
+            chunk = {
+                k: (v[start : start + step] if isinstance(v, torch.Tensor) else v)
+                for k, v in inputs.items()
+            }
+            outputs.append(self.tower(**chunk).pooler_output)
         return torch.cat(outputs, dim=0)
 
     def encode(self, clips: Sequence[Tensor]) -> Tensor:
@@ -111,8 +100,7 @@ class VisionEncoder(nn.Module):
         ----------
         clips:
             Sequence of uint8 tensors shaped ``[T, C, H, W]`` (``T`` may vary
-            per clip). Frames are expected to already be at the processor's
-            resolution (``image_size`` x ``image_size``).
+            per clip), already resized to the processor's resolution.
 
         Returns
         -------
@@ -125,25 +113,22 @@ class VisionEncoder(nn.Module):
                 f"got {type(clips)!r}."
             )
         if len(clips) == 0:
-            return torch.zeros((0, self.embed_dim), device=self.pixel_mean.device)
+            return torch.zeros((0, self.embed_dim), device=self.device)
 
-        device = self.pixel_mean.device
         lengths = [int(c.shape[0]) for c in clips]
-        flat = torch.cat([c.to(device) for c in clips], dim=0)
-        pixel_values = self._normalize(flat)
+        flat = torch.cat([c for c in clips], dim=0)  # [sumT, C, H, W]
+        inputs = self._process_frames(flat)
 
-        ctx = nullcontext() if self.trainable else torch.no_grad()
+        ctx = nullcontext() if self._is_trainable() else torch.no_grad()
         with ctx:
-            frame_embeds = self._run_backbone(pixel_values)
+            frame_embeds = self._run_tower(inputs)  # [sumT, D]
 
-        # Split back into per-clip groups and pool over time.
         pooled: List[Tensor] = []
         idx = 0
         for length in lengths:
-            seg = frame_embeds[idx : idx + length]
-            pooled.append(seg.mean(dim=0))
+            pooled.append(frame_embeds[idx : idx + length].mean(dim=0))
             idx += length
         return torch.stack(pooled, dim=0)
 
-    def forward(self, clips: Sequence[Tensor]) -> Tensor:  # pragma: no cover - thin alias
+    def __call__(self, clips: Sequence[Tensor]) -> Tensor:  # pragma: no cover - alias
         return self.encode(clips)
