@@ -1,7 +1,10 @@
 # configs/m1.yaml
 # M1 — offline vision perception spine (VL-JEPA reproduction).
-# Two profiles: an ungated SMOKE default (runs with no HF license), and the FAITHFUL
-# overrides (commented) that reproduce VL-JEPA 2512.10942 exactly.
+# Schema aligned with train_m1.py / eval_m1.py / video_text_dataset.py cfg_get keys.
+# Two profiles: ungated SMOKE default (no HF license) + FAITHFUL overrides (commented).
+
+seed: 0
+precision: bf16
 
 model:
   vision_repo: facebook/vjepa2-vitl-fpc64-256   # MIT, ungated
@@ -12,32 +15,41 @@ model:
   stack_factor: 1
   predictor_layers: 4
   text_max_length: 512
-  unfreeze_text: false         # FAITHFUL: true, with lr_mult 0.05 on the text base
+  unfreeze_text: false         # FAITHFUL: true (with optim.text_lr_mult below)
 
 data:
-  name: msrvtt                 # retrieval gate set; agent fills data/video_text_dataset.py
-  root: /scratch/$USER/data/msrvtt
-  num_frames: 64
-  resolution: 256
-  caption_per_clip: 1
+  name: msrvtt
+  num_frames: 64               # read as data.num_frames
+  resolution: 256              # read as data.resolution
+  video_dir: /scratch/$USER/data/msrvtt/videos
+  annotation_train: /scratch/$USER/data/msrvtt/train_val_videodatainfo.json
+  annotation_eval: /scratch/$USER/data/msrvtt/test_videodatainfo.json
+  train_split_filter: train    # JSON 'split' field; null keeps all
+  eval_split_filter: test
+  eval_captions_per_video: 1   # 1:1 video<->text for diagonal retrieval
+
+optim:
+  lr: 2.0e-4
+  weight_decay: 0.05
+  betas: [0.9, 0.98]
+  eps: 1.0e-8
+  grad_clip: 1.0
+  total_steps: 5000            # step-based loop (not epochs)
+  warmup_steps: 500
+  text_lr_mult: 0.05           # only used if model.unfreeze_text
 
 train:
-  epochs: 10
   batch_size: 16               # tune to VRAM after probe_latency.py
-  grad_accum: 1
-  lr: 2.0e-4
-  text_lr_mult: 0.05           # only used if unfreeze_text
-  weight_decay: 0.05
-  warmup_steps: 500
-  precision: bf16
   num_workers: 8
   log_every: 20
+  save_every: 1000
   ckpt_dir: /scratch/$USER/jepa_omni/ckpt/m1
-  seed: 0
+  m0_gate_steps: 300
 
 eval:
-  split: test
+  batch_size: 16
   metrics: [R@1, R@5, R@10, MedR]   # video->text and text->video retrieval
-  # M1 GATE: R@1 within 5 pts of a SigLIP2 baseline on the held-out split.
-  # ABORT/SWITCH ENCODER if > 10 pts worse -> try V-JEPA 2.1 or a VLM-aligned encoder.
-  baseline_r1: null            # fill after running a SigLIP2 baseline
+  # M1 GATE: video->text R@1 within within_margin of the SigLIP2 baseline.
+  baseline_r1: null            # fill after measuring a SigLIP2 baseline separately
+  within_margin: 5             # PASS if within 5 pts
+  abort_margin: 10             # ABORT/switch encoder if >10 pts worse
