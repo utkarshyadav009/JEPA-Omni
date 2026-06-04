@@ -1,0 +1,11 @@
+# Install transformers from source for V-JEPA 2 support.
+torch>=2.4
+git+https://github.com/huggingface/transformers
+torchcodec
+einops
+timm
+pyyaml
+numpy
+tqdm
+# Optional, for exact EmbeddingGemma embeddings (the dense ST head):
+# sentence-transformers
