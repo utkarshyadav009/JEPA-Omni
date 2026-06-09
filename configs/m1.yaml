@@ -21,7 +21,7 @@ data:
   name: msrvtt
   num_frames: 64              # read as data.num_frames
   resolution: 256             # read as data.resolution
-  video_dir: /home/jovyan/work/data/msrvtt/videos
+  video_dir: /home/jovyan/work/data/msrvtt/video
   annotation_train: /home/jovyan/work/data/msrvtt/msrvtt_train_7k.json
   annotation_eval: /home/jovyan/work/data/msrvtt/msrvtt_test_1k.json
   train_split_filter: null    # These JSONs are pre-split, so set to null to keep all entries
@@ -43,13 +43,13 @@ train:
   num_workers: 8
   log_every: 20
   save_every: 1000
-  ckpt_dir: /scratch/$USER/jepa_omni/ckpt/m1
+  ckpt_dir: /home/jovyan/work/JEPA-Omni/checkpoints/m1 
   m0_gate_steps: 300
 
 eval:
   batch_size: 16
   metrics: [R@1, R@5, R@10, MedR]   # video->text and text->video retrieval
   # M1 GATE: video->text R@1 within within_margin of the SigLIP2 baseline.
-  baseline_r1: null            # fill after measuring a SigLIP2 baseline separately
+  baseline_r1: 32.50            # fill after measuring a SigLIP2 baseline separately
   within_margin: 5             # PASS if within 5 pts
   abort_margin: 10             # ABORT/switch encoder if >10 pts worse

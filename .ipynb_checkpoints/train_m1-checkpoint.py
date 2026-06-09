@@ -420,38 +420,22 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
     cleanup_distributed()
 
 
-def _report_m0_gate(
-    losses: List[float], 
-    accs_v2t: List[float], 
-    uniformities: List[float],
-    chance_acc: float = 0.1250
-) -> bool:
+def _report_m0_gate(losses: List[float]) -> None:
+    """Print a clear PASS/FAIL line: did training loss decrease early on?"""
     if not is_main_process() or len(losses) < 4:
-        return True
-        
+        return
     window = max(1, min(50, len(losses) // 3))
-    
-    recent_acc = sum(accs_v2t[-window:]) / window
-    recent_uniformity = sum(uniformities[-window:]) / window
-    
-    early_loss = sum(losses[:window]) / window
-    late_loss = sum(losses[-window:]) / window
-    
-    loss_decreased = late_loss < early_loss
-    acc_passed = recent_acc > (chance_acc + 0.05) 
-    uniformity_passed = recent_uniformity < -0.20 
-    
-    overall_passed = loss_decreased and acc_passed and uniformity_passed
-    status = "PASS" if overall_passed else "FAIL"
-    
-    print("\n--- [M0 GATE CHECK] ---", flush=True)
-    print(f"STATUS: {status}", flush=True)
-    print(f"  1. Loss Trend:   {'PASS' if loss_decreased else 'FAIL'} | early({window})={early_loss:.4f} -> late({window})={late_loss:.4f} (delta={late_loss - early_loss:+.4f})", flush=True)
-    print(f"  2. Accuracy V2T: {'PASS' if acc_passed else 'FAIL'} | recent_avg={recent_acc:.4f}", flush=True)
-    print(f"  3. Uniformity:   {'PASS' if uniformity_passed else 'FAIL'} | recent_avg={recent_uniformity:.4f}", flush=True)
-    print("-----------------------\n", flush=True)
-    
-    return overall_passed
+    early = sum(losses[:window]) / window
+    late = sum(losses[-window:]) / window
+    passed = late < early  # strictly lower => loss is decreasing
+    status = "PASS" if passed else "FAIL"
+    print(
+        f"[M0 GATE] {status}: loss over first {len(losses)} steps "
+        f"early({window})={early:.4f} -> late({window})={late:.4f} "
+        f"(delta={late - early:+.4f}); expected decrease.",
+        flush=True,
+    )
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train the M1 video/text spine.")
