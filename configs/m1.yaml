@@ -40,7 +40,7 @@ optim:
 
 train:
   batch_size: 16               # tune to VRAM after probe_latency.py
-  num_workers: 8
+  num_workers: 0
   log_every: 20
   save_every: 1000
   ckpt_dir: /home/jovyan/work/JEPA-Omni/checkpoints/m1 
