@@ -29,7 +29,7 @@ data:
   eval_captions_per_video: 1   # 1:1 video<->text for diagonal retrieval
 
 optim:
-  lr: 2.0e-4
+  lr: 1.0e-4
   weight_decay: 0.05
   betas: [0.9, 0.98]
   eps: 1.0e-8
@@ -39,7 +39,7 @@ optim:
   text_lr_mult: 0.05           # only used if model.unfreeze_text
 
 train:
-  batch_size: 2               # tune to VRAM after probe_latency.py
+  batch_size: 8               # tune to VRAM after probe_latency.py
   num_workers: 0
   log_every: 20
   save_every: 1000
