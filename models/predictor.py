@@ -169,7 +169,10 @@ class Predictor(nn.Module):
                     position_embeddings=position_embeddings,
                     use_cache=False,
                 )
-                x = layer_outputs[0]
+                if isinstance(layer_outputs, tuple):
+                    x = layer_outputs[0]
+                else:
+                    x = layer_outputs
                 
             x = self.norm(x)
             z = self.head(x[:, 0])
