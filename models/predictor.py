@@ -198,6 +198,11 @@ class Predictor(nn.Module):
                 )
                 x = layer_outputs[0]
                 print(f"[DEBUG LAYER LOOP] Layer {idx} output shape: {x.shape} is_nested: {getattr(x, 'is_nested', False)}")
+                print(f"[DEBUG LAYER LOOP] Layer {idx} output class: {x.__class__.__name__} layout: {x.layout}")
+                try:
+                    print(f"[DEBUG LAYER LOOP] Layer {idx} output stride: {x.stride()}")
+                except Exception as e_stride:
+                    print(f"[DEBUG LAYER LOOP] Layer {idx} output stride failed: {e_stride}")
                 
             x = self.norm(x)
             z = self.head(x[:, 0])
