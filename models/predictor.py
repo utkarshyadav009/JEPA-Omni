@@ -137,6 +137,37 @@ class Predictor(nn.Module):
 
     def forward(self, tokens: torch.Tensor) -> torch.Tensor:
         """tokens: (B, N, in_dim) from the frozen encoder -> (B, shared_dim) normalized."""
+        # Monkey patch LlamaAttention.forward to debug shapes on error
+        if self.mode == "llama_last8":
+            try:
+                import transformers.models.llama.modeling_llama as modeling_llama
+                if not hasattr(modeling_llama.LlamaAttention, "_original_forward"):
+                    original_forward = modeling_llama.LlamaAttention.forward
+                    modeling_llama.LlamaAttention._original_forward = original_forward
+                    
+                    def debug_forward(self_attn, hidden_states, *args, **kwargs):
+                        try:
+                            return original_forward(self_attn, hidden_states, *args, **kwargs)
+                        except Exception as e:
+                            print(f"[DEBUG ATTN ERROR] self_attn class: {self_attn.__class__.__name__}")
+                            print(f"[DEBUG ATTN ERROR] hidden_states shape: {hidden_states.shape}")
+                            print(f"[DEBUG ATTN ERROR] head_dim: {self_attn.head_dim}")
+                            q = self_attn.q_proj(hidden_states)
+                            k = self_attn.k_proj(hidden_states)
+                            print(f"[DEBUG ATTN ERROR] q_proj output shape: {q.shape}")
+                            print(f"[DEBUG ATTN ERROR] k_proj output shape: {k.shape}")
+                            for k_name, val in kwargs.items():
+                                if isinstance(val, torch.Tensor):
+                                    print(f"[DEBUG ATTN ERROR] kwarg {k_name} shape: {val.shape}")
+                                elif isinstance(val, tuple):
+                                    shapes = [t.shape for t in val if isinstance(t, torch.Tensor)]
+                                    print(f"[DEBUG ATTN ERROR] kwarg {k_name} shapes: {shapes}")
+                            raise e
+                    
+                    modeling_llama.LlamaAttention.forward = debug_forward
+            except Exception as e_debug:
+                print(f"[DEBUG] Failed to monkey patch: {e_debug}")
+
         x = self._stack(tokens.float())
         if self.mode == "mlp":
             x = self.in_norm(x)
