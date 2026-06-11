@@ -180,8 +180,10 @@ class Predictor(nn.Module):
                     x = layer_outputs
                 
             x = self.norm(x)
+            # Mean-pooling across visual tokens (excluding CLS token at index 0)
+            x_pooled = x[:, 1:].mean(dim=1)
             # Cast back to head weight dtype (usually float32) before linear projection
-            z = self.head(x[:, 0].to(dtype=self.head.weight.dtype))
+            z = self.head(x_pooled.to(dtype=self.head.weight.dtype))
             
         return F.normalize(z, dim=-1)
 
