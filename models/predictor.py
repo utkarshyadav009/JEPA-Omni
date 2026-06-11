@@ -103,7 +103,7 @@ class Predictor(nn.Module):
             except ImportError:
                 raise ImportError("mode='llama_last8' requires the transformers library.")
             
-            llama = LlamaModel.from_pretrained("meta-llama/Llama-3.2-1B")
+            llama = LlamaModel.from_pretrained("meta-llama/Llama-3.2-1B", attn_implementation="eager")
             hidden_size = llama.config.hidden_size
             
             self.in_proj = nn.Linear(eff_in, hidden_size)
