@@ -145,13 +145,23 @@ class Predictor(nn.Module):
                     original_apply = modeling_llama.apply_rotary_pos_emb
                     modeling_llama._original_apply_rotary = original_apply
                     
-                    def debug_apply_rotary(q, k, cos, sin, position_ids=None, unsqueeze_dim=1):
-                        print(f"[DEBUG ROTARY] q shape: {q.shape}")
-                        print(f"[DEBUG ROTARY] k shape: {k.shape}")
-                        print(f"[DEBUG ROTARY] cos shape: {cos.shape}")
-                        print(f"[DEBUG ROTARY] sin shape: {sin.shape}")
-                        print(f"[DEBUG ROTARY] unsqueeze_dim: {unsqueeze_dim}")
-                        return original_apply(q, k, cos, sin, position_ids, unsqueeze_dim)
+                    def debug_apply_rotary(*args, **kwargs):
+                        for idx, arg in enumerate(args):
+                            if isinstance(arg, torch.Tensor):
+                                print(f"[DEBUG ROTARY] arg {idx} shape: {arg.shape}")
+                            else:
+                                print(f"[DEBUG ROTARY] arg {idx}: {arg}")
+                        for k_name, val in kwargs.items():
+                            if isinstance(val, torch.Tensor):
+                                print(f"[DEBUG ROTARY] kwarg {k_name} shape: {val.shape}")
+                            else:
+                                print(f"[DEBUG ROTARY] kwarg {k_name}: {val}")
+                        try:
+                            import inspect
+                            print(f"[DEBUG ROTARY SOURCE] {inspect.getsource(original_apply)}")
+                        except Exception as e_source:
+                            print(f"[DEBUG ROTARY SOURCE FAILED] {e_source}")
+                        return original_apply(*args, **kwargs)
                     
                     modeling_llama.apply_rotary_pos_emb = debug_apply_rotary
             except Exception as e_debug:
