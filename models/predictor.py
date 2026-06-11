@@ -96,8 +96,31 @@ class Predictor(nn.Module):
                 layer, num_layers=n_layers, enable_nested_tensor=False)
             self.out_norm = RMSNorm(shared_dim)
             self.head = nn.Linear(shared_dim, shared_dim)
+            
+        elif mode == "llama_last8":
+            try:
+                from transformers import LlamaModel
+            except ImportError:
+                raise ImportError("mode='llama_last8' requires the transformers library.")
+            
+            llama = LlamaModel.from_pretrained("meta-llama/Llama-3.2-1B")
+            hidden_size = llama.config.hidden_size
+            
+            self.in_proj = nn.Linear(eff_in, hidden_size)
+            self.cls = nn.Parameter(torch.randn(1, 1, hidden_size) * hidden_size ** -0.5)
+            
+            self.layers = nn.ModuleList(llama.layers[-8:])
+            self.norm = llama.norm
+            
+            for layer in self.layers:
+                if hasattr(layer.self_attn, "is_causal"):
+                    layer.self_attn.is_causal = False
+                    
+            del llama
+            self.head = nn.Linear(hidden_size, shared_dim)
+
         else:
-            raise ValueError(f"Unknown predictor mode '{mode}'. Use 'mlp' or 'transformer'.")
+            raise ValueError(f"Unknown predictor mode '{mode}'. Use 'mlp', 'transformer', or 'llama_last8'.")
 
     def _stack(self, x: torch.Tensor) -> torch.Tensor:
         if self.stack_factor == 1:
@@ -115,18 +138,48 @@ class Predictor(nn.Module):
             pooled = self.pool(x)
             pooled = pooled + self.ffn(self.out_norm(pooled))
             z = self.head(pooled)
-        else:  # transformer
+        elif self.mode == "transformer":
             x = self.in_proj(x)
             cls = self.cls.expand(x.shape[0], -1, -1)
             x = torch.cat([cls, x], dim=1)
             x = self.encoder(x)
             z = self.head(self.out_norm(x[:, 0]))
+        elif self.mode == "llama_last8":
+            x = self.in_proj(x)
+            cls = self.cls.expand(x.shape[0], -1, -1)
+            x = torch.cat([cls, x], dim=1)
+            
+            position_ids = torch.arange(x.shape[1], device=x.device).unsqueeze(0).expand(x.shape[0], -1)
+            
+            # Use a 4D attention mask of zeros to ensure no causal masking is applied.
+            # Shape: (batch_size, 1, seq_len, seq_len)
+            # Additive mask: 0.0 means keep, large negative would mean drop.
+            attn_mask = torch.zeros(
+                x.shape[0], 1, x.shape[1], x.shape[1],
+                device=x.device, dtype=x.dtype
+            )
+            
+            for layer in self.layers:
+                layer_outputs = layer(
+                    x,
+                    attention_mask=attn_mask,
+                    position_ids=position_ids,
+                    use_cache=False,
+                )
+                x = layer_outputs[0]
+                
+            x = self.norm(x)
+            z = self.head(x[:, 0])
+            
         return F.normalize(z, dim=-1)
 
 
 if __name__ == "__main__":
     # Light standalone test (N=256) so it runs on a laptop; real seqs are ~8192 on GPU.
-    for mode in ("mlp", "transformer"):
+    for mode in ("mlp", "transformer", "llama_last8"):
+        # Skip llama_last8 if we don't want to download the 1B model by default during tests
+        if mode == "llama_last8":
+            continue
         p = Predictor(in_dim=1024, shared_dim=1536, mode=mode)
         z = p(torch.randn(2, 256, 1024))
         n_params = sum(t.numel() for t in p.parameters() if t.requires_grad)
