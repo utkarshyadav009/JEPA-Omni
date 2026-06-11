@@ -137,6 +137,26 @@ class Predictor(nn.Module):
 
     def forward(self, tokens: torch.Tensor) -> torch.Tensor:
         """tokens: (B, N, in_dim) from the frozen encoder -> (B, shared_dim) normalized."""
+        # Monkey patch apply_rotary_pos_emb to inspect shapes
+        if self.mode == "llama_last8":
+            try:
+                import transformers.models.llama.modeling_llama as modeling_llama
+                if not hasattr(modeling_llama, "_original_apply_rotary"):
+                    original_apply = modeling_llama.apply_rotary_pos_emb
+                    modeling_llama._original_apply_rotary = original_apply
+                    
+                    def debug_apply_rotary(q, k, cos, sin, position_ids=None, unsqueeze_dim=1):
+                        print(f"[DEBUG ROTARY] q shape: {q.shape}")
+                        print(f"[DEBUG ROTARY] k shape: {k.shape}")
+                        print(f"[DEBUG ROTARY] cos shape: {cos.shape}")
+                        print(f"[DEBUG ROTARY] sin shape: {sin.shape}")
+                        print(f"[DEBUG ROTARY] unsqueeze_dim: {unsqueeze_dim}")
+                        return original_apply(q, k, cos, sin, position_ids, unsqueeze_dim)
+                    
+                    modeling_llama.apply_rotary_pos_emb = debug_apply_rotary
+            except Exception as e_debug:
+                print(f"[DEBUG] Failed to patch rotary: {e_debug}")
+
         x = self._stack(tokens.float())
         if self.mode == "mlp":
             x = self.in_norm(x)
