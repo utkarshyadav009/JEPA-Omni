@@ -187,7 +187,8 @@ class Predictor(nn.Module):
             position_ids = torch.arange(x.shape[1], dtype=torch.long, device=x.device).unsqueeze(0).expand(x.shape[0], -1)
             position_embeddings = self.rotary_emb(x, position_ids)
             
-            for layer in self.layers:
+            for idx, layer in enumerate(self.layers):
+                print(f"[DEBUG LAYER LOOP] Layer {idx} input shape: {x.shape} is_nested: {getattr(x, 'is_nested', False)}")
                 layer_outputs = layer(
                     x,
                     attention_mask=None,
@@ -196,6 +197,7 @@ class Predictor(nn.Module):
                     use_cache=False,
                 )
                 x = layer_outputs[0]
+                print(f"[DEBUG LAYER LOOP] Layer {idx} output shape: {x.shape} is_nested: {getattr(x, 'is_nested', False)}")
                 
             x = self.norm(x)
             z = self.head(x[:, 0])
