@@ -163,7 +163,12 @@ class Predictor(nn.Module):
             print(f"[DEBUG] position_embeddings[1] shape: {position_embeddings[1].shape}")
             print(f"[DEBUG] layer 0 q_proj weight shape: {self.layers[0].self_attn.q_proj.weight.shape}")
             print(f"[DEBUG] layer 0 head_dim: {self.layers[0].self_attn.head_dim}")
-            print(f"[DEBUG] layer 0 num_heads: {self.layers[0].self_attn.num_heads}")
+            print(f"[DEBUG] self_attn attributes: {dir(self.layers[0].self_attn)}")
+            try:
+                q_proj_out = self.layers[0].self_attn.q_proj(x)
+                print(f"[DEBUG] q_proj_out shape: {q_proj_out.shape}")
+            except Exception as e:
+                print(f"[DEBUG] q_proj failed: {e}")
             
             # Use a 4D attention mask of zeros to ensure no causal masking is applied.
             # Shape: (batch_size, 1, seq_len, seq_len)
