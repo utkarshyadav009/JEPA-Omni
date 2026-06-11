@@ -137,36 +137,6 @@ class Predictor(nn.Module):
 
     def forward(self, tokens: torch.Tensor) -> torch.Tensor:
         """tokens: (B, N, in_dim) from the frozen encoder -> (B, shared_dim) normalized."""
-        # Monkey patch apply_rotary_pos_emb to inspect shapes
-        if self.mode == "llama_last8":
-            try:
-                import transformers.models.llama.modeling_llama as modeling_llama
-                if not hasattr(modeling_llama, "_original_apply_rotary"):
-                    original_apply = modeling_llama.apply_rotary_pos_emb
-                    modeling_llama._original_apply_rotary = original_apply
-                    
-                    def debug_apply_rotary(*args, **kwargs):
-                        for idx, arg in enumerate(args):
-                            if isinstance(arg, torch.Tensor):
-                                print(f"[DEBUG ROTARY] arg {idx} shape: {arg.shape}")
-                            else:
-                                print(f"[DEBUG ROTARY] arg {idx}: {arg}")
-                        for k_name, val in kwargs.items():
-                            if isinstance(val, torch.Tensor):
-                                print(f"[DEBUG ROTARY] kwarg {k_name} shape: {val.shape}")
-                            else:
-                                print(f"[DEBUG ROTARY] kwarg {k_name}: {val}")
-                        try:
-                            import inspect
-                            print(f"[DEBUG ROTARY SOURCE] {inspect.getsource(original_apply)}")
-                        except Exception as e_source:
-                            print(f"[DEBUG ROTARY SOURCE FAILED] {e_source}")
-                        return original_apply(*args, **kwargs)
-                    
-                    modeling_llama.apply_rotary_pos_emb = debug_apply_rotary
-            except Exception as e_debug:
-                print(f"[DEBUG] Failed to patch rotary: {e_debug}")
-
         x = self._stack(tokens.float())
         if self.mode == "mlp":
             x = self.in_norm(x)
@@ -187,22 +157,19 @@ class Predictor(nn.Module):
             position_ids = torch.arange(x.shape[1], dtype=torch.long, device=x.device).unsqueeze(0).expand(x.shape[0], -1)
             position_embeddings = self.rotary_emb(x, position_ids)
             
-            for idx, layer in enumerate(self.layers):
-                print(f"[DEBUG LAYER LOOP] Layer {idx} input shape: {x.shape} is_nested: {getattr(x, 'is_nested', False)}")
+            # Create a 4D attention mask of zeros (batch, 1, seq, seq) to allow full bidirectional attention
+            # and avoid SDPA automatic causal masking or NestedTensor shape collapsing when mask is None.
+            attention_mask = torch.zeros(x.shape[0], 1, x.shape[1], x.shape[1], dtype=x.dtype, device=x.device)
+            
+            for layer in self.layers:
                 layer_outputs = layer(
                     x,
-                    attention_mask=None,
+                    attention_mask=attention_mask,
                     position_ids=position_ids,
                     position_embeddings=position_embeddings,
                     use_cache=False,
                 )
                 x = layer_outputs[0]
-                print(f"[DEBUG LAYER LOOP] Layer {idx} output shape: {x.shape} is_nested: {getattr(x, 'is_nested', False)}")
-                print(f"[DEBUG LAYER LOOP] Layer {idx} output class: {x.__class__.__name__} layout: {x.layout}")
-                try:
-                    print(f"[DEBUG LAYER LOOP] Layer {idx} output stride: {x.stride()}")
-                except Exception as e_stride:
-                    print(f"[DEBUG LAYER LOOP] Layer {idx} output stride failed: {e_stride}")
                 
             x = self.norm(x)
             z = self.head(x[:, 0])
