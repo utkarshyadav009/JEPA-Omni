@@ -6,7 +6,7 @@ def main():
     print("Loading Llama Model...")
     llama = LlamaModel.from_pretrained("meta-llama/Llama-3.2-1B", attn_implementation="sdpa")
     layer = llama.layers[-8] # Get the first layer of the last 8 layers
-    rotary_emb = llama.layers[0].self_attn.rotary_emb
+    rotary_emb = llama.rotary_emb if hasattr(llama, "rotary_emb") else llama.layers[0].self_attn.rotary_emb
     
     # Inputs
     B, S, H = 16, 8193, 2048
