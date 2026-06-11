@@ -149,11 +149,7 @@ class Predictor(nn.Module):
             cls = self.cls.expand(x.shape[0], -1, -1)
             x = torch.cat([cls, x], dim=1)
             
-            # Generate Rotary Position Embeddings (RoPE)
-            # We need the positions [0, 1, ..., seq_len - 1]
             position_ids = torch.arange(x.shape[1], dtype=torch.long, device=x.device).unsqueeze(0).expand(x.shape[0], -1)
-            # Grab the rotatory embedding module from the first layer we retained
-            position_embeddings = self.layers[0].self_attn.rotary_emb(x, position_ids)
             
             # Use a 4D attention mask of zeros to ensure no causal masking is applied.
             # Shape: (batch_size, 1, seq_len, seq_len)
@@ -167,7 +163,7 @@ class Predictor(nn.Module):
                 layer_outputs = layer(
                     x,
                     attention_mask=attn_mask,
-                    position_embeddings=position_embeddings,
+                    position_ids=position_ids,
                     use_cache=False,
                 )
                 x = layer_outputs[0]
