@@ -64,6 +64,37 @@ def main():
         print(f"  [attn] attn_output shape after o_proj: {attn_output.shape}")
         return attn_output, attn_weights
 
+    def custom_layer_forward(self, hidden_states, attention_mask=None, position_ids=None, past_key_values=None, use_cache=False, position_embeddings=None, **kwargs):
+        print(f"  [layer] hidden_states input: {hidden_states.shape}")
+        residual = hidden_states
+        hidden_states = self.input_layernorm(hidden_states)
+        print(f"  [layer] after input_layernorm: {hidden_states.shape}")
+        
+        # Self Attention
+        hidden_states, _ = self.self_attn(
+            hidden_states=hidden_states,
+            attention_mask=attention_mask,
+            position_ids=position_ids,
+            past_key_values=past_key_values,
+            use_cache=use_cache,
+            position_embeddings=position_embeddings,
+            **kwargs,
+        )
+        print(f"  [layer] after self_attn: {hidden_states.shape}")
+        hidden_states = residual + hidden_states
+        print(f"  [layer] after residual addition 1: {hidden_states.shape}")
+
+        # Fully Connected
+        residual = hidden_states
+        hidden_states = self.post_attention_layernorm(hidden_states)
+        print(f"  [layer] after post_attention_layernorm: {hidden_states.shape}")
+        hidden_states = self.mlp(hidden_states)
+        print(f"  [layer] after mlp: {hidden_states.shape}")
+        hidden_states = residual + hidden_states
+        print(f"  [layer] after residual addition 2: {hidden_states.shape}")
+        return hidden_states
+
+    layer.forward = types.MethodType(custom_layer_forward, layer)
     layer.self_attn.forward = types.MethodType(custom_attn_forward, layer.self_attn)
 
     try:
@@ -89,9 +120,7 @@ def main():
             position_embeddings=position_embeddings,
             use_cache=False,
         )
-        print(f"Output element 0 shape: {out[0].shape}")
-        print(f"Output element 0 layout: {out[0].layout}")
-        print(f"Output element 0 is_nested: {getattr(out[0], 'is_nested', False)}")
+        print(f"Output shape: {out.shape if isinstance(out, torch.Tensor) else out[0].shape}")
     except Exception as e:
         print(f"Test 2 failed: {e}")
 
