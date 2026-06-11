@@ -112,6 +112,11 @@ class Predictor(nn.Module):
             self.layers = nn.ModuleList(llama.layers[-8:])
             self.norm = llama.norm
             
+            if hasattr(llama, "rotary_emb"):
+                self.rotary_emb = llama.rotary_emb
+            else:
+                self.rotary_emb = llama.layers[0].self_attn.rotary_emb
+            
             for layer in self.layers:
                 if hasattr(layer.self_attn, "is_causal"):
                     layer.self_attn.is_causal = False
@@ -150,6 +155,7 @@ class Predictor(nn.Module):
             x = torch.cat([cls, x], dim=1)
             
             position_ids = torch.arange(x.shape[1], dtype=torch.long, device=x.device).unsqueeze(0).expand(x.shape[0], -1)
+            position_embeddings = self.rotary_emb(x, position_ids)
             
             # Use a 4D attention mask of zeros to ensure no causal masking is applied.
             # Shape: (batch_size, 1, seq_len, seq_len)
@@ -164,6 +170,7 @@ class Predictor(nn.Module):
                     x,
                     attention_mask=attn_mask,
                     position_ids=position_ids,
+                    position_embeddings=position_embeddings,
                     use_cache=False,
                 )
                 x = layer_outputs[0]
