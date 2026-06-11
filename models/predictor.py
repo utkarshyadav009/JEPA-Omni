@@ -151,7 +151,12 @@ class Predictor(nn.Module):
             z = self.head(self.out_norm(x[:, 0]))
         elif self.mode == "llama_last8":
             x = self.in_proj(x)
-            cls = self.cls.expand(x.shape[0], -1, -1)
+            
+            # Match the Llama parameters' dtype (usually bfloat16)
+            llama_dtype = next(self.layers.parameters()).dtype
+            x = x.to(dtype=llama_dtype)
+            
+            cls = self.cls.expand(x.shape[0], -1, -1).to(dtype=llama_dtype)
             x = torch.cat([cls, x], dim=1)
             
             position_ids = torch.arange(x.shape[1], dtype=torch.long, device=x.device).unsqueeze(0).expand(x.shape[0], -1)
@@ -175,7 +180,8 @@ class Predictor(nn.Module):
                     x = layer_outputs
                 
             x = self.norm(x)
-            z = self.head(x[:, 0])
+            # Cast back to head weight dtype (usually float32) before linear projection
+            z = self.head(x[:, 0].to(dtype=self.head.weight.dtype))
             
         return F.normalize(z, dim=-1)
 
