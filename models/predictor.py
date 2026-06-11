@@ -157,6 +157,14 @@ class Predictor(nn.Module):
             position_ids = torch.arange(x.shape[1], dtype=torch.long, device=x.device).unsqueeze(0).expand(x.shape[0], -1)
             position_embeddings = self.rotary_emb(x, position_ids)
             
+            print(f"[DEBUG] x shape: {x.shape}")
+            print(f"[DEBUG] position_ids shape: {position_ids.shape}")
+            print(f"[DEBUG] position_embeddings[0] shape: {position_embeddings[0].shape}")
+            print(f"[DEBUG] position_embeddings[1] shape: {position_embeddings[1].shape}")
+            print(f"[DEBUG] layer 0 q_proj weight shape: {self.layers[0].self_attn.q_proj.weight.shape}")
+            print(f"[DEBUG] layer 0 head_dim: {self.layers[0].self_attn.head_dim}")
+            print(f"[DEBUG] layer 0 num_heads: {self.layers[0].self_attn.num_heads}")
+            
             # Use a 4D attention mask of zeros to ensure no causal masking is applied.
             # Shape: (batch_size, 1, seq_len, seq_len)
             # Additive mask: 0.0 means keep, large negative would mean drop.
