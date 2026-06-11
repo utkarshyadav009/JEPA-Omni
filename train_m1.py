@@ -346,6 +346,9 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
     acc_ema: Optional[float] = None
     m0_losses: List[float] = []
     m0_reported = False
+    m0_accs: List[float] = []           
+    m0_uniformities: List[float] = []  
+  
 
     model.train()
     for step in range(total_steps):
@@ -378,7 +381,11 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
             align_val = reduce_mean(diag["alignment"].detach()).item()
             unif_val = reduce_mean(diag["uniformity"].detach()).item()
             acc_ema = acc_val if acc_ema is None else 0.9 * acc_ema + 0.1 * acc_val
-
+            
+            if not m0_reported: 
+                m0_accs.append(acc_val)
+                m0_uniformities.append(unif_val)
+            
             if is_main_process():
                 lr_now = scheduler.get_last_lr()[0]
                 print(
@@ -397,7 +404,7 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
 
         # M0 gate: did the loss decrease over the first few hundred steps?
         if not m0_reported and (step + 1) >= m0_gate_steps:
-            _report_m0_gate(m0_losses)
+            _report_m0_gate(m0_losses, m0_accs, m0_uniformities)
             m0_reported = True
 
         if is_main_process() and save_every > 0 and (step + 1) % save_every == 0:

@@ -346,6 +346,9 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
     acc_ema: Optional[float] = None
     m0_losses: List[float] = []
     m0_reported = False
+    m0_accs: List[float] = []           
+    m0_uniformities: List[float] = []  
+  
 
     model.train()
     for step in range(total_steps):
@@ -378,7 +381,11 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
             align_val = reduce_mean(diag["alignment"].detach()).item()
             unif_val = reduce_mean(diag["uniformity"].detach()).item()
             acc_ema = acc_val if acc_ema is None else 0.9 * acc_ema + 0.1 * acc_val
-
+            
+            if not m0_reported: 
+                m0_accs.append(acc_val)
+                m0_uniformities.append(unif_val)
+            
             if is_main_process():
                 lr_now = scheduler.get_last_lr()[0]
                 print(
@@ -397,7 +404,7 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
 
         # M0 gate: did the loss decrease over the first few hundred steps?
         if not m0_reported and (step + 1) >= m0_gate_steps:
-            _report_m0_gate(m0_losses)
+            _report_m0_gate(m0_losses, m0_accs, m0_uniformities)
             m0_reported = True
 
         if is_main_process() and save_every > 0 and (step + 1) % save_every == 0:
@@ -420,22 +427,38 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
     cleanup_distributed()
 
 
-def _report_m0_gate(losses: List[float]) -> None:
-    """Print a clear PASS/FAIL line: did training loss decrease early on?"""
+def _report_m0_gate(
+    losses: List[float], 
+    accs_v2t: List[float], 
+    uniformities: List[float],
+    chance_acc: float = 0.1250
+) -> bool:
     if not is_main_process() or len(losses) < 4:
-        return
+        return True
+        
     window = max(1, min(50, len(losses) // 3))
-    early = sum(losses[:window]) / window
-    late = sum(losses[-window:]) / window
-    passed = late < early  # strictly lower => loss is decreasing
-    status = "PASS" if passed else "FAIL"
-    print(
-        f"[M0 GATE] {status}: loss over first {len(losses)} steps "
-        f"early({window})={early:.4f} -> late({window})={late:.4f} "
-        f"(delta={late - early:+.4f}); expected decrease.",
-        flush=True,
-    )
-
+    
+    recent_acc = sum(accs_v2t[-window:]) / window
+    recent_uniformity = sum(uniformities[-window:]) / window
+    
+    early_loss = sum(losses[:window]) / window
+    late_loss = sum(losses[-window:]) / window
+    
+    loss_decreased = late_loss < early_loss
+    acc_passed = recent_acc > (chance_acc + 0.05) 
+    uniformity_passed = recent_uniformity < -0.20 
+    
+    overall_passed = loss_decreased and acc_passed and uniformity_passed
+    status = "PASS" if overall_passed else "FAIL"
+    
+    print("\n--- [M0 GATE CHECK] ---", flush=True)
+    print(f"STATUS: {status}", flush=True)
+    print(f"  1. Loss Trend:   {'PASS' if loss_decreased else 'FAIL'} | early({window})={early_loss:.4f} -> late({window})={late_loss:.4f} (delta={late_loss - early_loss:+.4f})", flush=True)
+    print(f"  2. Accuracy V2T: {'PASS' if acc_passed else 'FAIL'} | recent_avg={recent_acc:.4f}", flush=True)
+    print(f"  3. Uniformity:   {'PASS' if uniformity_passed else 'FAIL'} | recent_avg={recent_uniformity:.4f}", flush=True)
+    print("-----------------------\n", flush=True)
+    
+    return overall_passed
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train the M1 video/text spine.")
