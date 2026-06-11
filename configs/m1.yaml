@@ -8,14 +8,14 @@ precision: bf16
 
 model:
   vision_repo: facebook/vjepa2-vitl-fpc64-256   # MIT, ungated
-  text_backbone: minilm        # FAITHFUL: embeddinggemma  (GATED: accept license + HF_TOKEN)
-  predictor_mode: mlp          # FAITHFUL: llama_last8 (agent task) or "transformer"
+  text_backbone: embeddinggemma        # FAITHFUL: embeddinggemma  (GATED: accept license + HF_TOKEN)
+  predictor_mode: llama_last8        # FAITHFUL: llama_last8 (agent task) or "transformer"
   shared_dim: 1536             # VL-JEPA shared space
   temperature: 0.07
   stack_factor: 1
   predictor_layers: 4
   text_max_length: 512
-  unfreeze_text: false         # FAITHFUL: true (with optim.text_lr_mult below)
+  unfreeze_text: true         # FAITHFUL: true (with optim.text_lr_mult below)
 
 data:
   name: msrvtt

@@ -436,13 +436,17 @@ def _report_m0_gate(
     if not is_main_process() or len(losses) < 4:
         return True
         
-    window = max(1, min(50, len(losses) // 3))
+    # Loss window uses the full step count (e.g., 50)
+    loss_window = max(1, min(50, len(losses) // 3))
     
-    recent_acc = sum(accs_v2t[-window:]) / window
-    recent_uniformity = sum(uniformities[-window:]) / window
+    # Acc/Unif window uses the smaller logged count (e.g., 50 / 20 = ~3)
+    metric_window = max(1, len(accs_v2t) // 3) 
     
-    early_loss = sum(losses[:window]) / window
-    late_loss = sum(losses[-window:]) / window
+    recent_acc = sum(accs_v2t[-metric_window:]) / metric_window
+    recent_uniformity = sum(uniformities[-metric_window:]) / metric_window
+    
+    early_loss = sum(losses[:loss_window]) / loss_window
+    late_loss = sum(losses[-loss_window:]) / loss_window
     
     loss_decreased = late_loss < early_loss
     acc_passed = recent_acc > (chance_acc + 0.05) 
@@ -453,10 +457,9 @@ def _report_m0_gate(
     
     print("\n--- [M0 GATE CHECK] ---", flush=True)
     print(f"STATUS: {status}", flush=True)
-    print(f"  1. Loss Trend:   {'PASS' if loss_decreased else 'FAIL'} | early({window})={early_loss:.4f} -> late({window})={late_loss:.4f} (delta={late_loss - early_loss:+.4f})", flush=True)
-    print(f"  2. Accuracy V2T: {'PASS' if acc_passed else 'FAIL'} | recent_avg={recent_acc:.4f}", flush=True)
-    print(f"  3. Uniformity:   {'PASS' if uniformity_passed else 'FAIL'} | recent_avg={recent_uniformity:.4f}", flush=True)
-    print("-----------------------\n", flush=True)
+    print(f"  1. Loss Trend:   {'PASS' if loss_decreased else 'FAIL'} | early({loss_window})={early_loss:.4f} -> late({loss_window})={late_loss:.4f} (delta={late_loss - early_loss:+.4f})", flush=True)
+    print(f"  2. Accuracy V2T: {'PASS' if acc_passed else 'FAIL'} | recent_avg({metric_window})={recent_acc:.4f}", flush=True)
+    print(f"  3. Uniformity:   {'PASS' if uniformity_passed else 'FAIL'} | recent_avg({metric_window})={recent_uniformity:.4f}", flush=True)
     
     return overall_passed
 
