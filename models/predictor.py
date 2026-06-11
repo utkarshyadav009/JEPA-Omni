@@ -103,7 +103,7 @@ class Predictor(nn.Module):
             except ImportError:
                 raise ImportError("mode='llama_last8' requires the transformers library.")
             
-            llama = LlamaModel.from_pretrained("meta-llama/Llama-3.2-1B", attn_implementation="eager")
+            llama = LlamaModel.from_pretrained("meta-llama/Llama-3.2-1B", attn_implementation="sdpa")
             hidden_size = llama.config.hidden_size
             
             self.in_proj = nn.Linear(eff_in, hidden_size)
@@ -137,37 +137,6 @@ class Predictor(nn.Module):
 
     def forward(self, tokens: torch.Tensor) -> torch.Tensor:
         """tokens: (B, N, in_dim) from the frozen encoder -> (B, shared_dim) normalized."""
-        # Monkey patch LlamaAttention.forward to debug shapes on error
-        if self.mode == "llama_last8":
-            try:
-                import transformers.models.llama.modeling_llama as modeling_llama
-                if not hasattr(modeling_llama.LlamaAttention, "_original_forward"):
-                    original_forward = modeling_llama.LlamaAttention.forward
-                    modeling_llama.LlamaAttention._original_forward = original_forward
-                    
-                    def debug_forward(self_attn, hidden_states, *args, **kwargs):
-                        try:
-                            return original_forward(self_attn, hidden_states, *args, **kwargs)
-                        except Exception as e:
-                            print(f"[DEBUG ATTN ERROR] self_attn class: {self_attn.__class__.__name__}")
-                            print(f"[DEBUG ATTN ERROR] hidden_states shape: {hidden_states.shape}")
-                            print(f"[DEBUG ATTN ERROR] head_dim: {self_attn.head_dim}")
-                            q = self_attn.q_proj(hidden_states)
-                            k = self_attn.k_proj(hidden_states)
-                            print(f"[DEBUG ATTN ERROR] q_proj output shape: {q.shape}")
-                            print(f"[DEBUG ATTN ERROR] k_proj output shape: {k.shape}")
-                            for k_name, val in kwargs.items():
-                                if isinstance(val, torch.Tensor):
-                                    print(f"[DEBUG ATTN ERROR] kwarg {k_name} shape: {val.shape}")
-                                elif isinstance(val, tuple):
-                                    shapes = [t.shape for t in val if isinstance(t, torch.Tensor)]
-                                    print(f"[DEBUG ATTN ERROR] kwarg {k_name} shapes: {shapes}")
-                            raise e
-                    
-                    modeling_llama.LlamaAttention.forward = debug_forward
-            except Exception as e_debug:
-                print(f"[DEBUG] Failed to monkey patch: {e_debug}")
-
         x = self._stack(tokens.float())
         if self.mode == "mlp":
             x = self.in_norm(x)
@@ -188,31 +157,10 @@ class Predictor(nn.Module):
             position_ids = torch.arange(x.shape[1], dtype=torch.long, device=x.device).unsqueeze(0).expand(x.shape[0], -1)
             position_embeddings = self.rotary_emb(x, position_ids)
             
-            print(f"[DEBUG] x shape: {x.shape}")
-            print(f"[DEBUG] position_ids shape: {position_ids.shape}")
-            print(f"[DEBUG] position_embeddings[0] shape: {position_embeddings[0].shape}")
-            print(f"[DEBUG] position_embeddings[1] shape: {position_embeddings[1].shape}")
-            print(f"[DEBUG] layer 0 q_proj weight shape: {self.layers[0].self_attn.q_proj.weight.shape}")
-            print(f"[DEBUG] layer 0 head_dim: {self.layers[0].self_attn.head_dim}")
-            print(f"[DEBUG] self_attn attributes: {dir(self.layers[0].self_attn)}")
-            try:
-                q_proj_out = self.layers[0].self_attn.q_proj(x)
-                print(f"[DEBUG] q_proj_out shape: {q_proj_out.shape}")
-            except Exception as e:
-                print(f"[DEBUG] q_proj failed: {e}")
-            
-            # Use a 4D attention mask of zeros to ensure no causal masking is applied.
-            # Shape: (batch_size, 1, seq_len, seq_len)
-            # Additive mask: 0.0 means keep, large negative would mean drop.
-            attn_mask = torch.zeros(
-                x.shape[0], 1, x.shape[1], x.shape[1],
-                device=x.device, dtype=x.dtype
-            )
-            
             for layer in self.layers:
                 layer_outputs = layer(
                     x,
-                    attention_mask=attn_mask,
+                    attention_mask=None,
                     position_ids=position_ids,
                     position_embeddings=position_embeddings,
                     use_cache=False,
