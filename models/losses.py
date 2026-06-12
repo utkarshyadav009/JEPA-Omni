@@ -1,30 +1,47 @@
 """
 models/losses.py
 
-Bi-directional InfoNCE (the VL-JEPA / CLIP objective), which the VL-JEPA paper
-(2512.10942) decomposes into:
-  1) an alignment term  -> pulls matched (video, text) embeddings together, and
-  2) a uniformity term  -> spreads embeddings on the hypersphere (anti-collapse).
-The InfoNCE denominator (negatives) IS the uniformity pressure; that is why InfoNCE
-needs no separate EMA target to avoid collapse. We additionally log the explicit
-alignment/uniformity diagnostics of Wang & Isola for monitoring.
+Bi-directional InfoNCE (the VL-JEPA / CLIP objective), decomposed into an alignment
+term (pull matched pairs together) and a uniformity term (spread on the hypersphere;
+anti-collapse). The InfoNCE denominator (negatives) IS the uniformity pressure.
 
-Inputs are assumed L2-normalized (the encoders normalize their outputs).
+Two entry points:
+  * info_nce(z_v, z_t)                     -> in-batch negatives only (B-1 per sample)
+  * info_nce_with_queue(z_v, z_t, neg_*)   -> in-batch + a MoCo-style negative queue,
+                                              so the effective #negatives is B-1 + K.
+
+Why the queue matters here: on one H100 the physical batch caps at ~8, so plain
+InfoNCE only ever contrasts against 7 negatives. The model then trains on an 8-way
+problem but is *evaluated* on 1000-way retrieval -- far too easy at train time, which
+caps the learned representation. The queue decouples the contrastive difficulty from
+the GPU batch size.
+
+Inputs are assumed L2-normalized. Queue negatives are DETACHED (no gradient flows into
+stale embeddings); gradients flow only through the current batch's z_v / z_t.
 """
 
 from __future__ import annotations
 
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 import torch
 import torch.nn.functional as F
+from torch import Tensor
+
+
+def _diagnostics(z_v: Tensor, z_t: Tensor) -> Tuple[float, float]:
+    """Wang & Isola alignment / uniformity on the current batch (monitoring only)."""
+    alignment = (z_v - z_t).pow(2).sum(-1).mean().item()
+    sq = torch.pdist(torch.cat([z_v, z_t], 0), p=2).pow(2)
+    uniformity = sq.mul(-2).exp().mean().clamp_min(1e-12).log().item()
+    return alignment, uniformity
 
 
 def info_nce(
-    z_v: torch.Tensor,        # (B, D) normalized video embeddings
-    z_t: torch.Tensor,        # (B, D) normalized text embeddings
+    z_v: Tensor,              # (B, D) normalized video embeddings
+    z_t: Tensor,              # (B, D) normalized text embeddings
     temperature: float = 0.07,
-) -> Tuple[torch.Tensor, Dict[str, float]]:
+) -> Tuple[Tensor, Dict[str, float]]:
     logits = (z_v @ z_t.t()) / temperature      # (B, B)
     targets = torch.arange(z_v.shape[0], device=z_v.device)
     loss_v2t = F.cross_entropy(logits, targets)
@@ -32,32 +49,71 @@ def info_nce(
     loss = 0.5 * (loss_v2t + loss_t2v)
 
     with torch.no_grad():
-        # in-batch retrieval accuracy (proxy for the M1 gate)
         acc_v2t = (logits.argmax(dim=1) == targets).float().mean().item()
         acc_t2v = (logits.t().argmax(dim=1) == targets).float().mean().item()
-        # Wang & Isola diagnostics
-        alignment = (z_v - z_t).pow(2).sum(-1).mean().item()
-        sq = torch.pdist(torch.cat([z_v, z_t], 0), p=2).pow(2)
-        uniformity = sq.mul(-2).exp().mean().clamp_min(1e-12).log().item()
+        alignment, uniformity = _diagnostics(z_v, z_t)
 
-    metrics = {
-        "loss": loss.item(),
-        "loss_v2t": loss_v2t.item(),
-        "loss_t2v": loss_t2v.item(),
-        "acc_v2t": acc_v2t,
-        "acc_t2v": acc_t2v,
-        "alignment": alignment,
-        "uniformity": uniformity,
+    return loss, {
+        "loss": loss.item(), "loss_v2t": loss_v2t.item(), "loss_t2v": loss_t2v.item(),
+        "acc_v2t": acc_v2t, "acc_t2v": acc_t2v,
+        "alignment": alignment, "uniformity": uniformity, "queue_negatives": 0,
     }
-    return loss, metrics
+
+
+def info_nce_with_queue(
+    z_v: Tensor,                       # (B, D) current-batch video embeds (grad)
+    z_t: Tensor,                       # (B, D) current-batch text embeds (grad)
+    neg_t: Optional[Tensor] = None,    # (Kt, D) queued TEXT negatives for v->t (detached)
+    neg_v: Optional[Tensor] = None,    # (Kv, D) queued VIDEO negatives for t->v (detached)
+    temperature: float = 0.07,
+) -> Tuple[Tensor, Dict[str, float]]:
+    """InfoNCE where the positive for row i is the in-batch diagonal (column i), and the
+    queue contributes EXTRA negative columns. The positive is always a fresh in-batch
+    pair, never a queued (stale) one."""
+    B = z_v.shape[0]
+    targets = torch.arange(B, device=z_v.device)
+
+    # v -> t : [ in-batch (B) | queued text (Kt) ]   positive at column i
+    logits_v = z_v @ z_t.t()                                  # (B, B)
+    if neg_t is not None and neg_t.numel() > 0:
+        logits_v = torch.cat([logits_v, z_v @ neg_t.t()], dim=1)   # (B, B+Kt)
+    logits_v = logits_v / temperature
+    loss_v2t = F.cross_entropy(logits_v, targets)
+
+    # t -> v : [ in-batch (B) | queued video (Kv) ]
+    logits_t = z_t @ z_v.t()                                  # (B, B)
+    if neg_v is not None and neg_v.numel() > 0:
+        logits_t = torch.cat([logits_t, z_t @ neg_v.t()], dim=1)   # (B, B+Kv)
+    logits_t = logits_t / temperature
+    loss_t2v = F.cross_entropy(logits_t, targets)
+
+    loss = 0.5 * (loss_v2t + loss_t2v)
+
+    with torch.no_grad():
+        # acc is now over the FULL (B + K)-way problem -> a real proxy for retrieval,
+        # not the easy 8-way number that used to saturate at 1.0.
+        acc_v2t = (logits_v.argmax(dim=1) == targets).float().mean().item()
+        acc_t2v = (logits_t.argmax(dim=1) == targets).float().mean().item()
+        alignment, uniformity = _diagnostics(z_v, z_t)
+        n_neg = int(neg_t.shape[0]) if (neg_t is not None) else 0
+
+    return loss, {
+        "loss": loss.item(), "loss_v2t": loss_v2t.item(), "loss_t2v": loss_t2v.item(),
+        "acc_v2t": acc_v2t, "acc_t2v": acc_t2v,
+        "alignment": alignment, "uniformity": uniformity, "queue_negatives": n_neg,
+    }
 
 
 if __name__ == "__main__":
     torch.manual_seed(0)
     v = F.normalize(torch.randn(8, 1536), dim=-1)
     t = F.normalize(torch.randn(8, 1536), dim=-1)
-    # perfectly-aligned case should give near-0 loss and acc ~1.0
-    loss_rand, m_rand = info_nce(v, t)
-    loss_aligned, m_aligned = info_nce(v, v)
-    print(f"[losses] random:  loss={m_rand['loss']:.3f} acc_v2t={m_rand['acc_v2t']:.2f}")
-    print(f"[losses] aligned: loss={m_aligned['loss']:.3f} acc_v2t={m_aligned['acc_v2t']:.2f}")
+    qv = F.normalize(torch.randn(2048, 1536), dim=-1)
+    qt = F.normalize(torch.randn(2048, 1536), dim=-1)
+    l0, m0 = info_nce(v, t)
+    l1, m1 = info_nce_with_queue(v, t, neg_t=qt, neg_v=qv)
+    print(f"[losses] in-batch only : loss={m0['loss']:.3f} acc_v2t={m0['acc_v2t']:.2f} negs={m0['queue_negatives']}")
+    print(f"[losses] with queue    : loss={m1['loss']:.3f} acc_v2t={m1['acc_v2t']:.2f} negs={m1['queue_negatives']}")
+    # aligned sanity: identical embeds -> ~0 loss even against a big queue
+    la, ma = info_nce_with_queue(v, v, neg_t=qt, neg_v=qv)
+    print(f"[losses] aligned+queue : loss={ma['loss']:.3f} acc_v2t={ma['acc_v2t']:.2f}")

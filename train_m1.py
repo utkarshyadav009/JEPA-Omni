@@ -431,7 +431,7 @@ def _report_m0_gate(
     losses: List[float], 
     accs_v2t: List[float], 
     uniformities: List[float],
-    chance_acc: float = 0.1250
+    chance_acc: float = 0.0005
 ) -> bool:
     if not is_main_process() or len(losses) < 4:
         return True

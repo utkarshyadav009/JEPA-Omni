@@ -16,6 +16,7 @@ model:
   predictor_layers: 4
   text_max_length: 512
   unfreeze_text: true         # FAITHFUL: true (with optim.text_lr_mult below)
+  queue_size: 2048
 
 data:
   name: msrvtt
