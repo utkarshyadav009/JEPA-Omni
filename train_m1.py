@@ -308,18 +308,29 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
     filtered_config = {k: v for k, v in model_config.items() if k in valid_fields}
     spine = SpineM1(SpineConfig(**filtered_config)).to(device)
 
-    loss_type = cfg_get(cfg, "model.loss_type", default="info_nce")
+    loss_type = cfg_get(cfg, "train.loss_type", "model.loss_type", default="info_nce")
     loss_fn = compute_siglip_loss if loss_type == "siglip" else info_nce
 
-    if loss_type == "siglip":
-        import types
-        def new_forward(self, videos, texts):
+    import types
+    def dynamic_forward(self, videos, texts: List[str]):
+        if isinstance(videos, torch.Tensor) and videos.dim() == 3:
+            z_v = self.predictor(videos)
+        else:
             z_v = self.embed_video(videos)
-            z_t = self.embed_text(texts)
+        z_t = self.embed_text(texts)
+        if loss_type == "siglip":
             return z_v, z_t
-        spine.forward = types.MethodType(new_forward, spine)
+        if self.queue_size > 0 and z_v.requires_grad:
+            neg_v, neg_t = self._valid_queue()
+            loss, metrics = info_nce_with_queue(
+                z_v, z_t, neg_t=neg_t, neg_v=neg_v, temperature=self.cfg.temperature)
+            self._enqueue(z_v, z_t)
+            return loss, metrics
+        return info_nce(z_v, z_t, self.cfg.temperature)
 
-    accum_steps = int(cfg_get(cfg, "optim.gradient_accumulation_steps", default=1))
+    spine.forward = types.MethodType(dynamic_forward, spine)
+
+    accum_steps = int(cfg_get(cfg, "train.gradient_accumulation_steps", "optim.gradient_accumulation_steps", default=1))
 
 
     optimizer = build_optimizer(spine, cfg)
@@ -359,8 +370,8 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
             flush=True,
         )
 
-    best_acc_v2t = -1.0
-    acc_ema: Optional[float] = None
+    best_loss = float("inf")
+    loss_ema: Optional[float] = None
     m0_losses: List[float] = []
     m0_reported = False
     m0_accs: List[float] = []           
@@ -372,8 +383,20 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
     for step in range(total_steps):
         clips, captions = next(batches)
 
+        micro_chunk = cfg.train.get("micro_chunk", 8)
+        raw_spine = model.module if isinstance(model, DDP) else model
+
+        with torch.no_grad():
+            chunked_feats = []
+            for i in range(0, len(clips), micro_chunk):
+                chunk = clips[i : i + micro_chunk]
+                with torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=amp_enabled):
+                    chunk_feats = raw_spine.encoder(chunk)
+                chunked_feats.append(chunk_feats)
+            feats = torch.cat(chunked_feats, dim=0)
+
         with torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=amp_enabled):
-            out = model(clips, captions)
+            out = model(feats, captions)
             loss, zv, zt = resolve_outputs(out, loss_fn)
 
         loss_accum = loss / accum_steps
@@ -388,20 +411,20 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
 
         loss_val = reduce_mean(loss.detach()).item()
         m0_losses.append(loss_val)
+        loss_ema = loss_val if loss_ema is None else 0.9 * loss_ema + 0.1 * loss_val
 
         is_log_step = step % log_every == 0 or step == total_steps - 1
         if is_log_step:
             # Diagnostics use the embeddings from the forward pass when present,
-            # otherwise a cheap no-grad re-embed (only on log steps).
+            # otherwise a cheap no-grad re-embed (only on log steps) using the precomputed features.
             if zv is None or zt is None:
                 with torch.no_grad():
-                    zv = spine.embed_video(clips)
+                    zv = spine.predictor(feats)
                     zt = spine.embed_text(captions)
             diag = diagnostics(zv, zt)
             acc_val = reduce_mean(diag["acc_v2t"].detach()).item()
             align_val = reduce_mean(diag["alignment"].detach()).item()
             unif_val = reduce_mean(diag["uniformity"].detach()).item()
-            acc_ema = acc_val if acc_ema is None else 0.9 * acc_ema + 0.1 * acc_val
             
             if not m0_reported: 
                 m0_accs.append(acc_val)
@@ -416,11 +439,11 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
                     f"lr={lr_now:.2e}",
                     flush=True,
                 )
-                if acc_ema is not None and acc_ema > best_acc_v2t:
-                    best_acc_v2t = acc_ema
+                if loss_ema is not None and loss_ema < best_loss:
+                    best_loss = loss_ema
                     save_checkpoint(
                         os.path.join(ckpt_dir, "best.pt"),
-                        spine, model_config, step, best_acc_v2t,
+                        spine, model_config, step, best_loss,
                     )
 
         # M0 gate: did the loss decrease over the first few hundred steps?
@@ -431,16 +454,16 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
         if is_main_process() and save_every > 0 and (step + 1) % save_every == 0:
             save_checkpoint(
                 os.path.join(ckpt_dir, "last.pt"),
-                spine, model_config, step, best_acc_v2t,
+                spine, model_config, step, best_loss,
             )
 
     if is_main_process():
         save_checkpoint(
             os.path.join(ckpt_dir, "last.pt"),
-            spine, model_config, total_steps - 1, best_acc_v2t,
+            spine, model_config, total_steps - 1, best_loss,
         )
         print(
-            f"[train] done. best smoothed acc_v2t={best_acc_v2t:.4f} "
+            f"[train] done. best smoothed loss={best_loss:.4f} "
             f"(checkpoints in {ckpt_dir})",
             flush=True,
         )

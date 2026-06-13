@@ -42,7 +42,8 @@ def load_spine(cfg: AttrDict, checkpoint: Optional[str], device: torch.device) -
             # Rebuild with the exact architecture the checkpoint was trained with.
             model_config = {**model_config, **ckpt_cfg}
     
-    model_config.pop("loss_type", None)
+    for flag in ["loss_type", "micro_chunk"]:
+        model_config.pop(flag, None)
     spine = SpineM1(SpineConfig(**model_config)).to(device)
     if state is not None:
         missing, unexpected = spine.load_state_dict(state["model"], strict=False)

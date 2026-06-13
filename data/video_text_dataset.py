@@ -79,30 +79,22 @@ def _resolve_video_path(video_dir: str, video_id: str) -> str:
     return os.path.join(video_dir, video_id + ".mp4")
 
 
-def _parse_videodatainfo(
-    annotation_file: str,
-    video_dir: str,
+def _parse_videodatainfo_blob(
+    blob: Any,
     split_filter: Optional[str],
 ) -> List[Tuple[str, str]]:
-    """Parse a MSR-VTT ``*_videodatainfo.json`` file into (video_id, caption)."""
-    with open(annotation_file, "r", encoding="utf-8") as fh:
-        blob = json.load(fh)
-
+    """Parse a MSR-VTT videodatainfo dict or list into (video_id, caption)."""
     if isinstance(blob, list):
         pairs: List[Tuple[str, str]] = []
         for item in blob:
             vid = item.get("video_id") or item.get("video")
             captions = item.get("caption", [])
             
-            # If it's a single string for some reason, wrap it in a list
             if isinstance(captions, str):
                 captions = [captions]
                 
             if vid and captions:
-                # Strip out file extensions from the ID if 'video' key was used (e.g. 'video0.mp4' -> 'video0')
                 clean_vid = os.path.splitext(str(vid))[0]
-                
-                # Register every caption string for this video ID
                 for cap in captions:
                     if str(cap).strip():
                         pairs.append((clean_vid, str(cap).strip()))
@@ -125,6 +117,74 @@ def _parse_videodatainfo(
             continue
         pairs.append((vid, sent["caption"].strip()))
     return pairs
+
+
+def _parse_videodatainfo(
+    annotation_file: str,
+    video_dir: str,
+    split_filter: Optional[str],
+) -> List[Tuple[str, str]]:
+    """Parse a MSR-VTT ``*_videodatainfo.json`` file into (video_id, caption)."""
+    with open(annotation_file, "r", encoding="utf-8") as fh:
+        blob = json.load(fh)
+    return _parse_videodatainfo_blob(blob, split_filter)
+
+
+def _parse_vatex_blob(blob: Any) -> List[Tuple[str, str]]:
+    """Parse VATEX JSON blob into (video_id, caption) pairs."""
+    pairs: List[Tuple[str, str]] = []
+    if isinstance(blob, list):
+        for item in blob:
+            vid = item.get("videoID")
+            encap = item.get("enCap", [])
+            if isinstance(encap, str):
+                encap = [encap]
+            if vid and encap:
+                clean_vid = os.path.splitext(str(vid))[0]
+                for cap in encap:
+                    if str(cap).strip():
+                        pairs.append((clean_vid, str(cap).strip()))
+    return pairs
+
+
+def _parse_vatex(annotation_file: str) -> List[Tuple[str, str]]:
+    """Parse VATEX JSON file into (video_id, caption) pairs."""
+    with open(annotation_file, "r", encoding="utf-8") as fh:
+        blob = json.load(fh)
+    return _parse_vatex_blob(blob)
+
+
+def _detect_and_parse_json(
+    annotation_file: str,
+    video_dir: str,
+    split_filter: Optional[str],
+) -> List[Tuple[str, str]]:
+    """Detect JSON format (MSR-VTT or VATEX) and parse it."""
+    lower_name = os.path.basename(annotation_file).lower()
+    if "vatex" in lower_name:
+        return _parse_vatex(annotation_file)
+    if "msrvtt" in lower_name or "videodatainfo" in lower_name:
+        return _parse_videodatainfo(annotation_file, video_dir, split_filter)
+
+    # Fallback to structure-based detection
+    with open(annotation_file, "r", encoding="utf-8") as fh:
+        blob = json.load(fh)
+
+    if isinstance(blob, dict):
+        if "videos" in blob or "sentences" in blob:
+            return _parse_videodatainfo_blob(blob, split_filter)
+    elif isinstance(blob, list):
+        if not blob:
+            return []
+        first = blob[0]
+        if isinstance(first, dict):
+            if "videoID" in first or "enCap" in first:
+                return _parse_vatex_blob(blob)
+            else:
+                return _parse_videodatainfo_blob(blob, split_filter)
+
+    return _parse_videodatainfo_blob(blob, split_filter)
+
 
 
 def _parse_csv(annotation_file: str) -> List[Tuple[str, str]]:
@@ -182,8 +242,8 @@ class MSRVTTVideoTextDataset(Dataset):
 
     def __init__(
         self,
-        video_dir: str,
-        annotation_file: str,
+        video_dir: str | List[str],
+        annotation_file: str | List[str],
         num_frames: int,
         resolution: int,
         *,
@@ -207,23 +267,54 @@ class MSRVTTVideoTextDataset(Dataset):
         self.decode_device = decode_device
         self._rng = random.Random(seed)
 
-        ext = os.path.splitext(annotation_file)[1].lower()
-        if ext == ".csv":
-            raw_pairs = _parse_csv(annotation_file)
+        # Handle list vs string for multi-dataset ingestion
+        if isinstance(annotation_file, list):
+            annos = annotation_file
         else:
-            raw_pairs = _parse_videodatainfo(annotation_file, video_dir, split_filter)
+            annos = [annotation_file]
 
-        per_video_count: Dict[str, int] = {}
+        if isinstance(video_dir, list):
+            vdirs = video_dir
+        else:
+            vdirs = [video_dir]
+
+        if len(vdirs) == 1 and len(annos) > 1:
+            vdirs = vdirs * len(annos)
+        elif len(annos) == 1 and len(vdirs) > 1:
+            annos = annos * len(vdirs)
+
+        if len(vdirs) != len(annos):
+            raise ValueError(
+                f"Mismatch between number of video_dirs ({len(vdirs)}) and annotation_files ({len(annos)})"
+            )
+
+        video_id_to_source: Dict[str, int] = {}
         samples: List[Sample] = []
-        for vid, caption in raw_pairs:
-            if captions_per_video is not None:
-                if per_video_count.get(vid, 0) >= captions_per_video:
+
+        for source_idx, (vdir, anno) in enumerate(zip(vdirs, annos)):
+            ext = os.path.splitext(anno)[1].lower()
+            if ext == ".csv":
+                raw_pairs = _parse_csv(anno)
+            else:
+                raw_pairs = _detect_and_parse_json(anno, vdir, split_filter)
+
+            per_video_count: Dict[str, int] = {}
+            for vid, caption in raw_pairs:
+                # Deduplication logic based on video_id across sources to avoid data leaks
+                if vid in video_id_to_source and video_id_to_source[vid] != source_idx:
                     continue
-                per_video_count[vid] = per_video_count.get(vid, 0) + 1
-            path = _resolve_video_path(video_dir, vid)
-            if require_exists and not os.path.exists(path):
-                continue
-            samples.append(Sample(video_path=path, caption=caption, video_id=vid))
+                if vid not in video_id_to_source:
+                    video_id_to_source[vid] = source_idx
+
+                if captions_per_video is not None:
+                    if per_video_count.get(vid, 0) >= captions_per_video:
+                        continue
+                    per_video_count[vid] = per_video_count.get(vid, 0) + 1
+
+                path = _resolve_video_path(vdir, vid)
+                if require_exists and not os.path.exists(path):
+                    continue
+                samples.append(Sample(video_path=path, caption=caption, video_id=vid))
 
         if limit is not None:
             samples = samples[: int(limit)]
