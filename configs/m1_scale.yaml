@@ -1,0 +1,47 @@
+seed: 0
+precision: bf16
+
+model:
+  vision_repo: facebook/vjepa2-vitl-fpc64-256
+  text_backbone: embeddinggemma
+  predictor_mode: llama_last8
+  shared_dim: 1536
+  stack_factor: 1
+  predictor_layers: 4
+  text_max_length: 512
+  unfreeze_text: false
+  queue_size: 0
+  loss_type: "siglip"
+
+data:
+  name: msrvtt
+  num_frames: 64
+  resolution: 256
+  video_dir: /home/jovyan/work/data/msrvtt/video
+  annotation_train: /home/jovyan/work/data/msrvtt/msrvtt_train_7k.json
+  annotation_eval: /home/jovyan/work/data/msrvtt/msrvtt_test_1k.json
+  train_split_filter: null
+  eval_split_filter: null
+  eval_captions_per_video: 1
+
+optim:
+  lr: 5.0e-5
+  weight_decay: 0.05
+  betas: [0.9, 0.98]
+  eps: 1.0e-8
+  grad_clip: 1.0
+  total_steps: 8000
+  warmup_steps: 800
+  gradient_accumulation_steps: 16
+
+train:
+  batch_size: 8
+  num_workers: 0
+  log_every: 20
+  save_every: 1000
+  ckpt_dir: /home/jovyan/work/JEPA-Omni/checkpoints/m1_scale
+  m0_gate_steps: 300
+
+eval:
+  batch_size: 16
+  metrics: [R@1, R@5, R@10, MedR]

@@ -117,3 +117,18 @@ if __name__ == "__main__":
     # aligned sanity: identical embeds -> ~0 loss even against a big queue
     la, ma = info_nce_with_queue(v, v, neg_t=qt, neg_v=qv)
     print(f"[losses] aligned+queue : loss={ma['loss']:.3f} acc_v2t={ma['acc_v2t']:.2f}")
+
+
+def compute_siglip_loss(z_v, z_t, temp=14.0, bias=-10.0):
+    """
+    Pairwise Sigmoid Loss (SigLIP style)
+    z_v: (B, D) Normalized video features
+    z_t: (B, D) Normalized text features
+    """
+    B = z_v.size(0)
+    sim_matrix = torch.matmul(z_v, z_t.t())
+    labels = 2 * torch.eye(B, device=z_v.device) - 1
+    logits = sim_matrix * temp + bias
+    loss = -F.logsigmoid(labels * logits).sum() / B
+    return loss
+
