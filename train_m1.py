@@ -41,7 +41,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader, DistributedSampler
 
 from data.video_text_dataset import build_dataset, collate_fn
-from models import SpineConfig, SpineM1, info_nce
+from models import SpineConfig, SpineM1, info_nce, compute_siglip_loss
 from utils import (
     AttrDict,
     cfg_get,
@@ -303,7 +303,24 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
     torch.manual_seed(int(cfg_get(cfg, "seed", default=0)) + rank)
 
     model_config = dict(cfg["model"])
-    spine = SpineM1(SpineConfig(**model_config)).to(device)
+    import dataclasses
+    valid_fields = {f.name for f in dataclasses.fields(SpineConfig)}
+    filtered_config = {k: v for k, v in model_config.items() if k in valid_fields}
+    spine = SpineM1(SpineConfig(**filtered_config)).to(device)
+
+    loss_type = cfg_get(cfg, "model.loss_type", default="info_nce")
+    loss_fn = compute_siglip_loss if loss_type == "siglip" else info_nce
+
+    if loss_type == "siglip":
+        import types
+        def new_forward(self, videos, texts):
+            z_v = self.embed_video(videos)
+            z_t = self.embed_text(texts)
+            return z_v, z_t
+        spine.forward = types.MethodType(new_forward, spine)
+
+    accum_steps = int(cfg_get(cfg, "optim.gradient_accumulation_steps", default=1))
+
 
     optimizer = build_optimizer(spine, cfg)
     total_steps = int(cfg_get(cfg, "optim.total_steps", "train.total_steps", "total_steps", default=5000))
@@ -350,20 +367,24 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
     m0_uniformities: List[float] = []  
   
 
+    optimizer.zero_grad()
     model.train()
     for step in range(total_steps):
         clips, captions = next(batches)
 
-        optimizer.zero_grad(set_to_none=True)
         with torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=amp_enabled):
             out = model(clips, captions)
-            loss, zv, zt = resolve_outputs(out, info_nce)
+            loss, zv, zt = resolve_outputs(out, loss_fn)
 
-        loss.backward()
-        if grad_clip > 0:
-            torch.nn.utils.clip_grad_norm_(spine.trainable_parameters(), grad_clip)
-        optimizer.step()
-        scheduler.step()
+        loss_accum = loss / accum_steps
+        loss_accum.backward()
+
+        if (step + 1) % accum_steps == 0 or step == total_steps - 1:
+            if grad_clip > 0:
+                torch.nn.utils.clip_grad_norm_(spine.trainable_parameters(), grad_clip)
+            optimizer.step()
+            scheduler.step()
+            optimizer.zero_grad()
 
         loss_val = reduce_mean(loss.detach()).item()
         m0_losses.append(loss_val)
