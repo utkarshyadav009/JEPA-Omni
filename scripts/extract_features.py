@@ -66,13 +66,24 @@ def collect_unique_videos(
     return unique
 
 
+import signal
+
+class _DecodeTimeout(Exception):
+    pass
+
+def _timeout_handler(signum, frame):
+    raise _DecodeTimeout("Video decode timed out")
+
+
 def decode_clip(
-    path: str, num_frames: int, resolution: int,
+    path: str, num_frames: int, resolution: int, timeout_sec: int = 60,
 ) -> Tensor:
     """Decode a single video clip — mirrors MSRVTTVideoTextDataset._decode_clip.
 
     Deterministic uniform sampling via ``_uniform_frame_indices`` (pure
     function of clip length and num_frames, zero RNG).
+
+    A ``timeout_sec`` alarm prevents corrupt videos from hanging forever.
     """
     from torchcodec.decoders import VideoDecoder
 
@@ -85,30 +96,37 @@ def decode_clip(
         if os.path.exists(fallback_path):
             path = fallback_path
 
-    decoder = VideoDecoder(path, device="cpu")
-    num_total = getattr(decoder.metadata, "num_frames", None)
-    if not num_total:
-        num_total = len(decoder)
-    indices = _uniform_frame_indices(int(num_total), num_frames)
+    # Set alarm so hung decoders don't block extraction forever.
+    old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
+    signal.alarm(timeout_sec)
+    try:
+        decoder = VideoDecoder(path, device="cpu")
+        num_total = getattr(decoder.metadata, "num_frames", None)
+        if not num_total:
+            num_total = len(decoder)
+        indices = _uniform_frame_indices(int(num_total), num_frames)
 
-    unique_sorted = sorted(set(indices))
-    remap = {orig: i for i, orig in enumerate(unique_sorted)}
-    batch = decoder.get_frames_at(indices=unique_sorted)
-    decoded = batch.data
-    gather_idx = torch.tensor([remap[i] for i in indices], dtype=torch.long)
-    frames = decoded.index_select(0, gather_idx.to(decoded.device))
+        unique_sorted = sorted(set(indices))
+        remap = {orig: i for i, orig in enumerate(unique_sorted)}
+        batch = decoder.get_frames_at(indices=unique_sorted)
+        decoded = batch.data
+        gather_idx = torch.tensor([remap[i] for i in indices], dtype=torch.long)
+        frames = decoded.index_select(0, gather_idx.to(decoded.device))
 
-    # Resize to target resolution (same logic as dataset._resize)
-    if frames.shape[-2] != resolution or frames.shape[-1] != resolution:
-        x = frames.float()
-        x = F.interpolate(
-            x,
-            size=(resolution, resolution),
-            mode="bilinear",
-            align_corners=False,
-            antialias=True,
-        )
-        frames = x.round_().clamp_(0, 255).to(torch.uint8)
+        # Resize to target resolution (same logic as dataset._resize)
+        if frames.shape[-2] != resolution or frames.shape[-1] != resolution:
+            x = frames.float()
+            x = F.interpolate(
+                x,
+                size=(resolution, resolution),
+                mode="bilinear",
+                align_corners=False,
+                antialias=True,
+            )
+            frames = x.round_().clamp_(0, 255).to(torch.uint8)
+    finally:
+        signal.alarm(0)  # cancel alarm
+        signal.signal(signal.SIGALRM, old_handler)
 
     return frames  # [T, C, H, W] uint8
 
