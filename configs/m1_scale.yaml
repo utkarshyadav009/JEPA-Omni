@@ -42,7 +42,7 @@ train:
   micro_chunk: 8
   gradient_accumulation_steps: 1
   loss_type: "infonce"
-  num_workers: 0
+  num_workers: 16
   log_every: 20
   save_every: 1000
   ckpt_dir: /home/jovyan/work/JEPA-Omni/checkpoints/m1_scale
