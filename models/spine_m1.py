@@ -44,20 +44,31 @@ class SpineConfig:
     queue_size: int = 0                    # 0 = disabled; e.g. 2048 to flex the negatives
     device: str = "cuda"
     dtype: torch.dtype = torch.bfloat16
+    skip_encoder: bool = False             # True when using pre-computed feature cache
+    encoder_out_dim: int = 1024            # only used when skip_encoder=True
 
 
 class SpineM1(nn.Module):
     def __init__(self, cfg: SpineConfig) -> None:
         super().__init__()
         self.cfg = cfg
-        self.encoder = VisionEncoder(cfg.vision_repo, dtype=cfg.dtype, device=cfg.device)
+
+        # When using pre-computed feature cache, skip the ~26GB VisionEncoder
+        # entirely so workers don't inherit its memory footprint.
+        if cfg.skip_encoder:
+            self.encoder = None
+            enc_out_dim = cfg.encoder_out_dim
+        else:
+            self.encoder = VisionEncoder(cfg.vision_repo, dtype=cfg.dtype, device=cfg.device)
+            enc_out_dim = self.encoder.out_dim
+
         self.text = TextTarget(
             backbone=cfg.text_backbone, shared_dim=cfg.shared_dim,
             max_length=cfg.text_max_length, unfreeze_base=cfg.unfreeze_text,
             device=cfg.device, dtype=cfg.dtype,
         )
         self.predictor = Predictor(
-            in_dim=self.encoder.out_dim, shared_dim=cfg.shared_dim,
+            in_dim=enc_out_dim, shared_dim=cfg.shared_dim,
             mode=cfg.predictor_mode, n_layers=cfg.predictor_layers,
             stack_factor=cfg.stack_factor,
         ).to(cfg.device)

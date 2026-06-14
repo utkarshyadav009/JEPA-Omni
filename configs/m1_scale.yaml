@@ -27,6 +27,7 @@ data:
   train_split_filter: null
   eval_split_filter: null
   eval_captions_per_video: 1
+  feature_cache_dir: /home/jovyan/work/data/feature_cache
 
 optim:
   lr: 1.0e-4
@@ -42,7 +43,7 @@ train:
   micro_chunk: 8
   gradient_accumulation_steps: 1
   loss_type: "infonce"
-  num_workers: 4
+  num_workers: 8
   log_every: 20
   save_every: 1000
   ckpt_dir: /home/jovyan/work/JEPA-Omni/checkpoints/m1_scale

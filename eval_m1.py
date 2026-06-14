@@ -27,11 +27,23 @@ from torch import Tensor
 from torch.utils.data import DataLoader
 
 from data.video_text_dataset import build_dataset, collate_fn
+from data.cached_feature_dataset import (
+    CachedFeatureDataset,
+    cached_collate_fn,
+    validate_manifest,
+)
 from models import SpineConfig, SpineM1
 from utils import AttrDict, cfg_get, load_config
 
 
-def load_spine(cfg: AttrDict, checkpoint: Optional[str], device: torch.device) -> SpineM1:
+def load_spine(
+    cfg: AttrDict,
+    checkpoint: Optional[str],
+    device: torch.device,
+    *,
+    skip_encoder: bool = False,
+    encoder_out_dim: int = 1024,
+) -> SpineM1:
     """Build the spine and load weights from ``checkpoint`` if available."""
     model_config = dict(cfg["model"])
     state = None
@@ -44,6 +56,11 @@ def load_spine(cfg: AttrDict, checkpoint: Optional[str], device: torch.device) -
     
     for flag in ["loss_type", "micro_chunk"]:
         model_config.pop(flag, None)
+
+    if skip_encoder:
+        model_config["skip_encoder"] = True
+        model_config["encoder_out_dim"] = encoder_out_dim
+
     spine = SpineM1(SpineConfig(**model_config)).to(device)
     if state is not None:
         missing, unexpected = spine.load_state_dict(state["model"], strict=False)
@@ -67,6 +84,8 @@ def embed_split(
     cfg: AttrDict,
     device: torch.device,
     limit: Optional[int],
+    *,
+    feature_cache_dir: Optional[str] = None,
 ) -> Tuple[Tensor, Tensor]:
     """Embed the eval split, returning aligned ``(video_embeds, text_embeds)``.
 
@@ -74,23 +93,45 @@ def embed_split(
     1:1 positive pair, so the correct match lies on the diagonal of the
     similarity matrix.
     """
-    dataset = build_dataset(cfg, "eval", limit=limit, decode_device="cpu")
-    loader = DataLoader(
-        dataset,
-        batch_size=int(cfg_get(cfg, "eval.batch_size", "batch_size", default=64)),
-        shuffle=False,
-        num_workers=int(cfg_get(cfg, "train.num_workers", "num_workers", default=4)),
-        collate_fn=collate_fn,
-        drop_last=False,
-    )
+    num_workers = int(cfg_get(cfg, "train.num_workers", "num_workers", default=4))
+    batch_size = int(cfg_get(cfg, "eval.batch_size", "batch_size", default=64))
+
+    if feature_cache_dir:
+        dataset = CachedFeatureDataset.from_config(cfg, "eval", limit=limit)
+        loader = DataLoader(
+            dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=num_workers,
+            collate_fn=cached_collate_fn,
+            drop_last=False,
+        )
+    else:
+        dataset = build_dataset(cfg, "eval", limit=limit, decode_device="cpu")
+        loader = DataLoader(
+            dataset,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=num_workers,
+            collate_fn=collate_fn,
+            drop_last=False,
+        )
 
     amp_enabled = device.type in ("cuda", "cpu")
     video_embeds: List[Tensor] = []
     text_embeds: List[Tensor] = []
-    for clips, captions in loader:
-        with torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=amp_enabled):
-            zv = spine.embed_video(clips)
-            zt = spine.embed_text(captions)
+    for batch in loader:
+        if feature_cache_dir:
+            feats, captions = batch
+            feats = feats.to(device)
+            with torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=amp_enabled):
+                zv = spine.predictor(feats.float())
+                zt = spine.embed_text(captions)
+        else:
+            clips, captions = batch
+            with torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=amp_enabled):
+                zv = spine.embed_video(clips)
+                zt = spine.embed_text(captions)
         # Normalise so the similarity matrix is a cosine ranking.
         video_embeds.append(F.normalize(zv.float(), dim=-1).cpu())
         text_embeds.append(F.normalize(zt.float(), dim=-1).cpu())
@@ -155,11 +196,33 @@ def report_m1_gate(r1_v2t: float, cfg: AttrDict) -> bool:
     return False
 
 
-def evaluate(cfg: AttrDict, checkpoint: Optional[str], limit: Optional[int]) -> bool:
+def evaluate(
+    cfg: AttrDict, checkpoint: Optional[str], limit: Optional[int]
+) -> bool:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    spine = load_spine(cfg, checkpoint, device)
 
-    video_embeds, text_embeds = embed_split(spine, cfg, device, limit)
+    feature_cache_dir = str(cfg_get(cfg, "data.feature_cache_dir", default="")) or None
+    skip_encoder = feature_cache_dir is not None
+    encoder_out_dim = 1024
+
+    if feature_cache_dir:
+        manifest = validate_manifest(feature_cache_dir, cfg)
+        encoder_out_dim = manifest["hidden_size"]
+        print(
+            f"[eval] Using pre-computed features from {feature_cache_dir}",
+            flush=True,
+        )
+
+    spine = load_spine(
+        cfg, checkpoint, device,
+        skip_encoder=skip_encoder,
+        encoder_out_dim=encoder_out_dim,
+    )
+
+    video_embeds, text_embeds = embed_split(
+        spine, cfg, device, limit,
+        feature_cache_dir=feature_cache_dir,
+    )
     sim = video_embeds @ text_embeds.t()  # [Nv, Nt]
 
     v2t = retrieval_metrics(sim)

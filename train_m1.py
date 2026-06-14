@@ -41,6 +41,11 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.utils.data import DataLoader, DistributedSampler
 
 from data.video_text_dataset import build_dataset, collate_fn
+from data.cached_feature_dataset import (
+    CachedFeatureDataset,
+    cached_collate_fn,
+    validate_manifest,
+)
 from models import SpineConfig, SpineM1, info_nce, compute_siglip_loss
 from utils import (
     AttrDict,
@@ -228,12 +233,18 @@ def build_scheduler(
 # Data
 # --------------------------------------------------------------------------- #
 def build_dataloader(
-    cfg: AttrDict, limit: Optional[int]
+    cfg: AttrDict, limit: Optional[int], *, feature_cache_dir: Optional[str] = None,
 ) -> Tuple[DataLoader, Optional[DistributedSampler]]:
-    dataset = build_dataset(cfg, "train", limit=limit, decode_device="cpu")
     num_workers = int(cfg_get(cfg, "train.num_workers", "num_workers", default=4))
     batch_size = int(cfg_get(cfg, "train.batch_size", "batch_size", default=16))
-    
+
+    if feature_cache_dir:
+        dataset = CachedFeatureDataset.from_config(cfg, "train", limit=limit)
+        active_collate = cached_collate_fn
+    else:
+        dataset = build_dataset(cfg, "train", limit=limit, decode_device="cpu")
+        active_collate = collate_fn
+
     # --- Guard against zero-batch deadlock on small subsets ---
     # Only drop the last batch if we have enough samples to fill at least one batch.
     # Otherwise, force drop_last to False so the loader doesn't yield an empty epoch.
@@ -250,7 +261,7 @@ def build_dataloader(
         shuffle=(sampler is None),
         sampler=sampler,
         num_workers=num_workers,
-        collate_fn=collate_fn,
+        collate_fn=active_collate,
         drop_last=drop_last_validated,
         pin_memory=torch.cuda.is_available(),
         persistent_workers=num_workers > 0,
@@ -311,10 +322,29 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
     rank = get_rank()
     torch.manual_seed(int(cfg_get(cfg, "seed", default=0)) + rank)
 
+    # ---- Feature cache setup ----
+    feature_cache_dir = str(cfg_get(cfg, "data.feature_cache_dir", default="")) or None
+    use_cached = feature_cache_dir is not None
+
+    if use_cached:
+        manifest = validate_manifest(feature_cache_dir, cfg)
+        if is_main_process():
+            print(
+                f"[cache] Using pre-computed features from {feature_cache_dir}"
+                f" (hidden_size={manifest['hidden_size']}, dtype={manifest['dtype']})",
+                flush=True,
+            )
+
     model_config = dict(cfg["model"])
     import dataclasses
     valid_fields = {f.name for f in dataclasses.fields(SpineConfig)}
     filtered_config = {k: v for k, v in model_config.items() if k in valid_fields}
+
+    # When using cached features, skip the ~26GB VisionEncoder entirely.
+    if use_cached:
+        filtered_config["skip_encoder"] = True
+        filtered_config["encoder_out_dim"] = manifest["hidden_size"]
+
     spine = SpineM1(SpineConfig(**filtered_config)).to(device)
 
     loss_type = cfg_get(cfg, "train.loss_type", "model.loss_type", default="info_nce")
@@ -355,7 +385,13 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
         if is_main_process():
             print(f"[resume] Loading checkpoint from {resume_path}", flush=True)
         ckpt = torch.load(resume_path, map_location=device, weights_only=False)
-        spine.load_state_dict(ckpt["model"])
+        missing, unexpected = spine.load_state_dict(ckpt["model"], strict=False)
+        if is_main_process() and (missing or unexpected):
+            print(
+                f"[resume] state_dict: {len(missing)} missing, "
+                f"{len(unexpected)} unexpected (expected if skip_encoder=True)",
+                flush=True,
+            )
         if "optimizer" in ckpt:
             optimizer.load_state_dict(ckpt["optimizer"])
         has_scheduler_state = "scheduler" in ckpt
@@ -385,7 +421,7 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
             ddp_kwargs["device_ids"] = [get_local_rank()]
         model = DDP(spine, **ddp_kwargs)
 
-    loader, sampler = build_dataloader(cfg, limit)
+    loader, sampler = build_dataloader(cfg, limit, feature_cache_dir=feature_cache_dir)
     batches = infinite_batches(loader, sampler)
 
     grad_clip = float(cfg_get(cfg, "optim.grad_clip", "train.grad_clip", "grad_clip", default=0.0))
@@ -419,19 +455,26 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
 
 
     for step in range(start_step, total_steps):
-        clips, captions = next(batches)
+        batch = next(batches)
 
-        micro_chunk = cfg.train.get("micro_chunk", 8)
-        raw_spine = model.module if isinstance(model, DDP) else model
+        if use_cached:
+            # Cached path: features already [B, N, D] from DataLoader
+            feats, captions = batch
+            feats = feats.to(device)
+        else:
+            # Live path: decode video -> micro-chunk through frozen encoder
+            clips, captions = batch
+            micro_chunk = cfg.train.get("micro_chunk", 8)
+            raw_spine = model.module if isinstance(model, DDP) else model
 
-        with torch.no_grad():
-            chunked_feats = []
-            for i in range(0, len(clips), micro_chunk):
-                chunk = clips[i : i + micro_chunk]
-                with torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=amp_enabled):
-                    chunk_feats = raw_spine.encoder(chunk)
-                chunked_feats.append(chunk_feats)
-            feats = torch.cat(chunked_feats, dim=0)
+            with torch.no_grad():
+                chunked_feats = []
+                for i in range(0, len(clips), micro_chunk):
+                    chunk = clips[i : i + micro_chunk]
+                    with torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=amp_enabled):
+                        chunk_feats = raw_spine.encoder(chunk)
+                    chunked_feats.append(chunk_feats)
+                feats = torch.cat(chunked_feats, dim=0)
 
         with torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=amp_enabled):
             out = model(feats, captions)
