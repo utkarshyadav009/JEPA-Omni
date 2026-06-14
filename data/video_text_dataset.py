@@ -336,6 +336,17 @@ class MSRVTTVideoTextDataset(Dataset):
         """Decode ``num_frames`` uniformly-sampled frames -> uint8 [T, C, H, W]."""
         from torchcodec.decoders import VideoDecoder  # lazy import
 
+        # --- Kaggle filename fallback ---
+        # JSON annotations reference [11-char-ID]_[start]_[end].mp4 but Kaggle
+        # videos on disk are often just [11-char-ID].mp4.
+        if not os.path.exists(path):
+            basename = os.path.basename(path)           # e.g. fbc43vopEDg_000000_000010.mp4
+            stem, ext = os.path.splitext(basename)       # fbc43vopEDg_000000_000010, .mp4
+            yt_id = stem[:11]                            # 11-char YouTube ID
+            fallback_path = os.path.join(os.path.dirname(path), yt_id + ext)
+            if os.path.exists(fallback_path):
+                path = fallback_path
+
         decoder = VideoDecoder(path, device=self.decode_device)
         num_total = getattr(decoder.metadata, "num_frames", None)
         if not num_total:

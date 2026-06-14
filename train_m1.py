@@ -281,17 +281,24 @@ def save_checkpoint(
     model_config: Dict[str, object],
     step: int,
     best_acc_v2t: float,
+    optimizer: Optional[torch.optim.Optimizer] = None,
+    scheduler: Optional[torch.optim.lr_scheduler.LambdaLR] = None,
+    loss_ema: Optional[float] = None,
 ) -> None:
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    torch.save(
-        {
-            "step": step,
-            "best_acc_v2t": best_acc_v2t,
-            "model": raw_spine.state_dict(),
-            "model_config": dict(model_config),
-        },
-        path,
-    )
+    payload = {
+        "step": step,
+        "best_acc_v2t": best_acc_v2t,
+        "model": raw_spine.state_dict(),
+        "model_config": dict(model_config),
+    }
+    if optimizer is not None:
+        payload["optimizer"] = optimizer.state_dict()
+    if scheduler is not None:
+        payload["scheduler"] = scheduler.state_dict()
+    if loss_ema is not None:
+        payload["loss_ema"] = loss_ema
+    torch.save(payload, path)
 
 
 # --------------------------------------------------------------------------- #
@@ -338,6 +345,25 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
     warmup_steps = int(cfg_get(cfg, "optim.warmup_steps", "train.warmup_steps", "warmup_steps", default=0))
     scheduler = build_scheduler(optimizer, warmup_steps, total_steps)
 
+    # ---- Auto-resume from last checkpoint ----
+    start_step = 0
+    ckpt_dir = str(cfg_get(cfg, "train.ckpt_dir", "ckpt_dir", default="checkpoints/m1"))
+    resume_path = os.path.join(ckpt_dir, "last.pt")
+    if os.path.isfile(resume_path):
+        if is_main_process():
+            print(f"[resume] Loading checkpoint from {resume_path}", flush=True)
+        ckpt = torch.load(resume_path, map_location=device, weights_only=False)
+        spine.load_state_dict(ckpt["model"])
+        if "optimizer" in ckpt:
+            optimizer.load_state_dict(ckpt["optimizer"])
+        if "scheduler" in ckpt:
+            scheduler.load_state_dict(ckpt["scheduler"])
+        # Resume from the step *after* the saved step
+        start_step = ckpt.get("step", -1) + 1
+        if is_main_process():
+            print(f"[resume] Resuming from step {start_step}", flush=True)
+        del ckpt  # free memory
+
     model: nn.Module = spine
     if is_distributed():
         ddp_kwargs = {
@@ -355,7 +381,7 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
     grad_clip = float(cfg_get(cfg, "optim.grad_clip", "train.grad_clip", "grad_clip", default=0.0))
     log_every = int(cfg_get(cfg, "train.log_every", "log_every", default=20))
     save_every = int(cfg_get(cfg, "train.save_every", "save_every", default=0))
-    ckpt_dir = str(cfg_get(cfg, "train.ckpt_dir", "ckpt_dir", default="checkpoints/m1"))
+    # ckpt_dir already set above during resume logic
     m0_gate_steps = min(
         int(cfg_get(cfg, "train.m0_gate_steps", "m0_gate_steps", default=min(300, total_steps))),
         total_steps,
@@ -373,14 +399,25 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
     best_loss = float("inf")
     loss_ema: Optional[float] = None
     m0_losses: List[float] = []
-    m0_reported = False
+    m0_reported = start_step > 0   # skip M0 gate if resuming
     m0_accs: List[float] = []           
     m0_uniformities: List[float] = []  
   
 
     optimizer.zero_grad()
     model.train()
-    for step in range(total_steps):
+
+    # Fast-forward the data iterator to the resume point so we don't
+    # re-process the same batches (best-effort, depends on shuffle seed).
+    if start_step > 0:
+        if is_main_process():
+            print(f"[resume] Skipping {start_step} batches to resume point...", flush=True)
+        for _ in range(start_step):
+            next(batches)
+        if is_main_process():
+            print("[resume] Skip complete. Resuming training.", flush=True)
+
+    for step in range(start_step, total_steps):
         clips, captions = next(batches)
 
         micro_chunk = cfg.train.get("micro_chunk", 8)
@@ -455,12 +492,14 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
             save_checkpoint(
                 os.path.join(ckpt_dir, "last.pt"),
                 spine, model_config, step, best_loss,
+                optimizer=optimizer, scheduler=scheduler, loss_ema=loss_ema,
             )
 
     if is_main_process():
         save_checkpoint(
             os.path.join(ckpt_dir, "last.pt"),
             spine, model_config, total_steps - 1, best_loss,
+            optimizer=optimizer, scheduler=scheduler, loss_ema=loss_ema,
         )
         print(
             f"[train] done. best smoothed loss={best_loss:.4f} "
