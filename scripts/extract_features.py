@@ -66,24 +66,13 @@ def collect_unique_videos(
     return unique
 
 
-import signal
-
-class _DecodeTimeout(Exception):
-    pass
-
-def _timeout_handler(signum, frame):
-    raise _DecodeTimeout("Video decode timed out")
-
-
-def decode_clip(
-    path: str, num_frames: int, resolution: int, timeout_sec: int = 60,
+def _decode_clip_raw(
+    path: str, num_frames: int, resolution: int,
 ) -> Tensor:
     """Decode a single video clip — mirrors MSRVTTVideoTextDataset._decode_clip.
 
     Deterministic uniform sampling via ``_uniform_frame_indices`` (pure
     function of clip length and num_frames, zero RNG).
-
-    A ``timeout_sec`` alarm prevents corrupt videos from hanging forever.
     """
     from torchcodec.decoders import VideoDecoder
 
@@ -96,45 +85,82 @@ def decode_clip(
         if os.path.exists(fallback_path):
             path = fallback_path
 
-    # Set alarm so hung decoders don't block extraction forever.
-    old_handler = signal.signal(signal.SIGALRM, _timeout_handler)
-    signal.alarm(timeout_sec)
-    try:
-        decoder = VideoDecoder(path, device="cpu")
-        num_total = getattr(decoder.metadata, "num_frames", None)
-        if not num_total:
-            num_total = len(decoder)
-        indices = _uniform_frame_indices(int(num_total), num_frames)
+    decoder = VideoDecoder(path, device="cpu")
+    num_total = getattr(decoder.metadata, "num_frames", None)
+    if not num_total:
+        num_total = len(decoder)
+    indices = _uniform_frame_indices(int(num_total), num_frames)
 
-        unique_sorted = sorted(set(indices))
-        remap = {orig: i for i, orig in enumerate(unique_sorted)}
-        batch = decoder.get_frames_at(indices=unique_sorted)
-        decoded = batch.data
-        gather_idx = torch.tensor([remap[i] for i in indices], dtype=torch.long)
-        frames = decoded.index_select(0, gather_idx.to(decoded.device))
+    unique_sorted = sorted(set(indices))
+    remap = {orig: i for i, orig in enumerate(unique_sorted)}
+    batch = decoder.get_frames_at(indices=unique_sorted)
+    decoded = batch.data
+    gather_idx = torch.tensor([remap[i] for i in indices], dtype=torch.long)
+    frames = decoded.index_select(0, gather_idx.to(decoded.device))
 
-        # Resize to target resolution (same logic as dataset._resize)
-        if frames.shape[-2] != resolution or frames.shape[-1] != resolution:
-            x = frames.float()
-            x = F.interpolate(
-                x,
-                size=(resolution, resolution),
-                mode="bilinear",
-                align_corners=False,
-                antialias=True,
-            )
-            frames = x.round_().clamp_(0, 255).to(torch.uint8)
-    finally:
-        signal.alarm(0)  # cancel alarm
-        signal.signal(signal.SIGALRM, old_handler)
+    # Resize to target resolution (same logic as dataset._resize)
+    if frames.shape[-2] != resolution or frames.shape[-1] != resolution:
+        x = frames.float()
+        x = F.interpolate(
+            x,
+            size=(resolution, resolution),
+            mode="bilinear",
+            align_corners=False,
+            antialias=True,
+        )
+        frames = x.round_().clamp_(0, 255).to(torch.uint8)
 
     return frames  # [T, C, H, W] uint8
+
+
+def _decode_worker(path: str, num_frames: int, resolution: int, save_to: str) -> None:
+    """Subprocess target: decode a video and save frames to a temp file."""
+    frames = _decode_clip_raw(path, num_frames, resolution)
+    torch.save(frames, save_to)
+
+
+def decode_clip_with_timeout(
+    vid: str, path: str, num_frames: int, resolution: int,
+    tmp_dir: str, timeout_sec: int = 60,
+) -> Tensor:
+    """Decode a video in a subprocess with a hard timeout.
+
+    Uses ``multiprocessing.Process`` + ``join(timeout)`` + ``terminate()``
+    so that C-level hangs in VideoDecoder are killed cleanly.
+    """
+    import multiprocessing as mp
+
+    tmp_path = os.path.join(tmp_dir, f"{vid}.frames.tmp")
+    p = mp.Process(target=_decode_worker, args=(path, num_frames, resolution, tmp_path))
+    p.start()
+    p.join(timeout=timeout_sec)
+
+    if p.is_alive():
+        p.terminate()
+        p.join(5)
+        if p.is_alive():
+            p.kill()
+            p.join()
+        # Clean up partial file
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+        raise TimeoutError(f"decode timed out after {timeout_sec}s")
+
+    if p.exitcode != 0:
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+        raise RuntimeError(f"decode subprocess failed (exit code {p.exitcode})")
+
+    frames = torch.load(tmp_path, weights_only=True)
+    os.unlink(tmp_path)
+    return frames
 
 
 def extract(
     cfg: AttrDict,
     limit: int | None = None,
     micro_batch: int = 4,
+    decode_timeout: int = 60,
 ) -> None:
     cache_dir = str(cfg_get(cfg, "data.feature_cache_dir"))
     num_frames = int(cfg_get(cfg, "data.num_frames", "num_frames", default=64))
@@ -142,6 +168,9 @@ def extract(
     vision_repo = str(cfg_get(cfg, "model.vision_repo", default="facebook/vjepa2-vitl-fpc64-256"))
 
     os.makedirs(cache_dir, exist_ok=True)
+    # Temp dir for subprocess decoded frames
+    tmp_dir = os.path.join(cache_dir, ".tmp")
+    os.makedirs(tmp_dir, exist_ok=True)
 
     # ---- Collect unique videos ----
     print("[extract] Collecting unique videos from annotations...", flush=True)
@@ -170,47 +199,38 @@ def extract(
     hidden_size = encoder.hidden_size
     print(f"[extract] Encoder ready. hidden_size={hidden_size}", flush=True)
 
-    # ---- Extract in micro-batches ----
+    # ---- Extract one-by-one with subprocess timeout ----
     t0 = time.time()
     done = 0
     failed = 0
-    for batch_start in range(0, len(todo), micro_batch):
-        batch_items = todo[batch_start : batch_start + micro_batch]
-
-        # Decode all clips in this micro-batch
-        decoded_clips: List[Tensor] = []
-        valid_items: List[Tuple[str, str]] = []
-        for vid, path in batch_items:
-            try:
-                frames = decode_clip(path, num_frames, resolution)
-                decoded_clips.append(frames)
-                valid_items.append((vid, path))
-            except Exception as exc:
-                print(f"[extract] SKIP {vid}: {exc}", flush=True)
-                failed += 1
-
-        if not decoded_clips:
+    for idx, (vid, path) in enumerate(todo):
+        try:
+            frames = decode_clip_with_timeout(
+                vid, path, num_frames, resolution, tmp_dir, decode_timeout,
+            )
+        except Exception as exc:
+            print(f"[extract] SKIP {vid}: {exc}", flush=True)
+            failed += 1
             continue
 
-        # Encode batch
+        # Encode single clip
         with torch.no_grad():
-            feats = encoder.encode(decoded_clips)  # [B, N, hidden]
+            feats = encoder.encode([frames])  # [1, N, hidden]
 
-        # Save each
-        for i, (vid, _) in enumerate(valid_items):
-            feat = feats[i].to(torch.bfloat16).cpu()  # [N, hidden]
-            out_dir = os.path.join(cache_dir, _shard_dir(vid))
-            os.makedirs(out_dir, exist_ok=True)
-            out_path = _feature_path(cache_dir, vid)
-            tmp_path = out_path + ".tmp"
-            torch.save(feat, tmp_path)
-            os.rename(tmp_path, out_path)
+        # Save (atomic)
+        feat = feats[0].to(torch.bfloat16).cpu()  # [N, hidden]
+        out_dir = os.path.join(cache_dir, _shard_dir(vid))
+        os.makedirs(out_dir, exist_ok=True)
+        out_path = _feature_path(cache_dir, vid)
+        tmp_path = out_path + ".tmp"
+        torch.save(feat, tmp_path)
+        os.rename(tmp_path, out_path)
 
-        done += len(valid_items)
-        elapsed = time.time() - t0
-        rate = done / elapsed if elapsed > 0 else 0
-        eta = (len(todo) - done - failed) / rate if rate > 0 else 0
-        if done % 20 == 0 or done == len(todo):
+        done += 1
+        if done % 20 == 0 or done + failed == len(todo):
+            elapsed = time.time() - t0
+            rate = done / elapsed if elapsed > 0 else 0
+            eta = (len(todo) - done - failed) / rate if rate > 0 else 0
             print(
                 f"[extract] {done}/{len(todo)} done, {failed} failed, "
                 f"{rate:.1f} vid/s, ETA {eta/60:.0f}m",
