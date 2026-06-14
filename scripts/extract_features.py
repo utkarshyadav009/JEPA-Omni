@@ -282,9 +282,13 @@ def main() -> None:
         "--micro-batch", type=int, default=4,
         help="Number of videos to encode in one GPU batch.",
     )
+    parser.add_argument(
+        "--timeout", type=int, default=15,
+        help="Seconds before a hung video decode is killed (default: 15).",
+    )
     args = parser.parse_args()
     cfg = load_config(args.config)
-    extract(cfg, limit=args.limit, micro_batch=args.micro_batch)
+    extract(cfg, limit=args.limit, micro_batch=args.micro_batch, decode_timeout=args.timeout)
 
 
 if __name__ == "__main__":
