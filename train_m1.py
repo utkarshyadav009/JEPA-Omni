@@ -254,8 +254,10 @@ def build_dataloader(
         drop_last=drop_last_validated,
         pin_memory=torch.cuda.is_available(),
         persistent_workers=num_workers > 0,
-        # --- DEFENSIVE HYGIENE: Use "spawn" context if workers are utilized ---
-        multiprocessing_context="spawn" if num_workers > 0 else None,
+        # Use default "fork" context (Linux). Workers share the parent's
+        # memory via copy-on-write — far lighter than "spawn" which re-imports
+        # torch in every worker (~500MB each). Safe because workers only do
+        # CPU video decoding and never touch CUDA.
     )
     return loader, sampler
 
