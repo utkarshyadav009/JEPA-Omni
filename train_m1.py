@@ -407,15 +407,6 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
     optimizer.zero_grad()
     model.train()
 
-    # Fast-forward the data iterator to the resume point so we don't
-    # re-process the same batches (best-effort, depends on shuffle seed).
-    if start_step > 0:
-        if is_main_process():
-            print(f"[resume] Skipping {start_step} batches to resume point...", flush=True)
-        for _ in range(start_step):
-            next(batches)
-        if is_main_process():
-            print("[resume] Skip complete. Resuming training.", flush=True)
 
     for step in range(start_step, total_steps):
         clips, captions = next(batches)
