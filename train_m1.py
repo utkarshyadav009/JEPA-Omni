@@ -356,12 +356,20 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
         spine.load_state_dict(ckpt["model"])
         if "optimizer" in ckpt:
             optimizer.load_state_dict(ckpt["optimizer"])
-        if "scheduler" in ckpt:
+        has_scheduler_state = "scheduler" in ckpt
+        if has_scheduler_state:
             scheduler.load_state_dict(ckpt["scheduler"])
         # Resume from the step *after* the saved step
         start_step = ckpt.get("step", -1) + 1
+        # If the checkpoint predates the scheduler state, fast-forward the
+        # LR schedule so the learning rate matches the resumed step.
+        if not has_scheduler_state and start_step > 0:
+            if is_main_process():
+                print(f"[resume] Scheduler state not in checkpoint, fast-forwarding LR {start_step} steps...", flush=True)
+            for _ in range(start_step):
+                scheduler.step()
         if is_main_process():
-            print(f"[resume] Resuming from step {start_step}", flush=True)
+            print(f"[resume] Resuming from step {start_step} (lr={scheduler.get_last_lr()[0]:.2e})", flush=True)
         del ckpt  # free memory
 
     model: nn.Module = spine
