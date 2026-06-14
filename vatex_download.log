@@ -1,0 +1,8 @@
+nohup: ignoring input
+Parsing VATEX JSON...
+Found 25987 unique master videos in VATEX.
+Starting full download of 25987 videos. This will take several hours...
+Progress: 100/25987 | Successful: 0 | Failed/Skipped: 100
+Progress: 200/25987 | Successful: 77 | Failed/Skipped: 123
+Progress: 300/25987 | Successful: 159 | Failed/Skipped: 141
+Progress: 400/25987 | Successful: 172 | Failed/Skipped: 228

@@ -21,7 +21,8 @@ data:
     - /home/jovyan/work/data/vatex/video
   annotation_train:
     - /home/jovyan/work/data/msrvtt/msrvtt_train_7k.json
-    - /home/jovyan/work/data/vatex/vatex_train.json
+    #- /home/jovyan/work/data/vatex/vatex_train.json
+    - /home/jovyan/work/data/vatex/vatex_train_filtered.json
   annotation_eval: /home/jovyan/work/data/msrvtt/msrvtt_test_1k.json
   train_split_filter: null
   eval_split_filter: null
