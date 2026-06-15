@@ -23,7 +23,7 @@ if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 from data.cached_feature_dataset import CachedFeatureDataset, cached_collate_fn
-from models.spine import SpineM1
+from models import SpineConfig, SpineM1
 from utils import AttrDict, cfg_get, load_config
 
 
@@ -53,10 +53,11 @@ def run_setup(cfg: AttrDict, checkpoint_path: str, limit: int | None = None) -> 
         manifest = json.load(f)
     encoder_out_dim = manifest["hidden_size"]
 
-    spine = SpineM1(
-        encoder_out_dim=encoder_out_dim,
-        skip_encoder=True,
-    ).to(device)
+    model_config = cfg.get("model", {})
+    model_config["skip_encoder"] = True
+    model_config["encoder_out_dim"] = encoder_out_dim
+
+    spine = SpineM1(SpineConfig(**model_config)).to(device)
 
     ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
     state_dict = ckpt["model_state"] if "model_state" in ckpt else ckpt
@@ -124,10 +125,11 @@ def run_live(cfg: AttrDict, checkpoint_path: str) -> None:
 
     # 1. Load ONLY Text Encoder
     print(f"[live] Loading text encoder from {checkpoint_path}...")
-    spine = SpineM1(
-        encoder_out_dim=manifest["hidden_size"],
-        skip_encoder=True,
-    )
+    model_config = cfg.get("model", {})
+    model_config["skip_encoder"] = True
+    model_config["encoder_out_dim"] = manifest["hidden_size"]
+
+    spine = SpineM1(SpineConfig(**model_config))
     ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
     state_dict = ckpt["model_state"] if "model_state" in ckpt else ckpt
     spine.load_state_dict(state_dict, strict=False)
