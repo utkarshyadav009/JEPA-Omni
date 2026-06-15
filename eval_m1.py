@@ -167,33 +167,50 @@ def _print_metrics(name: str, m: Dict[str, float]) -> None:
     )
 
 
-def report_m1_gate(r1_v2t: float, cfg: AttrDict) -> bool:
-    """Print the M1 gate verdict; return True if PASS."""
-    baseline = float(cfg_get(cfg, "eval.baseline_r1", "baseline_r1", default=0.0))
-    within = float(cfg_get(cfg, "eval.within_margin", "within_margin", default=5.0))
-    abort = float(cfg_get(cfg, "eval.abort_margin", "abort_margin", default=10.0))
-    deficit = baseline - r1_v2t  # positive => worse than baseline
+def report_m1_gate(
+    r1_v2t: float, r1_t2v: float, n_gallery: int, cfg: AttrDict,
+) -> bool:
+    """Print the M1 gate verdict; return True if PASS.
 
+    Criteria (all must hold):
+      1. **Above chance**: R@1 > chance + ``eval.min_above_chance`` (default 5 pts).
+      2. **No collapse**: |v2t_R@1 − t2v_R@1| ≤ ``eval.max_v2t_t2v_gap`` (default 8 pts).
+      3. **Improvement**: if ``eval.previous_r1`` is set (> 0), current R@1 must
+         exceed it by at least ``eval.min_improvement`` pts (default 1.0).
+    """
+    chance = 100.0 / max(n_gallery, 1)
+    min_above = float(cfg_get(cfg, "eval.min_above_chance", default=5.0))
+    max_gap = float(cfg_get(cfg, "eval.max_v2t_t2v_gap", default=8.0))
+    prev_r1 = float(cfg_get(cfg, "eval.previous_r1", default=0.0))
+    min_improv = float(cfg_get(cfg, "eval.min_improvement", default=1.0))
+
+    above_chance = r1_v2t > (chance + min_above)
+    gap = abs(r1_v2t - r1_t2v)
+    no_collapse = gap <= max_gap
+    improved = (prev_r1 <= 0) or (r1_v2t >= prev_r1 + min_improv)
+
+    passed = above_chance and no_collapse and improved
+    status = "PASS" if passed else "FAIL"
+
+    print(f"\n--- [M1 GATE] {status} ---")
     print(
-        f"[M1 GATE] video->text R@1={r1_v2t:.2f} vs SigLIP2 baseline={baseline:.2f} "
-        f"(delta={r1_v2t - baseline:+.2f})"
+        f"  1. Above chance:  {'PASS' if above_chance else 'FAIL'} | "
+        f"R@1={r1_v2t:.2f}  chance={chance:.2f}  threshold={chance + min_above:.2f}"
     )
-    if deficit <= within:
-        print(
-            f"[M1 GATE] PASS: within {within:.1f} pts of the SigLIP2 baseline."
-        )
-        return True
-    if deficit > abort:
-        print(
-            f"[M1 GATE] ABORT: {deficit:.2f} pts worse than baseline "
-            f"(> {abort:.1f}); switch the encoder."
-        )
-        return False
     print(
-        f"[M1 GATE] FAIL: {deficit:.2f} pts worse than baseline "
-        f"(> {within:.1f} but <= {abort:.1f}); keep iterating on the spine."
+        f"  2. No collapse:   {'PASS' if no_collapse else 'FAIL'} | "
+        f"v2t={r1_v2t:.2f}  t2v={r1_t2v:.2f}  gap={gap:.2f}  max={max_gap:.1f}"
     )
-    return False
+    if prev_r1 > 0:
+        print(
+            f"  3. Improvement:   {'PASS' if improved else 'FAIL'} | "
+            f"current={r1_v2t:.2f}  previous={prev_r1:.2f}  "
+            f"delta={r1_v2t - prev_r1:+.2f}  min={min_improv:.1f}"
+        )
+    else:
+        print(f"  3. Improvement:   SKIP (no previous_r1 configured)")
+    print()
+    return passed
 
 
 def evaluate(
@@ -231,7 +248,7 @@ def evaluate(
     _print_metrics("video->text", v2t)
     _print_metrics("text->video", t2v)
 
-    return report_m1_gate(v2t["R@1"], cfg)
+    return report_m1_gate(v2t["R@1"], t2v["R@1"], int(v2t["n"]), cfg)
 
 
 def main() -> None:

@@ -52,4 +52,7 @@ train:
 eval:
   batch_size: 16
   metrics: [R@1, R@5, R@10, MedR]
-  baseline_r1: 32.5
+  min_above_chance: 5.0     # R@1 must beat chance by this many pts
+  max_v2t_t2v_gap: 8.0      # v2t and t2v R@1 must be within this gap (collapse check)
+  previous_r1: 0.0           # set to current R@1 after each scale-up to track improvement
+  min_improvement: 1.0       # must beat previous_r1 by at least this many pts
