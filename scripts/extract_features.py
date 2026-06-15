@@ -119,14 +119,16 @@ def _decode_worker(path: str, num_frames: int, resolution: int, save_to: str) ->
     torch.save(frames, save_to)
 
 
-def decode_clip_with_timeout(
+def _decode_with_timeout(
     vid: str, path: str, num_frames: int, resolution: int,
-    tmp_dir: str, timeout_sec: int = 60,
-) -> Tensor:
+    tmp_dir: str, timeout_sec: int = 15,
+) -> str:
     """Decode a video in a subprocess with a hard timeout.
 
-    Uses ``multiprocessing.Process`` + ``join(timeout)`` + ``terminate()``
-    so that C-level hangs in VideoDecoder are killed cleanly.
+    Must be called BEFORE any CUDA context is initialized in the parent,
+    otherwise ``fork()`` inherits a corrupt CUDA context and torchcodec hangs.
+
+    Returns the path to the saved frames file on success.
     """
     import multiprocessing as mp
 
@@ -141,7 +143,6 @@ def decode_clip_with_timeout(
         if p.is_alive():
             p.kill()
             p.join()
-        # Clean up partial file
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
         raise TimeoutError(f"decode timed out after {timeout_sec}s")
@@ -151,16 +152,14 @@ def decode_clip_with_timeout(
             os.unlink(tmp_path)
         raise RuntimeError(f"decode subprocess failed (exit code {p.exitcode})")
 
-    frames = torch.load(tmp_path, weights_only=True)
-    os.unlink(tmp_path)
-    return frames
+    return tmp_path
 
 
 def extract(
     cfg: AttrDict,
     limit: int | None = None,
     micro_batch: int = 4,
-    decode_timeout: int = 60,
+    decode_timeout: int = 15,
 ) -> None:
     cache_dir = str(cfg_get(cfg, "data.feature_cache_dir"))
     num_frames = int(cfg_get(cfg, "data.num_frames", "num_frames", default=64))
@@ -168,7 +167,6 @@ def extract(
     vision_repo = str(cfg_get(cfg, "model.vision_repo", default="facebook/vjepa2-vitl-fpc64-256"))
 
     os.makedirs(cache_dir, exist_ok=True)
-    # Temp dir for subprocess decoded frames
     tmp_dir = os.path.join(cache_dir, ".tmp")
     os.makedirs(tmp_dir, exist_ok=True)
 
@@ -192,47 +190,86 @@ def extract(
         _write_manifest(cache_dir, vision_repo, num_frames, resolution)
         return
 
-    # ---- Load encoder ----
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"[extract] Loading VisionEncoder ({vision_repo}) on {device}...", flush=True)
-    encoder = VisionEncoder(vision_repo, dtype=torch.bfloat16, device=device)
-    hidden_size = encoder.hidden_size
-    print(f"[extract] Encoder ready. hidden_size={hidden_size}", flush=True)
-
-    # ---- Extract one-by-one with subprocess timeout ----
+    # ==================================================================
+    # PHASE 1: Decode all videos in subprocesses BEFORE loading encoder.
+    # No CUDA context in the parent → fork() works cleanly.
+    # ==================================================================
+    print(
+        f"[extract] PHASE 1: Decoding {len(todo)} videos "
+        f"(timeout={decode_timeout}s per video)...",
+        flush=True,
+    )
     t0 = time.time()
-    done = 0
+    decoded: List[Tuple[str, str]] = []   # (video_id, tmp_frames_path)
     failed = 0
     for idx, (vid, path) in enumerate(todo):
         try:
-            frames = decode_clip_with_timeout(
+            tmp_path = _decode_with_timeout(
                 vid, path, num_frames, resolution, tmp_dir, decode_timeout,
             )
+            decoded.append((vid, tmp_path))
         except Exception as exc:
             print(f"[extract] SKIP {vid}: {exc}", flush=True)
             failed += 1
-            continue
 
-        # Encode single clip
+        total_processed = len(decoded) + failed
+        if total_processed % 100 == 0 or total_processed == len(todo):
+            elapsed = time.time() - t0
+            rate = total_processed / elapsed if elapsed > 0 else 0
+            eta = (len(todo) - total_processed) / rate if rate > 0 else 0
+            print(
+                f"[extract] decode {len(decoded)}/{len(todo)} ok, "
+                f"{failed} failed, {rate:.1f} vid/s, ETA {eta/60:.0f}m",
+                flush=True,
+            )
+
+    print(
+        f"[extract] PHASE 1 DONE: {len(decoded)} decoded, {failed} failed, "
+        f"{time.time() - t0:.0f}s",
+        flush=True,
+    )
+
+    if not decoded:
+        print("[extract] No videos decoded successfully. Exiting.", flush=True)
+        return
+
+    # ==================================================================
+    # PHASE 2: Load encoder, encode all decoded frames, save features.
+    # Now it's safe to init CUDA — no more forking.
+    # ==================================================================
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"[extract] PHASE 2: Loading VisionEncoder ({vision_repo}) on {device}...", flush=True)
+    encoder = VisionEncoder(vision_repo, dtype=torch.bfloat16, device=device)
+    hidden_size = encoder.hidden_size
+    print(f"[extract] Encoder ready. Encoding {len(decoded)} clips...", flush=True)
+
+    t1 = time.time()
+    encoded = 0
+    for vid, frames_path in decoded:
+        frames = torch.load(frames_path, weights_only=True)
+
         with torch.no_grad():
             feats = encoder.encode([frames])  # [1, N, hidden]
 
-        # Save (atomic)
         feat = feats[0].to(torch.bfloat16).cpu()  # [N, hidden]
         out_dir = os.path.join(cache_dir, _shard_dir(vid))
         os.makedirs(out_dir, exist_ok=True)
         out_path = _feature_path(cache_dir, vid)
-        tmp_path = out_path + ".tmp"
-        torch.save(feat, tmp_path)
-        os.rename(tmp_path, out_path)
+        feat_tmp = out_path + ".tmp"
+        torch.save(feat, feat_tmp)
+        os.rename(feat_tmp, out_path)
 
-        done += 1
-        if done % 20 == 0 or done + failed == len(todo):
-            elapsed = time.time() - t0
-            rate = done / elapsed if elapsed > 0 else 0
-            eta = (len(todo) - done - failed) / rate if rate > 0 else 0
+        # Clean up decoded frames
+        if os.path.exists(frames_path):
+            os.unlink(frames_path)
+
+        encoded += 1
+        if encoded % 100 == 0 or encoded == len(decoded):
+            elapsed = time.time() - t1
+            rate = encoded / elapsed if elapsed > 0 else 0
+            eta = (len(decoded) - encoded) / rate if rate > 0 else 0
             print(
-                f"[extract] {done}/{len(todo)} done, {failed} failed, "
+                f"[extract] encode {encoded}/{len(decoded)}, "
                 f"{rate:.1f} vid/s, ETA {eta/60:.0f}m",
                 flush=True,
             )
@@ -240,7 +277,7 @@ def extract(
     # ---- Write manifest ----
     _write_manifest(cache_dir, vision_repo, num_frames, resolution, hidden_size)
     print(
-        f"[extract] DONE. {done} extracted, {failed} failed, "
+        f"[extract] DONE. {encoded} extracted, {failed} failed, "
         f"{time.time() - t0:.0f}s total.",
         flush=True,
     )
