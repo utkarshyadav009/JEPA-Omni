@@ -38,6 +38,20 @@ def run_setup(cfg: AttrDict, checkpoint_path: str, limit: int | None = None) -> 
 
     # 1. Load dataset (we use the eval split to build the gallery)
     dataset = CachedFeatureDataset.from_config(cfg, "eval", limit=limit)
+    
+    # [CRITICAL ALIGNMENT BUG FIX]
+    # If a video failed to decode during extraction, CachedFeatureDataset.__getitem__ 
+    # catches the FileNotFoundError and silently returns a random fallback video.
+    # This is fine for training, but it scrambling the Bank metadata!
+    # We must strictly filter out missing features here so __getitem__ never throws.
+    valid_samples = []
+    for s in dataset.samples:
+        feat_path = os.path.join(feature_cache_dir, s.video_id[:2], f"{s.video_id}.pt")
+        if os.path.exists(feat_path):
+            valid_samples.append(s)
+    print(f"[setup] Filtered {len(dataset.samples) - len(valid_samples)} missing features.")
+    dataset.samples = valid_samples
+
     loader = DataLoader(
         dataset,
         batch_size=32,
@@ -47,7 +61,7 @@ def run_setup(cfg: AttrDict, checkpoint_path: str, limit: int | None = None) -> 
         drop_last=False,
     )
 
-    # 2. Load model (skip_encoder=True means no heavy V-JEPA)
+    # 2. Load model
     print(f"[setup] Loading model from {checkpoint_path}...")
     with open(os.path.join(feature_cache_dir, "manifest.json")) as f:
         manifest = json.load(f)
@@ -87,10 +101,14 @@ def run_setup(cfg: AttrDict, checkpoint_path: str, limit: int | None = None) -> 
             video_embeds.append(zv)
             text_embeds.append(zt)
 
-    # Reconstruct metadata (order matches loader because shuffle=False)
+    # Reconstruct metadata (order is now 100% strictly aligned with loader)
     for i in range(len(dataset)):
         sample = dataset.samples[i]
-        metadata.append({"video_id": sample.video_id, "caption": sample.caption})
+        metadata.append({
+            "video_id": sample.video_id, 
+            "caption": sample.caption,
+            "video_path": sample.video_path  # Save the absolute path for UI playback!
+        })
 
     video_bank = torch.cat(video_embeds, dim=0)
     text_bank = torch.cat(text_embeds, dim=0)
@@ -136,49 +154,52 @@ def run_live(cfg: AttrDict, checkpoint_path: str) -> None:
     spine.load_state_dict(state_dict, strict=False)
     spine.eval()
 
-    def text2video(query: str, top_k: int = 5) -> str:
+    def text2video(query: str):
         if not query.strip():
-            return "Please enter a query."
+            return [None, "Please enter a query."] * 5
+        
         with torch.no_grad():
             with torch.autocast(device_type="cpu", dtype=torch.bfloat16):
                 zt = spine.embed_text([query])
             zt = F.normalize(zt.float(), dim=-1).cpu()  # [1, 1536]
         
         scores = (zt @ video_embeds.T).squeeze(0)  # [N]
-        top_scores, top_indices = scores.topk(top_k)
+        top_scores, top_indices = scores.topk(5)
         
-        result = f"Query: '{query}'\n\n"
+        outputs = []
         for i, (score, idx) in enumerate(zip(top_scores, top_indices)):
             meta = metadata[idx.item()]
-            result += f"{i+1}. [Score: {score.item():.3f}] Video: {meta['video_id']}\n"
-            result += f"   Caption: {meta['caption']}\n\n"
-        return result
+            vid_path = meta.get("video_path")
+            # Gradio needs the absolute path to render the video
+            info = f"Rank {i+1} | Score: {score.item():.3f} | ID: {meta['video_id']}\nCaption: {meta['caption']}"
+            outputs.append(vid_path)
+            outputs.append(info)
+        return outputs
 
-    def video2text(video_id: str, top_k: int = 5) -> str:
+    def video2text(video_id: str):
         video_id = video_id.strip()
         if not video_id:
-            return "Please enter a video_id."
+            return "Please enter a video_id.", None
         
-        # Find video in bank
         idx = next((i for i, m in enumerate(metadata) if m["video_id"] == video_id), None)
         if idx is None:
-            return f"Error: video_id '{video_id}' not found in the demo bank."
+            return f"Error: video_id '{video_id}' not found in the demo bank.", None
             
         zv = video_embeds[idx].unsqueeze(0)  # [1, 1536]
         scores = (zv @ text_embeds.T).squeeze(0)  # [N]
-        top_scores, top_indices = scores.topk(top_k)
+        top_scores, top_indices = scores.topk(5)
         
         meta = metadata[idx]
-        result = f"Target Video: {video_id}\nGround Truth Caption: {meta['caption']}\n\n"
-        
-        # Check self-retrieval
         rank = (scores > scores[idx]).sum().item() + 1
-        result += f"Self-Retrieval Rank: {rank}/{len(metadata)}\n\n"
+        
+        result = f"Target Video: {video_id}\nGround Truth Caption: {meta['caption']}\n\n"
+        result += f"=== Self-Retrieval Rank: {rank}/{len(metadata)} ===\n\n"
         
         for i, (score, tidx) in enumerate(zip(top_scores, top_indices)):
             tmeta = metadata[tidx.item()]
             result += f"{i+1}. [Score: {score.item():.3f}] {tmeta['caption']}\n"
-        return result
+        
+        return result, meta.get("video_path")
 
     # 2. Build Gradio UI
     with gr.Blocks(title="M1 Retrieval Demo") as app:
@@ -187,11 +208,26 @@ def run_live(cfg: AttrDict, checkpoint_path: str) -> None:
         with gr.Tab("Text → Video Search"):
             gr.Markdown("Type a semantic query to search the video embedding bank.")
             with gr.Row():
-                t2v_input = gr.Textbox(label="Text Query", placeholder="A person chopping vegetables...")
-                t2v_btn = gr.Button("Search")
-            t2v_output = gr.Textbox(label="Results", lines=15)
-            t2v_btn.click(text2video, inputs=t2v_input, outputs=t2v_output)
-            t2v_input.submit(text2video, inputs=t2v_input, outputs=t2v_output)
+                t2v_input = gr.Textbox(label="Text Query", placeholder="A person chopping vegetables...", scale=4)
+                t2v_btn = gr.Button("Search", scale=1)
+            
+            # Fixed 5x Video outputs
+            t2v_vid_outputs = []
+            t2v_info_outputs = []
+            for i in range(5):
+                with gr.Row():
+                    vid = gr.Video(label=f"Rank {i+1}", height=256)
+                    info = gr.Textbox(label="Metadata", lines=3)
+                    t2v_vid_outputs.append(vid)
+                    t2v_info_outputs.append(info)
+            
+            # Interleave them for the return list
+            t2v_all_outputs = []
+            for v, i in zip(t2v_vid_outputs, t2v_info_outputs):
+                t2v_all_outputs.extend([v, i])
+                
+            t2v_btn.click(text2video, inputs=t2v_input, outputs=t2v_all_outputs)
+            t2v_input.submit(text2video, inputs=t2v_input, outputs=t2v_all_outputs)
             
         with gr.Tab("Video → Text (Self-Retrieval)"):
             gr.Markdown(
@@ -199,11 +235,15 @@ def run_live(cfg: AttrDict, checkpoint_path: str) -> None:
                 "If it can't retrieve its own ground-truth caption, the bank is broken."
             )
             with gr.Row():
-                v2t_input = gr.Textbox(label="Video ID", placeholder="video1234")
-                v2t_btn = gr.Button("Retrieve Captions")
-            v2t_output = gr.Textbox(label="Results", lines=15)
-            v2t_btn.click(video2text, inputs=v2t_input, outputs=v2t_output)
-            v2t_input.submit(video2text, inputs=v2t_input, outputs=v2t_output)
+                v2t_input = gr.Textbox(label="Video ID", placeholder="video1234", scale=4)
+                v2t_btn = gr.Button("Retrieve Captions", scale=1)
+            
+            with gr.Row():
+                v2t_vid = gr.Video(label="Source Video")
+                v2t_output = gr.Textbox(label="Results", lines=15)
+                
+            v2t_btn.click(video2text, inputs=v2t_input, outputs=[v2t_output, v2t_vid])
+            v2t_input.submit(video2text, inputs=v2t_input, outputs=[v2t_output, v2t_vid])
 
     print("[live] Launching Gradio server on 0.0.0.0:7860...")
     app.launch(server_name="0.0.0.0", server_port=7860, share=True)
