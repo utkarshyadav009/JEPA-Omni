@@ -128,8 +128,9 @@ def run_live(cfg: AttrDict, checkpoint_path: str) -> None:
     model_config = cfg.get("model", {})
     model_config["skip_encoder"] = True
     model_config["encoder_out_dim"] = manifest["hidden_size"]
+    model_config["device"] = "cpu"  # Force CPU for live demo
 
-    spine = SpineM1(SpineConfig(**model_config))
+    spine = SpineM1(SpineConfig(**model_config)).cpu()
     ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
     state_dict = ckpt["model_state"] if "model_state" in ckpt else ckpt
     spine.load_state_dict(state_dict, strict=False)
@@ -141,7 +142,7 @@ def run_live(cfg: AttrDict, checkpoint_path: str) -> None:
         with torch.no_grad():
             with torch.autocast(device_type="cpu", dtype=torch.bfloat16):
                 zt = spine.embed_text([query])
-            zt = F.normalize(zt.float(), dim=-1)  # [1, 1536]
+            zt = F.normalize(zt.float(), dim=-1).cpu()  # [1, 1536]
         
         scores = (zt @ video_embeds.T).squeeze(0)  # [N]
         top_scores, top_indices = scores.topk(top_k)
