@@ -49,6 +49,7 @@ class CachedFeatureDataset(Dataset):
         super().__init__()
         self.cache_dir = cache_dir
         self.samples = samples
+        self._rng = __import__("random").Random(0)
 
     def __len__(self) -> int:
         return len(self.samples)
@@ -56,7 +57,16 @@ class CachedFeatureDataset(Dataset):
     def __getitem__(self, index: int) -> Tuple[Tensor, str]:
         sample = self.samples[index]
         feat_path = _feature_path(self.cache_dir, sample.video_id)
-        feats = torch.load(feat_path, map_location="cpu", weights_only=True)
+        try:
+            feats = torch.load(feat_path, map_location="cpu", weights_only=True)
+        except (FileNotFoundError, RuntimeError) as exc:
+            # Fall back to a different sample (mirrors video dataset behaviour
+            # for corrupt clips). A handful of missing features is expected
+            # when extraction skips corrupt/undecodable videos.
+            alt = self._rng.randrange(len(self.samples))
+            if alt == index:
+                alt = (index + 1) % len(self.samples)
+            return self.__getitem__(alt)
         return feats, sample.caption
 
     # ------------------------------------------------------------------ #
