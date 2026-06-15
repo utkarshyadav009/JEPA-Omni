@@ -246,7 +246,12 @@ def run_live(cfg: AttrDict, checkpoint_path: str) -> None:
             v2t_input.submit(video2text, inputs=v2t_input, outputs=[v2t_output, v2t_vid])
 
     print("[live] Launching Gradio server on 0.0.0.0:7860...")
-    app.launch(server_name="0.0.0.0", server_port=7860, share=True)
+    app.launch(
+        server_name="0.0.0.0", 
+        server_port=7860, 
+        share=True, 
+        allowed_paths=["/home/jovyan/work/data"]
+    )
 
 
 def main() -> None:
