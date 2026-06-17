@@ -347,27 +347,17 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
 
     spine = SpineM1(SpineConfig(**filtered_config)).to(device)
 
-    loss_type = cfg_get(cfg, "train.loss_type", "model.loss_type", default="info_nce")
-    loss_fn = compute_siglip_loss if loss_type == "siglip" else info_nce
+    # Use the loss function from the model's config if not specified
+    loss_type = cfg_get(cfg, "train.loss_type", "model.loss_type", default=spine.cfg.loss_type)
+    spine.cfg.loss_type = loss_type
 
-    import types
-    def dynamic_forward(self, videos, texts: List[str]):
-        if isinstance(videos, torch.Tensor) and videos.dim() == 3:
-            z_v = self.predictor(videos)
-        else:
-            z_v = self.embed_video(videos)
-        z_t = self.embed_text(texts)
-        if loss_type == "siglip":
-            return z_v, z_t
-        if self.queue_size > 0 and z_v.requires_grad:
-            neg_v, neg_t = self._valid_queue()
-            loss, metrics = info_nce_with_queue(
-                z_v, z_t, neg_t=neg_t, neg_v=neg_v, temperature=self.cfg.temperature)
-            self._enqueue(z_v, z_t)
-            return loss, metrics
-        return info_nce(z_v, z_t, self.cfg.temperature)
-
-    spine.forward = types.MethodType(dynamic_forward, spine)
+    # fallback loss_fn for diagnostics if resolve_outputs needs it
+    from models import compute_siglip_loss, sigreg_jepa_loss
+    loss_fn = info_nce
+    if loss_type == "siglip":
+        loss_fn = compute_siglip_loss
+    elif loss_type == "sigreg":
+        loss_fn = sigreg_jepa_loss
 
     accum_steps = int(cfg_get(cfg, "train.gradient_accumulation_steps", "optim.gradient_accumulation_steps", default=1))
 

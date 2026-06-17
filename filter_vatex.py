@@ -1,29 +1,48 @@
 import json
 import os
+import glob
 
 JSON_PATH = "/home/jovyan/work/data/vatex/vatex_train.json"
-VIDEO_DIR = "/home/jovyan/work/data/vatex/video"
+BASE_DIR = "/home/jovyan/work/data/vatex"
 OUTPUT_JSON = "/home/jovyan/work/data/vatex/vatex_train_filtered.json"
 
 print("Loading original VATEX JSON...")
 with open(JSON_PATH, 'r') as f:
     data = json.load(f)
 
+# Build a set of available video filenames by searching recursively
+print(f"Scanning {BASE_DIR} for mp4/mkv files...")
+available_videos = set()
+for ext in ["*.mp4", "*.mkv"]:
+    # Using recursive glob to find all videos in subdirectories (video, part2, part3, etc.)
+    for path in glob.glob(os.path.join(BASE_DIR, "**", ext), recursive=True):
+        available_videos.add(os.path.basename(path))
+
+print(f"Found {len(available_videos)} unique video files on disk.")
+
 filtered_data = []
 missing_count = 0
 
-print(f"Checking {len(data)} entries against local disk...")
+print(f"Checking {len(data)} entries against available videos...")
 for item in data:
     vid_string = item.get("videoID", "")
-    
-    # Kaggle datasets usually save the video using just the 11-character YouTube ID
     yt_id = vid_string[:11]
     
-    # Check if either the 11-char ID or the full ID exists on disk
-    path_11_char = os.path.join(VIDEO_DIR, f"{yt_id}.mp4")
-    path_full = os.path.join(VIDEO_DIR, f"{vid_string}.mp4")
+    # Check for various filename formats
+    possible_names = [
+        f"{yt_id}.mp4",
+        f"{vid_string}.mp4",
+        f"{yt_id}.mkv",
+        f"{vid_string}.mkv"
+    ]
     
-    if os.path.exists(path_11_char) or os.path.exists(path_full):
+    found = False
+    for name in possible_names:
+        if name in available_videos:
+            found = True
+            break
+            
+    if found:
         filtered_data.append(item)
     else:
         missing_count += 1

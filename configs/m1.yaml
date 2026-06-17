@@ -17,13 +17,15 @@ model:
   text_max_length: 512
   unfreeze_text: false         # FAITHFUL: true (with optim.text_lr_mult below)
   queue_size: 0
+  loss_type: sigreg            # Changed from info_nce to sigreg
+  sigreg_lambda: 10.0
 
 data:
-  name: msrvtt
+  name: vatex
   num_frames: 64              # read as data.num_frames
   resolution: 256             # read as data.resolution
-  video_dir: /home/jovyan/work/data/msrvtt/video
-  annotation_train: /home/jovyan/work/data/msrvtt/msrvtt_train_7k.json
+  video_dir: /home/jovyan/work/data/vatex/video
+  annotation_train: /home/jovyan/work/data/vatex/vatex_final_curated.json
   annotation_eval: /home/jovyan/work/data/msrvtt/msrvtt_test_1k.json
   train_split_filter: null    # These JSONs are pre-split, so set to null to keep all entries
   eval_split_filter: null
@@ -35,13 +37,14 @@ optim:
   betas: [0.9, 0.98]
   eps: 1.0e-8
   grad_clip: 1.0
-  total_steps: 5000            # step-based loop (not epochs)
+  total_steps: 10000            # Increased from 5000
   warmup_steps: 500
   text_lr_mult: 0.05           # only used if model.unfreeze_text
 
 train:
-  batch_size: 8               # tune to VRAM after probe_latency.py
-  num_workers: 0
+  batch_size: 8               # Decreased to avoid OOM with Llama 1B and 16k tokens
+  gradient_accumulation_steps: 8  # Effective batch size 64
+  num_workers: 8
   log_every: 20
   save_every: 1000
   ckpt_dir: /home/jovyan/work/JEPA-Omni/checkpoints/m1 

@@ -37,6 +37,76 @@ def _diagnostics(z_v: Tensor, z_t: Tensor) -> Tuple[float, float]:
     return alignment, uniformity
 
 
+def sigreg_loss(z: Tensor, sketch_dim: int = 64, t_range: float = 5.0, num_t: int = 17) -> Tensor:
+    """
+    SigReg (Sketched Isotropic Gaussian Regularization) from LeJEPA (2511.08544).
+    Forces the distribution of embeddings to match an Isotropic Gaussian N(0, I).
+    z: [Batch, Dimension]
+    """
+    N, D = z.shape
+    if N <= 1:
+        return z.new_zeros(())
+
+    # 1. Random 1D Projections (The Sketch)
+    # Ideally A should be fixed or a registered buffer, but for M1 we generate it.
+    # We use a fixed seed for A to ensure stability within a step if called multiple times.
+    generator = torch.Generator(device=z.device).manual_seed(42)
+    A = torch.randn(D, sketch_dim, device=z.device, dtype=z.dtype, generator=generator)
+    A = A / (A.norm(p=2, dim=0, keepdim=True) + 1e-6)
+    proj = z @ A  # [N, sketch_dim]
+
+    # 2. Integration points for the Characteristic Function (CF)
+    t = torch.linspace(-t_range, t_range, num_t, device=z.device, dtype=z.dtype)
+    phi_gauss = torch.exp(-0.5 * t**2)  # Theoretical Gaussian CF
+
+    # 3. Empirical Characteristic Function (ECF)
+    # ECF(t) = 1/N * sum(exp(i * t * proj))
+    args = proj.unsqueeze(2) * t.view(1, 1, -1)  # [N, sketch_dim, num_t]
+    ecf_real = torch.cos(args).mean(dim=0)       # [sketch_dim, num_t]
+    ecf_imag = torch.sin(args).mean(dim=0)       # [sketch_dim, num_t]
+
+    # 4. Weighted L2 Distance (Epps-Pulley style)
+    # |ecf - phi_gauss|^2 = (ecf_real - phi_gauss)^2 + ecf_imag^2
+    diff_sq = (ecf_real - phi_gauss.unsqueeze(0)).pow(2) + ecf_imag.pow(2)
+    weighted_diff = diff_sq * phi_gauss.unsqueeze(0)
+
+    # 5. Integrate over t (trapezoidal rule)
+    loss = torch.trapezoid(weighted_diff, t, dim=1)
+    return loss.mean()
+
+
+def sigreg_jepa_loss(
+    z_v: Tensor,
+    z_t: Tensor,
+    lamb: float = 10.0,
+) -> Tuple[Tensor, Dict[str, float]]:
+    """
+    LeJEPA total loss: Prediction Error (MSE) + lambda * SigReg Regularization.
+    Inputs are assumed to be embeddings from the predictor and text target.
+    """
+    # Prediction loss (MSE)
+    loss_mse = F.mse_loss(z_v, z_t)
+
+    # Regularization loss
+    reg_v = sigreg_loss(z_v)
+    reg_t = sigreg_loss(z_t)
+    loss_reg = 0.5 * (reg_v + reg_t)
+
+    loss = loss_mse + lamb * loss_reg
+
+    with torch.no_grad():
+        alignment, uniformity = _diagnostics(z_v, z_t)
+        # acc_v2t as a monitoring metric (even though not used for loss)
+        sims = z_v @ z_t.t()
+        targets = torch.arange(z_v.shape[0], device=z_v.device)
+        acc_v2t = (sims.argmax(dim=1) == targets).float().mean().item()
+
+    return loss, {
+        "loss": loss.item(), "loss_mse": loss_mse.item(), "loss_reg": loss_reg.item(),
+        "acc_v2t": acc_v2t, "alignment": alignment, "uniformity": uniformity,
+    }
+
+
 def info_nce(
     z_v: Tensor,              # (B, D) normalized video embeddings
     z_t: Tensor,              # (B, D) normalized text embeddings

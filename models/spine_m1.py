@@ -27,7 +27,7 @@ from torch import Tensor
 from .vision_encoder import VisionEncoder
 from .text_target import TextTarget
 from .predictor import Predictor
-from .losses import info_nce, info_nce_with_queue
+from .losses import info_nce, info_nce_with_queue, sigreg_jepa_loss
 
 
 @dataclass
@@ -42,6 +42,8 @@ class SpineConfig:
     text_max_length: int = 512
     unfreeze_text: bool = False
     queue_size: int = 0                    # 0 = disabled; e.g. 2048 to flex the negatives
+    loss_type: str = "info_nce"            # "info_nce" | "sigreg"
+    sigreg_lambda: float = 10.0            # weight for SigReg term
     device: str = "cuda"
     dtype: torch.dtype = torch.bfloat16
     skip_encoder: bool = False             # True when using pre-computed feature cache
@@ -95,7 +97,13 @@ class SpineM1(nn.Module):
         return [p for p in self.text.base.parameters() if p.requires_grad]
 
     def embed_video(self, videos) -> Tensor:
-        feats = self.encoder.encode(videos)          # frozen, no grad
+        # If videos is already a feature tensor [B, N, D], just pass it to predictor
+        if isinstance(videos, torch.Tensor) and videos.dim() == 3:
+            feats = videos
+        elif self.encoder is not None:
+            feats = self.encoder.encode(videos)      # frozen, no grad
+        else:
+            feats = videos                           # already features (cached path)
         return self.predictor(feats)                 # (B, shared_dim), normalized
 
     def embed_text(self, texts: List[str]) -> Tensor:
@@ -133,6 +141,9 @@ class SpineM1(nn.Module):
     def forward(self, videos, texts: List[str]) -> Tuple[Tensor, Dict[str, float]]:
         z_v = self.embed_video(videos)
         z_t = self.embed_text(texts)
+
+        if self.cfg.loss_type == "sigreg":
+            return sigreg_jepa_loss(z_v, z_t, lamb=self.cfg.sigreg_lambda)
 
         # Use the queue only on training steps (grad on). Never enqueue under no_grad
         # (e.g. diagnostic embeds), and never let a queued/stale vector be the positive.
