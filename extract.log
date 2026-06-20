@@ -1,0 +1,336 @@
+nohup: ignoring input
+[extract] Collecting unique videos from annotations...
+[extract] Found 20559 unique videos.
+[extract] 9642 already cached, 10917 to extract.
+[extract] PHASE 1: Decoding 10917 videos (timeout=15s per video)...
+Process Process-1:
+Traceback (most recent call last):
+  File "/home/jovyan/work/envs/jepa-omni/lib/python3.11/multiprocessing/process.py", line 314, in _bootstrap
+    self.run()
+  File "/home/jovyan/work/envs/jepa-omni/lib/python3.11/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/home/jovyan/work/JEPA-Omni/scripts/extract_features.py", line 118, in _decode_worker
+    frames = _decode_clip_raw(path, num_frames, resolution)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/work/JEPA-Omni/scripts/extract_features.py", line 88, in _decode_clip_raw
+    decoder = VideoDecoder(path, device="cpu")
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/work/envs/jepa-omni/lib/python3.11/site-packages/torchcodec/decoders/_video_decoder.py", line 254, in __init__
+    ) = create_video_decoder(
+        ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/work/envs/jepa-omni/lib/python3.11/site-packages/torchcodec/_core/_decoder_utils.py", line 190, in create_video_decoder
+    decoder = create_decoder(source=source, seek_mode=seek_mode)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/work/envs/jepa-omni/lib/python3.11/site-packages/torchcodec/_core/_decoder_utils.py", line 46, in create_decoder
+    return create_from_file(source, seek_mode)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/work/envs/jepa-omni/lib/python3.11/site-packages/torch/_ops.py", line 871, in __call__
+    return self._op(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: scanFileAndUpdateMetadataAndIndex, /__w/torchcodec/torchcodec/meta-pytorch/torchcodec/src/torchcodec/_core/SingleStreamDecoder.cpp:358, Could not seek file to pts=0: Invalid argument
+[extract] SKIP uH4TF9gl21I_000076_000086: decode subprocess failed (exit code 1)
+[extract] decode 99/10917 ok, 1 failed, 1.5 vid/s, ETA 124m
+[extract] decode 199/10917 ok, 1 failed, 1.5 vid/s, ETA 117m
+[extract] decode 299/10917 ok, 1 failed, 1.5 vid/s, ETA 118m
+[extract] decode 399/10917 ok, 1 failed, 1.5 vid/s, ETA 115m
+[extract] decode 499/10917 ok, 1 failed, 1.6 vid/s, ETA 109m
+[extract] decode 599/10917 ok, 1 failed, 1.6 vid/s, ETA 108m
+[extract] decode 699/10917 ok, 1 failed, 1.6 vid/s, ETA 108m
+[extract] decode 799/10917 ok, 1 failed, 1.6 vid/s, ETA 106m
+[extract] decode 899/10917 ok, 1 failed, 1.6 vid/s, ETA 105m
+Process Process-901:
+Traceback (most recent call last):
+  File "/home/jovyan/work/envs/jepa-omni/lib/python3.11/multiprocessing/process.py", line 314, in _bootstrap
+    self.run()
+  File "/home/jovyan/work/envs/jepa-omni/lib/python3.11/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/home/jovyan/work/JEPA-Omni/scripts/extract_features.py", line 118, in _decode_worker
+    frames = _decode_clip_raw(path, num_frames, resolution)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/work/JEPA-Omni/scripts/extract_features.py", line 88, in _decode_clip_raw
+    decoder = VideoDecoder(path, device="cpu")
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/work/envs/jepa-omni/lib/python3.11/site-packages/torchcodec/decoders/_video_decoder.py", line 254, in __init__
+    ) = create_video_decoder(
+        ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/work/envs/jepa-omni/lib/python3.11/site-packages/torchcodec/_core/_decoder_utils.py", line 190, in create_video_decoder
+    decoder = create_decoder(source=source, seek_mode=seek_mode)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/work/envs/jepa-omni/lib/python3.11/site-packages/torchcodec/_core/_decoder_utils.py", line 46, in create_decoder
+    return create_from_file(source, seek_mode)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/work/envs/jepa-omni/lib/python3.11/site-packages/torch/_ops.py", line 871, in __call__
+    return self._op(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: SingleStreamDecoder, /__w/torchcodec/torchcodec/meta-pytorch/torchcodec/src/torchcodec/_core/SingleStreamDecoder.cpp:52, Could not open input file: /home/jovyan/work/data/vatex/video/7olz18uNTUI.mp4 Invalid data found when processing input
+[extract] SKIP 7olz18uNTUI_000286_000296: decode subprocess failed (exit code 1)
+[extract] decode 998/10917 ok, 2 failed, 1.6 vid/s, ETA 104m
+[extract] decode 1098/10917 ok, 2 failed, 1.6 vid/s, ETA 102m
+[extract] decode 1198/10917 ok, 2 failed, 1.6 vid/s, ETA 100m
+[extract] decode 1298/10917 ok, 2 failed, 1.6 vid/s, ETA 99m
+[extract] decode 1398/10917 ok, 2 failed, 1.6 vid/s, ETA 99m
+[extract] decode 1498/10917 ok, 2 failed, 1.6 vid/s, ETA 97m
+[extract] decode 1598/10917 ok, 2 failed, 1.6 vid/s, ETA 95m
+[extract] decode 1698/10917 ok, 2 failed, 1.6 vid/s, ETA 94m
+[extract] decode 1798/10917 ok, 2 failed, 1.6 vid/s, ETA 92m
+[extract] decode 1898/10917 ok, 2 failed, 1.7 vid/s, ETA 91m
+[extract] decode 1998/10917 ok, 2 failed, 1.6 vid/s, ETA 90m
+[extract] decode 2098/10917 ok, 2 failed, 1.6 vid/s, ETA 89m
+[extract] decode 2198/10917 ok, 2 failed, 1.6 vid/s, ETA 88m
+[extract] decode 2298/10917 ok, 2 failed, 1.6 vid/s, ETA 88m
+[extract] decode 2398/10917 ok, 2 failed, 1.6 vid/s, ETA 87m
+[extract] decode 2498/10917 ok, 2 failed, 1.6 vid/s, ETA 86m
+[extract] decode 2598/10917 ok, 2 failed, 1.6 vid/s, ETA 85m
+[extract] decode 2698/10917 ok, 2 failed, 1.6 vid/s, ETA 84m
+[extract] decode 2798/10917 ok, 2 failed, 1.6 vid/s, ETA 83m
+[extract] decode 2898/10917 ok, 2 failed, 1.6 vid/s, ETA 82m
+[extract] decode 2998/10917 ok, 2 failed, 1.6 vid/s, ETA 81m
+[extract] decode 3098/10917 ok, 2 failed, 1.6 vid/s, ETA 80m
+[extract] decode 3198/10917 ok, 2 failed, 1.6 vid/s, ETA 78m
+[extract] decode 3298/10917 ok, 2 failed, 1.6 vid/s, ETA 77m
+[extract] decode 3398/10917 ok, 2 failed, 1.6 vid/s, ETA 76m
+[extract] decode 3498/10917 ok, 2 failed, 1.7 vid/s, ETA 75m
+[extract] decode 3598/10917 ok, 2 failed, 1.7 vid/s, ETA 74m
+[extract] decode 3698/10917 ok, 2 failed, 1.7 vid/s, ETA 73m
+[extract] decode 3798/10917 ok, 2 failed, 1.7 vid/s, ETA 72m
+[extract] decode 3898/10917 ok, 2 failed, 1.7 vid/s, ETA 71m
+[extract] decode 3998/10917 ok, 2 failed, 1.7 vid/s, ETA 70m
+[extract] decode 4098/10917 ok, 2 failed, 1.7 vid/s, ETA 68m
+[extract] decode 4198/10917 ok, 2 failed, 1.7 vid/s, ETA 68m
+[extract] decode 4298/10917 ok, 2 failed, 1.7 vid/s, ETA 66m
+[extract] decode 4398/10917 ok, 2 failed, 1.7 vid/s, ETA 65m
+[extract] decode 4498/10917 ok, 2 failed, 1.7 vid/s, ETA 64m
+[extract] decode 4598/10917 ok, 2 failed, 1.7 vid/s, ETA 63m
+Process Process-4662:
+Traceback (most recent call last):
+  File "/home/jovyan/work/envs/jepa-omni/lib/python3.11/multiprocessing/process.py", line 314, in _bootstrap
+    self.run()
+  File "/home/jovyan/work/envs/jepa-omni/lib/python3.11/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/home/jovyan/work/JEPA-Omni/scripts/extract_features.py", line 118, in _decode_worker
+    frames = _decode_clip_raw(path, num_frames, resolution)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/work/JEPA-Omni/scripts/extract_features.py", line 88, in _decode_clip_raw
+    decoder = VideoDecoder(path, device="cpu")
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/work/envs/jepa-omni/lib/python3.11/site-packages/torchcodec/decoders/_video_decoder.py", line 254, in __init__
+    ) = create_video_decoder(
+        ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/work/envs/jepa-omni/lib/python3.11/site-packages/torchcodec/_core/_decoder_utils.py", line 190, in create_video_decoder
+    decoder = create_decoder(source=source, seek_mode=seek_mode)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/work/envs/jepa-omni/lib/python3.11/site-packages/torchcodec/_core/_decoder_utils.py", line 46, in create_decoder
+    return create_from_file(source, seek_mode)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/work/envs/jepa-omni/lib/python3.11/site-packages/torch/_ops.py", line 871, in __call__
+    return self._op(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: SingleStreamDecoder, /__w/torchcodec/torchcodec/meta-pytorch/torchcodec/src/torchcodec/_core/SingleStreamDecoder.cpp:52, Could not open input file: /home/jovyan/work/data/vatex/video/p5gYu1up1Ac.mp4 Invalid data found when processing input
+[extract] SKIP p5gYu1up1Ac_000009_000019: decode subprocess failed (exit code 1)
+[extract] decode 4697/10917 ok, 3 failed, 1.7 vid/s, ETA 62m
+[extract] decode 4797/10917 ok, 3 failed, 1.7 vid/s, ETA 61m
+[extract] decode 4897/10917 ok, 3 failed, 1.7 vid/s, ETA 60m
+[extract] decode 4997/10917 ok, 3 failed, 1.7 vid/s, ETA 59m
+[extract] decode 5097/10917 ok, 3 failed, 1.7 vid/s, ETA 58m
+[extract] decode 5197/10917 ok, 3 failed, 1.7 vid/s, ETA 56m
+[extract] decode 5297/10917 ok, 3 failed, 1.7 vid/s, ETA 56m
+Process Process-5329:
+Traceback (most recent call last):
+  File "/home/jovyan/work/envs/jepa-omni/lib/python3.11/multiprocessing/process.py", line 314, in _bootstrap
+    self.run()
+  File "/home/jovyan/work/envs/jepa-omni/lib/python3.11/multiprocessing/process.py", line 108, in run
+    self._target(*self._args, **self._kwargs)
+  File "/home/jovyan/work/JEPA-Omni/scripts/extract_features.py", line 118, in _decode_worker
+    frames = _decode_clip_raw(path, num_frames, resolution)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/work/JEPA-Omni/scripts/extract_features.py", line 88, in _decode_clip_raw
+    decoder = VideoDecoder(path, device="cpu")
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/work/envs/jepa-omni/lib/python3.11/site-packages/torchcodec/decoders/_video_decoder.py", line 254, in __init__
+    ) = create_video_decoder(
+        ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/work/envs/jepa-omni/lib/python3.11/site-packages/torchcodec/_core/_decoder_utils.py", line 190, in create_video_decoder
+    decoder = create_decoder(source=source, seek_mode=seek_mode)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/work/envs/jepa-omni/lib/python3.11/site-packages/torchcodec/_core/_decoder_utils.py", line 46, in create_decoder
+    return create_from_file(source, seek_mode)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/work/envs/jepa-omni/lib/python3.11/site-packages/torch/_ops.py", line 871, in __call__
+    return self._op(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: scanFileAndUpdateMetadataAndIndex, /__w/torchcodec/torchcodec/meta-pytorch/torchcodec/src/torchcodec/_core/SingleStreamDecoder.cpp:358, Could not seek file to pts=0: Invalid argument
+[extract] SKIP 6L5qrX6aKCA_000016_000026: decode subprocess failed (exit code 1)
+[extract] decode 5396/10917 ok, 4 failed, 1.7 vid/s, ETA 55m
+[extract] decode 5496/10917 ok, 4 failed, 1.7 vid/s, ETA 54m
+[extract] decode 5596/10917 ok, 4 failed, 1.7 vid/s, ETA 53m
+[extract] decode 5696/10917 ok, 4 failed, 1.7 vid/s, ETA 52m
+[extract] decode 5796/10917 ok, 4 failed, 1.7 vid/s, ETA 51m
+[extract] decode 5896/10917 ok, 4 failed, 1.7 vid/s, ETA 50m
+[extract] decode 5996/10917 ok, 4 failed, 1.7 vid/s, ETA 49m
+[extract] decode 6096/10917 ok, 4 failed, 1.7 vid/s, ETA 47m
+[extract] decode 6196/10917 ok, 4 failed, 1.7 vid/s, ETA 46m
+[extract] decode 6296/10917 ok, 4 failed, 1.7 vid/s, ETA 45m
+[extract] decode 6396/10917 ok, 4 failed, 1.7 vid/s, ETA 44m
+[extract] decode 6496/10917 ok, 4 failed, 1.7 vid/s, ETA 44m
+[extract] decode 6596/10917 ok, 4 failed, 1.7 vid/s, ETA 43m
+[extract] decode 6696/10917 ok, 4 failed, 1.7 vid/s, ETA 42m
+[extract] decode 6796/10917 ok, 4 failed, 1.7 vid/s, ETA 41m
+[extract] decode 6896/10917 ok, 4 failed, 1.7 vid/s, ETA 40m
+[extract] decode 6996/10917 ok, 4 failed, 1.7 vid/s, ETA 39m
+[extract] decode 7096/10917 ok, 4 failed, 1.7 vid/s, ETA 38m
+[extract] decode 7196/10917 ok, 4 failed, 1.7 vid/s, ETA 37m
+[extract] decode 7296/10917 ok, 4 failed, 1.7 vid/s, ETA 36m
+[extract] decode 7396/10917 ok, 4 failed, 1.7 vid/s, ETA 35m
+[extract] decode 7496/10917 ok, 4 failed, 1.7 vid/s, ETA 34m
+[extract] decode 7596/10917 ok, 4 failed, 1.7 vid/s, ETA 33m
+[extract] decode 7696/10917 ok, 4 failed, 1.7 vid/s, ETA 32m
+[extract] decode 7796/10917 ok, 4 failed, 1.7 vid/s, ETA 31m
+[extract] decode 7896/10917 ok, 4 failed, 1.7 vid/s, ETA 30m
+[extract] decode 7996/10917 ok, 4 failed, 1.7 vid/s, ETA 29m
+[extract] decode 8096/10917 ok, 4 failed, 1.7 vid/s, ETA 28m
+[extract] decode 8196/10917 ok, 4 failed, 1.7 vid/s, ETA 27m
+[extract] decode 8296/10917 ok, 4 failed, 1.7 vid/s, ETA 26m
+[extract] decode 8396/10917 ok, 4 failed, 1.7 vid/s, ETA 25m
+[extract] decode 8496/10917 ok, 4 failed, 1.7 vid/s, ETA 24m
+[extract] decode 8596/10917 ok, 4 failed, 1.7 vid/s, ETA 23m
+[extract] decode 8696/10917 ok, 4 failed, 1.7 vid/s, ETA 22m
+[extract] decode 8796/10917 ok, 4 failed, 1.7 vid/s, ETA 21m
+[extract] decode 8896/10917 ok, 4 failed, 1.7 vid/s, ETA 20m
+[extract] decode 8996/10917 ok, 4 failed, 1.7 vid/s, ETA 19m
+[extract] decode 9096/10917 ok, 4 failed, 1.7 vid/s, ETA 18m
+[extract] decode 9196/10917 ok, 4 failed, 1.7 vid/s, ETA 17m
+[extract] decode 9296/10917 ok, 4 failed, 1.7 vid/s, ETA 16m
+[extract] decode 9396/10917 ok, 4 failed, 1.7 vid/s, ETA 15m
+[extract] decode 9496/10917 ok, 4 failed, 1.7 vid/s, ETA 14m
+[extract] decode 9596/10917 ok, 4 failed, 1.7 vid/s, ETA 13m
+[extract] decode 9696/10917 ok, 4 failed, 1.7 vid/s, ETA 12m
+[extract] decode 9796/10917 ok, 4 failed, 1.7 vid/s, ETA 11m
+[extract] decode 9896/10917 ok, 4 failed, 1.7 vid/s, ETA 10m
+[extract] decode 9996/10917 ok, 4 failed, 1.7 vid/s, ETA 9m
+[extract] decode 10096/10917 ok, 4 failed, 1.7 vid/s, ETA 8m
+[extract] decode 10196/10917 ok, 4 failed, 1.7 vid/s, ETA 7m
+[extract] decode 10296/10917 ok, 4 failed, 1.7 vid/s, ETA 6m
+[extract] decode 10396/10917 ok, 4 failed, 1.7 vid/s, ETA 5m
+[extract] decode 10496/10917 ok, 4 failed, 1.7 vid/s, ETA 4m
+[extract] decode 10596/10917 ok, 4 failed, 1.7 vid/s, ETA 3m
+[extract] decode 10696/10917 ok, 4 failed, 1.7 vid/s, ETA 2m
+[extract] decode 10796/10917 ok, 4 failed, 1.7 vid/s, ETA 1m
+[extract] decode 10896/10917 ok, 4 failed, 1.7 vid/s, ETA 0m
+[extract] decode 10913/10917 ok, 4 failed, 1.7 vid/s, ETA 0m
+[extract] PHASE 1 DONE: 10913 decoded, 4 failed, 6260s
+[extract] PHASE 2: Loading VisionEncoder (facebook/vjepa2-vitl-fpc64-256) on cuda...
+[transformers] `torch_dtype` is deprecated! Use `dtype` instead!
+Loading weights:   0%|          | 0/587 [00:00<?, ?it/s]Loading weights:  37%|███▋      | 216/587 [00:00<00:00, 601.73it/s]Loading weights: 100%|██████████| 587/587 [00:00<00:00, 1436.32it/s]
+[extract] Encoder ready. Encoding 10913 clips...
+[extract] encode 100/10913, 5.4 vid/s, ETA 33m
+[extract] encode 200/10913, 5.7 vid/s, ETA 32m
+[extract] encode 300/10913, 5.6 vid/s, ETA 32m
+[extract] encode 400/10913, 5.6 vid/s, ETA 32m
+[extract] encode 500/10913, 5.5 vid/s, ETA 31m
+[extract] encode 600/10913, 5.6 vid/s, ETA 31m
+[extract] encode 700/10913, 5.6 vid/s, ETA 31m
+[extract] encode 800/10913, 5.6 vid/s, ETA 30m
+[extract] encode 900/10913, 5.6 vid/s, ETA 30m
+[extract] encode 1000/10913, 5.6 vid/s, ETA 30m
+[extract] encode 1100/10913, 5.6 vid/s, ETA 29m
+[extract] encode 1200/10913, 5.6 vid/s, ETA 29m
+[extract] encode 1300/10913, 5.5 vid/s, ETA 29m
+[extract] encode 1400/10913, 5.6 vid/s, ETA 29m
+[extract] encode 1500/10913, 5.6 vid/s, ETA 28m
+[extract] encode 1600/10913, 5.6 vid/s, ETA 28m
+[extract] encode 1700/10913, 5.5 vid/s, ETA 28m
+[extract] encode 1800/10913, 5.6 vid/s, ETA 27m
+[extract] encode 1900/10913, 5.6 vid/s, ETA 27m
+[extract] encode 2000/10913, 5.6 vid/s, ETA 27m
+[extract] encode 2100/10913, 5.6 vid/s, ETA 26m
+[extract] encode 2200/10913, 5.6 vid/s, ETA 26m
+[extract] encode 2300/10913, 5.5 vid/s, ETA 26m
+[extract] encode 2400/10913, 5.5 vid/s, ETA 26m
+[extract] encode 2500/10913, 5.5 vid/s, ETA 25m
+[extract] encode 2600/10913, 5.5 vid/s, ETA 25m
+[extract] encode 2700/10913, 5.5 vid/s, ETA 25m
+[extract] encode 2800/10913, 5.5 vid/s, ETA 24m
+[extract] encode 2900/10913, 5.5 vid/s, ETA 24m
+[extract] encode 3000/10913, 5.5 vid/s, ETA 24m
+[extract] encode 3100/10913, 5.5 vid/s, ETA 24m
+[extract] encode 3200/10913, 5.5 vid/s, ETA 23m
+[extract] encode 3300/10913, 5.5 vid/s, ETA 23m
+[extract] encode 3400/10913, 5.5 vid/s, ETA 23m
+[extract] encode 3500/10913, 5.5 vid/s, ETA 22m
+[extract] encode 3600/10913, 5.5 vid/s, ETA 22m
+[extract] encode 3700/10913, 5.5 vid/s, ETA 22m
+[extract] encode 3800/10913, 5.5 vid/s, ETA 21m
+[extract] encode 3900/10913, 5.5 vid/s, ETA 21m
+[extract] encode 4000/10913, 5.5 vid/s, ETA 21m
+[extract] encode 4100/10913, 5.5 vid/s, ETA 21m
+[extract] encode 4200/10913, 5.5 vid/s, ETA 20m
+[extract] encode 4300/10913, 5.5 vid/s, ETA 20m
+[extract] encode 4400/10913, 5.5 vid/s, ETA 20m
+[extract] encode 4500/10913, 5.5 vid/s, ETA 19m
+[extract] encode 4600/10913, 5.5 vid/s, ETA 19m
+[extract] encode 4700/10913, 5.5 vid/s, ETA 19m
+[extract] encode 4800/10913, 5.5 vid/s, ETA 18m
+[extract] encode 4900/10913, 5.5 vid/s, ETA 18m
+[extract] encode 5000/10913, 5.5 vid/s, ETA 18m
+[extract] encode 5100/10913, 5.5 vid/s, ETA 18m
+[extract] encode 5200/10913, 5.5 vid/s, ETA 17m
+[extract] encode 5300/10913, 5.5 vid/s, ETA 17m
+[extract] encode 5400/10913, 5.5 vid/s, ETA 17m
+[extract] encode 5500/10913, 5.5 vid/s, ETA 16m
+[extract] encode 5600/10913, 5.5 vid/s, ETA 16m
+[extract] encode 5700/10913, 5.5 vid/s, ETA 16m
+[extract] encode 5800/10913, 5.5 vid/s, ETA 15m
+[extract] encode 5900/10913, 5.5 vid/s, ETA 15m
+[extract] encode 6000/10913, 5.5 vid/s, ETA 15m
+[extract] encode 6100/10913, 5.5 vid/s, ETA 15m
+[extract] encode 6200/10913, 5.5 vid/s, ETA 14m
+[extract] encode 6300/10913, 5.5 vid/s, ETA 14m
+[extract] encode 6400/10913, 5.5 vid/s, ETA 14m
+[extract] encode 6500/10913, 5.5 vid/s, ETA 13m
+[extract] encode 6600/10913, 5.5 vid/s, ETA 13m
+[extract] encode 6700/10913, 5.5 vid/s, ETA 13m
+[extract] encode 6800/10913, 5.5 vid/s, ETA 12m
+[extract] encode 6900/10913, 5.5 vid/s, ETA 12m
+[extract] encode 7000/10913, 5.5 vid/s, ETA 12m
+[extract] encode 7100/10913, 5.5 vid/s, ETA 12m
+[extract] encode 7200/10913, 5.5 vid/s, ETA 11m
+[extract] encode 7300/10913, 5.5 vid/s, ETA 11m
+[extract] encode 7400/10913, 5.5 vid/s, ETA 11m
+[extract] encode 7500/10913, 5.5 vid/s, ETA 10m
+[extract] encode 7600/10913, 5.5 vid/s, ETA 10m
+[extract] encode 7700/10913, 5.5 vid/s, ETA 10m
+[extract] encode 7800/10913, 5.5 vid/s, ETA 9m
+[extract] encode 7900/10913, 5.5 vid/s, ETA 9m
+[extract] encode 8000/10913, 5.5 vid/s, ETA 9m
+[extract] encode 8100/10913, 5.5 vid/s, ETA 8m
+[extract] encode 8200/10913, 5.5 vid/s, ETA 8m
+[extract] encode 8300/10913, 5.5 vid/s, ETA 8m
+[extract] encode 8400/10913, 5.5 vid/s, ETA 8m
+[extract] encode 8500/10913, 5.5 vid/s, ETA 7m
+[extract] encode 8600/10913, 5.5 vid/s, ETA 7m
+[extract] encode 8700/10913, 5.5 vid/s, ETA 7m
+[extract] encode 8800/10913, 5.5 vid/s, ETA 6m
+[extract] encode 8900/10913, 5.5 vid/s, ETA 6m
+[extract] encode 9000/10913, 5.5 vid/s, ETA 6m
+[extract] encode 9100/10913, 5.5 vid/s, ETA 5m
+[extract] encode 9200/10913, 5.5 vid/s, ETA 5m
+[extract] encode 9300/10913, 5.5 vid/s, ETA 5m
+[extract] encode 9400/10913, 5.5 vid/s, ETA 5m
+[extract] encode 9500/10913, 5.5 vid/s, ETA 4m
+[extract] encode 9600/10913, 5.5 vid/s, ETA 4m
+[extract] encode 9700/10913, 5.5 vid/s, ETA 4m
+[extract] encode 9800/10913, 5.5 vid/s, ETA 3m
+[extract] encode 9900/10913, 5.5 vid/s, ETA 3m
+[extract] encode 10000/10913, 5.5 vid/s, ETA 3m
+[extract] encode 10100/10913, 5.5 vid/s, ETA 2m
+[extract] encode 10200/10913, 5.5 vid/s, ETA 2m
+[extract] encode 10300/10913, 5.5 vid/s, ETA 2m
+[extract] encode 10400/10913, 5.5 vid/s, ETA 2m
+[extract] encode 10500/10913, 5.5 vid/s, ETA 1m
+[extract] encode 10600/10913, 5.5 vid/s, ETA 1m
+[extract] encode 10700/10913, 5.5 vid/s, ETA 1m
+[extract] encode 10800/10913, 5.5 vid/s, ETA 0m
+[extract] encode 10900/10913, 5.5 vid/s, ETA 0m
+[extract] encode 10913/10913, 5.5 vid/s, ETA 0m
+[extract] Wrote /home/jovyan/work/data/feature_cache/manifest.json
+[extract] DONE. 10913 extracted, 4 failed, 8233s total.

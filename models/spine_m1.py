@@ -138,12 +138,12 @@ class SpineM1(nn.Module):
         self.queue_filled[0] = min(int(self.queue_filled.item()) + B, K)
 
     # ------------------------------------------------------------------ #
-    def forward(self, videos, texts: List[str]) -> Tuple[Tensor, Dict[str, float]]:
+    def forward(self, videos, texts: List[str], global_step: int = 0) -> Tuple[Tensor, Dict[str, float]]:
         z_v = self.embed_video(videos)
         z_t = self.embed_text(texts)
 
         if self.cfg.loss_type == "sigreg":
-            return sigreg_jepa_loss(z_v, z_t, lamb=self.cfg.sigreg_lambda)
+            return sigreg_jepa_loss(z_v, z_t, global_step=global_step, lamb=self.cfg.sigreg_lambda)
 
         # Use the queue only on training steps (grad on). Never enqueue under no_grad
         # (e.g. diagnostic embeds), and never let a queued/stale vector be the positive.

@@ -25,6 +25,7 @@ from __future__ import annotations
 from typing import Dict, Optional, Tuple
 
 import torch
+import torch.distributed as dist
 import torch.nn.functional as F
 from torch import Tensor
 
@@ -37,47 +38,86 @@ def _diagnostics(z_v: Tensor, z_t: Tensor) -> Tuple[float, float]:
     return alignment, uniformity
 
 
-def sigreg_loss(z: Tensor, sketch_dim: int = 64, t_range: float = 5.0, num_t: int = 17) -> Tensor:
+def _ddp_avg(t: torch.Tensor) -> torch.Tensor:
+    """all_reduce(AVG) with complex + single-GPU support."""
+    if not (dist.is_available() and dist.is_initialized()):
+        return t
+    ws = dist.get_world_size()
+    if torch.is_complex(t):
+        tr = torch.view_as_real(t).contiguous()
+        dist.all_reduce(tr, op=dist.ReduceOp.SUM)
+        tr /= ws
+        return torch.view_as_complex(tr)
+    dist.all_reduce(t, op=dist.ReduceOp.SUM)
+    t = t / ws
+    return t
+
+
+def _world_size() -> int:
+    if dist.is_available() and dist.is_initialized():
+        return dist.get_world_size()
+    return 1
+
+
+def sigreg(
+    x: torch.Tensor,
+    global_step: int,
+    num_slices: int = 256,
+    reduce: str = "mean",
+) -> torch.Tensor:
     """
-    SigReg (Sketched Isotropic Gaussian Regularization) from LeJEPA (2511.08544).
-    Forces the distribution of embeddings to match an Isotropic Gaussian N(0, I).
-    z: [Batch, Dimension]
+    Args
+        x            : (N, K) embeddings to regularise (pooled World-State, or in
+                       M1 the pooled video embedding). Do NOT pre-standardise:
+                       SIGReg enforces unit variance per projection by design.
+        global_step  : seeds the projection sampler so directions are identical
+                       across DDP ranks and resampled every step (resampling
+                       beats fixed directions — paper Fig. 7).
+        num_slices   : M = |A|, number of random projection directions
+                       (paper default = 256).
+        reduce       : 'mean' -> scalar loss (Def. 2 average over directions);
+                       'none' -> per-direction statistic, shape (num_slices,).
+
+    Returns
+        Scalar SIGReg loss, or (num_slices,) tensor if reduce='none'.
     """
-    N, D = z.shape
-    if N <= 1:
-        return z.new_zeros(())
+    assert x.dim() == 2, f"expected (N, K), got {tuple(x.shape)}"
+    dev = dict(device=x.device)
 
-    # 1. Random 1D Projections (The Sketch)
-    # Ideally A should be fixed or a registered buffer, but for M1 we generate it.
-    # We use a fixed seed for A to ensure stability within a step if called multiple times.
-    generator = torch.Generator(device=z.device).manual_seed(42)
-    A = torch.randn(D, sketch_dim, device=z.device, dtype=z.dtype, generator=generator)
-    A = A / (A.norm(p=2, dim=0, keepdim=True) + 1e-6)
-    proj = z @ A  # [N, sketch_dim]
+    # --- slice sampling: synced across devices via global_step seed ---
+    g = torch.Generator(**dev)
+    g.manual_seed(int(global_step))
+    A = torch.randn((x.size(1), num_slices), generator=g, **dev)  # (K, M)
+    A = A / A.norm(p=2, dim=0)                                    # unit-norm columns
 
-    # 2. Integration points for the Characteristic Function (CF)
-    t = torch.linspace(-t_range, t_range, num_t, device=z.device, dtype=z.dtype)
-    phi_gauss = torch.exp(-0.5 * t**2)  # Theoretical Gaussian CF
+    # --- Epps-Pulley statistic toward N(0,1) ---
+    t = torch.linspace(-5.0, 5.0, 17, **dev)        # quadrature grid (Algorithm 1)
+    target_cf = torch.exp(-0.5 * t**2)              # CF of N(0,1) (real) + Gauss. window
 
-    # 3. Empirical Characteristic Function (ECF)
-    # ECF(t) = 1/N * sum(exp(i * t * proj))
-    args = proj.unsqueeze(2) * t.view(1, 1, -1)  # [N, sketch_dim, num_t]
-    ecf_real = torch.cos(args).mean(dim=0)       # [sketch_dim, num_t]
-    ecf_imag = torch.sin(args).mean(dim=0)       # [sketch_dim, num_t]
+    x_t = (x.to(A.dtype) @ A).unsqueeze(2) * t      # (N, M, T)
+    ecf = (1j * x_t).exp().mean(dim=0)              # (M, T) empirical CF, batch-mean
+    ecf = _ddp_avg(ecf)                             # global ECF across ranks
 
-    # 4. Weighted L2 Distance (Epps-Pulley style)
-    # |ecf - phi_gauss|^2 = (ecf_real - phi_gauss)^2 + ecf_imag^2
-    diff_sq = (ecf_real - phi_gauss.unsqueeze(0)).pow(2) + ecf_imag.pow(2)
-    weighted_diff = diff_sq * phi_gauss.unsqueeze(0)
+    # weighted-L2 between empirical and target CF, weighted by the Gaussian window
+    err = (ecf - target_cf).abs().square().mul(target_cf)   # (M, T)
+    N = x.size(0) * _world_size()
+    per_dir = torch.trapz(err, t, dim=1) * N               # (M,)
 
-    # 5. Integrate over t (trapezoidal rule)
-    loss = torch.trapezoid(weighted_diff, t, dim=1)
-    return loss.mean()
+    if reduce == "mean":
+        return per_dir.mean()
+    if reduce == "none":
+        return per_dir
+    raise ValueError(f"reduce must be 'mean' or 'none', got {reduce!r}")
+
+
+def sigreg_loss(z: Tensor, global_step: int = 0, sketch_dim: int = 256, **kwargs) -> Tensor:
+    return sigreg(z, global_step=global_step, num_slices=sketch_dim)
 
 
 def sigreg_jepa_loss(
     z_v: Tensor,
     z_t: Tensor,
+    global_step: int = 0,
     lamb: float = 10.0,
 ) -> Tuple[Tensor, Dict[str, float]]:
     """
@@ -88,8 +128,8 @@ def sigreg_jepa_loss(
     loss_mse = F.mse_loss(z_v, z_t)
 
     # Regularization loss
-    reg_v = sigreg_loss(z_v)
-    reg_t = sigreg_loss(z_t)
+    reg_v = sigreg(z_v, global_step=global_step, num_slices=256)
+    reg_t = sigreg(z_t, global_step=global_step, num_slices=256)
     loss_reg = 0.5 * (reg_v + reg_t)
 
     loss = loss_mse + lamb * loss_reg

@@ -18,7 +18,7 @@ model:
   unfreeze_text: false         # FAITHFUL: true (with optim.text_lr_mult below)
   queue_size: 0
   loss_type: sigreg            # Changed from info_nce to sigreg
-  sigreg_lambda: 10.0
+  sigreg_lambda: 0.1
 
 data:
   name: vatex
@@ -30,6 +30,7 @@ data:
   train_split_filter: null    # These JSONs are pre-split, so set to null to keep all entries
   eval_split_filter: null
   eval_captions_per_video: 1   # 1:1 video<->text for diagonal retrieval
+  feature_cache_dir: /home/jovyan/work/data/feature_cache
 
 optim:
   lr: 1.0e-4

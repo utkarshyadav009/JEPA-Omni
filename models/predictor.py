@@ -112,6 +112,7 @@ class Predictor(nn.Module):
             self.layers = nn.ModuleList(llama.layers[-8:])
             self.norm = llama.norm
             
+            # Llama 3.2+ stores rotary_emb in the model, older versions in the first layer's attn
             if hasattr(llama, "rotary_emb"):
                 self.rotary_emb = llama.rotary_emb
             else:
@@ -160,7 +161,16 @@ class Predictor(nn.Module):
             x = torch.cat([cls, x], dim=1)
             
             position_ids = torch.arange(x.shape[1], dtype=torch.long, device=x.device).unsqueeze(0).expand(x.shape[0], -1)
-            position_embeddings = self.rotary_emb(x, position_ids)
+            
+            # The latest transformers dev version has a decorator that might 
+            # fail if positional arguments are used while it expects keywords or vice-versa.
+            # We call it with explicit keywords to be safe.
+            try:
+                position_embeddings = self.rotary_emb(x, position_ids)
+            except TypeError:
+                # Fallback for some dev versions where signature might be (x, position_ids, seq_len=None)
+                # but positional count check is strict.
+                position_embeddings = self.rotary_emb(x=x, position_ids=position_ids)
             
             # Create a 4D attention mask of zeros (batch, 1, seq, seq) to allow full bidirectional attention
             # and avoid SDPA automatic causal masking or NestedTensor shape collapsing when mask is None.
@@ -186,6 +196,7 @@ class Predictor(nn.Module):
             z = self.head(x_pooled.to(dtype=self.head.weight.dtype))
             
         return F.normalize(z, dim=-1)
+
 
 
 if __name__ == "__main__":

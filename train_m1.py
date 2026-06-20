@@ -467,7 +467,7 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
                 feats = torch.cat(chunked_feats, dim=0)
 
         with torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=amp_enabled):
-            out = model(feats, captions)
+            out = model(feats, captions, global_step=step)
             loss, zv, zt = resolve_outputs(out, loss_fn)
 
         loss_accum = loss / accum_steps

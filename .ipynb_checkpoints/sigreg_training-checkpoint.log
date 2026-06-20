@@ -1,0 +1,59 @@
+[transformers] `torch_dtype` is deprecated! Use `dtype` instead!
+Loading weights:   0%|          | 0/587 [00:00<?, ?it/s]Loading weights:  56%|█████▌    | 328/587 [00:00<00:00, 3274.64it/s]Loading weights: 100%|██████████| 587/587 [00:00<00:00, 4131.97it/s]
+Loading weights:   0%|          | 0/314 [00:00<?, ?it/s]Loading weights: 100%|██████████| 314/314 [00:00<00:00, 3557.02it/s]
+Loading weights:   0%|          | 0/146 [00:00<?, ?it/s]Loading weights: 100%|██████████| 146/146 [00:00<00:00, 5296.39it/s]
+[train] device=cuda world_size=1 trainable_params=493,003,776 total_steps=10000
+Traceback (most recent call last):
+  File "/home/jovyan/work/JEPA-Omni/train_m1.py", line 595, in <module>
+    main()
+  File "/home/jovyan/work/JEPA-Omni/train_m1.py", line 591, in main
+    train(cfg, args.limit)
+  File "/home/jovyan/work/JEPA-Omni/train_m1.py", line 470, in train
+    out = model(feats, captions)
+          ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/work/envs/jepa-omni/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1778, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/work/envs/jepa-omni/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1789, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/work/JEPA-Omni/models/spine_m1.py", line 142, in forward
+    z_v = self.embed_video(videos)
+          ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/work/JEPA-Omni/models/spine_m1.py", line 107, in embed_video
+    return self.predictor(feats)                 # (B, shared_dim), normalized
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/work/envs/jepa-omni/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1778, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/work/envs/jepa-omni/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1789, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/work/JEPA-Omni/models/predictor.py", line 180, in forward
+    layer_outputs = layer(
+                    ^^^^^^
+  File "/home/jovyan/work/envs/jepa-omni/lib/python3.11/site-packages/transformers/modeling_layers.py", line 93, in __call__
+    return super().__call__(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/work/envs/jepa-omni/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1778, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/work/envs/jepa-omni/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1789, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/work/envs/jepa-omni/lib/python3.11/site-packages/transformers/models/llama/modeling_llama.py", line 316, in forward
+    hidden_states, _ = self.self_attn(
+                       ^^^^^^^^^^^^^^^
+  File "/home/jovyan/work/envs/jepa-omni/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1778, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/work/envs/jepa-omni/lib/python3.11/site-packages/torch/nn/modules/module.py", line 1789, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/work/envs/jepa-omni/lib/python3.11/site-packages/transformers/models/llama/modeling_llama.py", line 276, in forward
+    attn_output, attn_weights = attention_interface(
+                                ^^^^^^^^^^^^^^^^^^^^
+  File "/home/jovyan/work/envs/jepa-omni/lib/python3.11/site-packages/transformers/integrations/sdpa_attention.py", line 92, in sdpa_attention_forward
+    attn_output = torch.nn.functional.scaled_dot_product_attention(
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 1.00 GiB. GPU 0 has a total capacity of 79.18 GiB of which 803.06 MiB is free. Process 4138849 has 2.70 GiB memory in use. Process 177342 has 75.66 GiB memory in use. Of the allocated memory 73.29 GiB is allocated by PyTorch, and 1.79 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://docs.pytorch.org/docs/stable/notes/cuda.html#optimizing-memory-usage-with-pytorch-cuda-alloc-conf)
