@@ -27,7 +27,7 @@ from torch import Tensor
 from .vision_encoder import VisionEncoder
 from .text_target import TextTarget
 from .predictor import Predictor
-from .losses import info_nce, info_nce_with_queue, sigreg_jepa_loss
+from .losses import info_nce, info_nce_with_queue, sigreg, sigreg_jepa_loss
 
 
 @dataclass
@@ -43,7 +43,7 @@ class SpineConfig:
     unfreeze_text: bool = False
     queue_size: int = 0                    # 0 = disabled; e.g. 2048 to flex the negatives
     loss_type: str = "info_nce"            # "info_nce" | "sigreg"
-    sigreg_lambda: float = 10.0            # weight for SigReg term
+    sigreg_lambda: float = 0.1            # weight for SigReg term
     device: str = "cuda"
     dtype: torch.dtype = torch.bfloat16
     skip_encoder: bool = False             # True when using pre-computed feature cache
@@ -75,6 +75,10 @@ class SpineM1(nn.Module):
             stack_factor=cfg.stack_factor,
         ).to(cfg.device)
 
+        # Separate non-normalized projection heads for SIGReg stabilization
+        self.sigreg_proj_v = nn.Linear(cfg.shared_dim, cfg.shared_dim, dtype=cfg.dtype, device=cfg.device)
+        self.sigreg_proj_t = nn.Linear(cfg.shared_dim, cfg.shared_dim, dtype=cfg.dtype, device=cfg.device)
+
         # ---- MoCo-style negative queue (non-persistent: not saved in checkpoints) ----
         self.queue_size = int(cfg.queue_size)
         if self.queue_size > 0:
@@ -87,7 +91,12 @@ class SpineM1(nn.Module):
 
     # ------------------------------------------------------------------ #
     def trainable_parameters(self):
-        params = list(self.predictor.parameters()) + list(self.text.proj.parameters())
+        params = (
+            list(self.predictor.parameters()) +
+            list(self.text.proj.parameters()) +
+            list(self.sigreg_proj_v.parameters()) +
+            list(self.sigreg_proj_t.parameters())
+        )
         if self.cfg.unfreeze_text:
             params += [p for p in self.text.base.parameters() if p.requires_grad]
         return params
@@ -138,23 +147,47 @@ class SpineM1(nn.Module):
         self.queue_filled[0] = min(int(self.queue_filled.item()) + B, K)
 
     # ------------------------------------------------------------------ #
-    def forward(self, videos, texts: List[str], global_step: int = 0) -> Tuple[Tensor, Dict[str, float]]:
+    def forward(
+        self,
+        videos,
+        texts: List[str],
+        global_step: int = 0,
+        return_embeds: bool = False,
+    ) -> Tuple[Tensor, Tensor, Tensor, Tensor] | Tuple[Tensor, Dict[str, float]]:
         z_v = self.embed_video(videos)
         z_t = self.embed_text(texts)
+        p_v = self.sigreg_proj_v(z_v)
+        p_t = self.sigreg_proj_t(z_t)
 
-        if self.cfg.loss_type == "sigreg":
+        if return_embeds:
+            return z_v, z_t, p_v, p_t
+
+        # If loss_type is purely sigreg (historical config support), call legacy loss helper
+        if self.cfg.loss_type == "sigreg_legacy":
             return sigreg_jepa_loss(z_v, z_t, global_step=global_step, lamb=self.cfg.sigreg_lambda)
 
         # Use the queue only on training steps (grad on). Never enqueue under no_grad
         # (e.g. diagnostic embeds), and never let a queued/stale vector be the positive.
         if self.queue_size > 0 and z_v.requires_grad:
             neg_v, neg_t = self._valid_queue()
-            loss, metrics = info_nce_with_queue(
+            loss_nce, metrics = info_nce_with_queue(
                 z_v, z_t, neg_t=neg_t, neg_v=neg_v, temperature=self.cfg.temperature)
             self._enqueue(z_v, z_t)                  # AFTER the loss: positives never queued
-            return loss, metrics
+        else:
+            loss_nce, metrics = info_nce(z_v, z_t, self.cfg.temperature)
 
-        return info_nce(z_v, z_t, self.cfg.temperature)
+        # Add SIGReg only as a secondary term on non-normalized projections
+        loss_reg_v = sigreg(p_v, global_step=global_step, num_slices=256)
+        loss_reg_t = sigreg(p_t, global_step=global_step, num_slices=256)
+        loss_reg = 0.5 * (loss_reg_v + loss_reg_t)
+
+        total_loss = loss_nce + self.cfg.sigreg_lambda * loss_reg
+
+        metrics["loss"] = total_loss.item()
+        metrics["loss_nce"] = loss_nce.item()
+        metrics["loss_reg"] = loss_reg.item()
+
+        return total_loss, metrics
 
 
 if __name__ == "__main__":

@@ -96,11 +96,11 @@ def sigreg(
 
     x_t = (x.to(A.dtype) @ A).unsqueeze(2) * t      # (N, M, T)
     ecf = (1j * x_t).exp().mean(dim=0)              # (M, T) empirical CF, batch-mean
-    ecf = _ddp_avg(ecf)                             # global ECF across ranks
+    # ecf = _ddp_avg(ecf)                           # Deliberately keep SIGReg per-rank on local batch (no cross-GPU gather)
 
     # weighted-L2 between empirical and target CF, weighted by the Gaussian window
     err = (ecf - target_cf).abs().square().mul(target_cf)   # (M, T)
-    N = x.size(0) * _world_size()
+    N = x.size(0)                                   # Deliberately use local batch size per rank
     per_dir = torch.trapz(err, t, dim=1) * N               # (M,)
 
     if reduce == "mean":
@@ -147,22 +147,135 @@ def sigreg_jepa_loss(
     }
 
 
+class TiledContrastiveLoss(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, z_v, z_t, temperature=0.07, tile_size=128):
+        ctx.save_for_backward(z_v, z_t)
+        ctx.temperature = temperature
+        ctx.tile_size = tile_size
+        
+        B, D = z_v.shape
+        device = z_v.device
+        dtype = z_v.dtype
+        
+        # Track running max (m) and running sum of exp (d) in float32 for stability
+        m_row = torch.full((B,), float('-inf'), device=device, dtype=torch.float32)
+        d_row = torch.zeros((B,), device=device, dtype=torch.float32)
+        
+        m_col = torch.full((B,), float('-inf'), device=device, dtype=torch.float32)
+        d_col = torch.zeros((B,), device=device, dtype=torch.float32)
+        
+        # Pass 1: Online Log-Sum-Exp computation
+        for i in range(0, B, tile_size):
+            z_v_chunk = z_v[i:i+tile_size].float()
+            for j in range(0, B, tile_size):
+                z_t_chunk = z_t[j:j+tile_size].float()
+                
+                # Compute local tile similarity
+                S_tile = (z_v_chunk @ z_t_chunk.t()) / temperature
+                
+                # Update row statistics (v2t)
+                m_tile_row, _ = S_tile.max(dim=1)
+                m_row_new = torch.maximum(m_row[i:i+tile_size], m_tile_row)
+                d_row[i:i+tile_size] = (
+                    d_row[i:i+tile_size] * torch.exp(m_row[i:i+tile_size] - m_row_new) +
+                    torch.exp(S_tile - m_row_new.unsqueeze(1)).sum(dim=1)
+                )
+                m_row[i:i+tile_size] = m_row_new
+                
+                # Update col statistics (t2v)
+                m_tile_col, _ = S_tile.max(dim=0)
+                m_col_new = torch.maximum(m_col[j:j+tile_size], m_tile_col)
+                d_col[j:j+tile_size] = (
+                    d_col[j:j+tile_size] * torch.exp(m_col[j:j+tile_size] - m_col_new) +
+                    torch.exp(S_tile - m_col_new.unsqueeze(0)).sum(dim=0)
+                )
+                m_col[j:j+tile_size] = m_col_new
+        
+        # Final loss value computation
+        diag_sims = torch.sum(z_v.float() * z_t.float(), dim=1) / temperature
+        
+        lse_row = m_row + torch.log(d_row)
+        loss_v2t = (-diag_sims + lse_row).mean()
+        
+        lse_col = m_col + torch.log(d_col)
+        loss_t2v = (-diag_sims + lse_col).mean()
+        
+        loss = 0.5 * (loss_v2t + loss_t2v)
+        
+        ctx.m_row = m_row
+        ctx.d_row = d_row
+        ctx.m_col = m_col
+        ctx.d_col = d_col
+        
+        return loss.to(dtype)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        z_v, z_t = ctx.saved_tensors
+        temperature = ctx.temperature
+        tile_size = ctx.tile_size
+        m_row = ctx.m_row
+        d_row = ctx.d_row
+        m_col = ctx.m_col
+        d_col = ctx.d_col
+        
+        B, D = z_v.shape
+        device = z_v.device
+        dtype = z_v.dtype
+        
+        grad_zv = torch.zeros_like(z_v, dtype=torch.float32)
+        grad_zt = torch.zeros_like(z_t, dtype=torch.float32)
+        
+        # Pass 2: Accumulate gradients block-by-block
+        for i in range(0, B, tile_size):
+            z_v_chunk = z_v[i:i+tile_size].float()
+            m_r = m_row[i:i+tile_size].unsqueeze(1)
+            d_r = d_row[i:i+tile_size].unsqueeze(1)
+            
+            for j in range(0, B, tile_size):
+                z_t_chunk = z_t[j:j+tile_size].float()
+                m_c = m_col[j:j+tile_size].unsqueeze(0)
+                d_c = d_col[j:j+tile_size].unsqueeze(0)
+                
+                S_tile = (z_v_chunk @ z_t_chunk.t()) / temperature
+                
+                # Local softmax probability calculation
+                P_tile = torch.exp(S_tile - m_r) / d_r
+                Q_tile = torch.exp(S_tile - m_c) / d_c
+                
+                d_logits = (P_tile + Q_tile) / (2.0 * B)
+                
+                grad_zv[i:i+tile_size] += (d_logits @ z_t_chunk) / temperature
+                grad_zt[j:j+tile_size] += (d_logits.t() @ z_v_chunk) / temperature
+                
+        # Diagonal subtraction corrections
+        grad_zv -= z_t.float() / (B * temperature)
+        grad_zt -= z_v.float() / (B * temperature)
+        
+        return grad_zv.to(dtype) * grad_output, grad_zt.to(dtype) * grad_output, None, None
+
+
 def info_nce(
     z_v: Tensor,              # (B, D) normalized video embeddings
     z_t: Tensor,              # (B, D) normalized text embeddings
     temperature: float = 0.07,
+    tile_size: int = 128,
 ) -> Tuple[Tensor, Dict[str, float]]:
-    logits = (z_v @ z_t.t()) / temperature      # (B, B)
-    targets = torch.arange(z_v.shape[0], device=z_v.device)
-    loss_v2t = F.cross_entropy(logits, targets)
-    loss_t2v = F.cross_entropy(logits.t(), targets)
-    loss = 0.5 * (loss_v2t + loss_t2v)
-
+    # Compute the loss using the memory-efficient tiled autograd function
+    loss = TiledContrastiveLoss.apply(z_v, z_t, temperature, tile_size)
+    
     with torch.no_grad():
+        # Compute diagnostics (row/col softmax metrics)
+        # Done under torch.no_grad() so it doesn't store gradients or consume backprop memory
+        logits = (z_v @ z_t.t()) / temperature
+        targets = torch.arange(z_v.shape[0], device=z_v.device)
+        loss_v2t = F.cross_entropy(logits, targets)
+        loss_t2v = F.cross_entropy(logits.t(), targets)
         acc_v2t = (logits.argmax(dim=1) == targets).float().mean().item()
         acc_t2v = (logits.t().argmax(dim=1) == targets).float().mean().item()
         alignment, uniformity = _diagnostics(z_v, z_t)
-
+        
     return loss, {
         "loss": loss.item(), "loss_v2t": loss_v2t.item(), "loss_t2v": loss_t2v.item(),
         "acc_v2t": acc_v2t, "acc_t2v": acc_t2v,

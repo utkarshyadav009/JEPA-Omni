@@ -153,3 +153,74 @@ def validate_manifest(cache_dir: str, cfg) -> Dict:
             + "\n".join(f"  • {e}" for e in errors)
         )
     return manifest
+
+
+class ThreadedCachedFeatureDataset(Dataset):
+    """Lighter dataset that returns index and sample metadata, bypassing disk read
+    at the individual getitem step to allow parallel loading inside the collate function.
+    """
+    def __init__(self, cache_dir: str, samples: List[Sample]) -> None:
+        super().__init__()
+        self.cache_dir = cache_dir
+        self.samples = samples
+
+    def __len__(self) -> int:
+        return len(self.samples)
+
+    def __getitem__(self, index: int) -> Tuple[Sample, int]:
+        return self.samples[index], index
+
+    @classmethod
+    def from_config(
+        cls,
+        cfg,
+        split: str,
+        *,
+        limit: Optional[int] = None,
+    ) -> "ThreadedCachedFeatureDataset":
+        from utils import cfg_get
+        cache_dir = str(cfg_get(cfg, "data.feature_cache_dir"))
+        if not os.path.isdir(cache_dir):
+            raise FileNotFoundError(
+                f"Feature cache directory does not exist: {cache_dir!r}"
+            )
+        video_ds = MSRVTTVideoTextDataset.from_config(
+            cfg, split, limit=limit, decode_device="cpu",
+        )
+        return cls(cache_dir=cache_dir, samples=video_ds.samples)
+
+
+class ThreadedFeatureLoader:
+    """Uses a Python ThreadPoolExecutor inside collate_fn to parallelize disk loading of tensors.
+    """
+    def __init__(self, cache_dir: str, dataset_samples: List[Sample], num_threads: int = 32):
+        self.cache_dir = cache_dir
+        self.samples = dataset_samples
+        self.num_threads = num_threads
+        self._rng = __import__("random").Random(42)
+
+    def load_one(self, item: Tuple[Sample, int]) -> Tuple[Tensor, str]:
+        sample, index = item
+        feat_path = _feature_path(self.cache_dir, sample.video_id)
+        try:
+            feats = torch.load(feat_path, map_location="cpu", weights_only=True)
+            return feats, sample.caption
+        except Exception:
+            # Handle missing or corrupted feature files gracefully by falling back to a random sample
+            alt_idx = self._rng.randrange(len(self.samples))
+            if alt_idx == index:
+                alt_idx = (index + 1) % len(self.samples)
+            alt_sample = self.samples[alt_idx]
+            return self.load_one((alt_sample, alt_idx))
+
+    def collate(self, batch: List[Tuple[Sample, int]]) -> Tuple[Tensor, List[str]]:
+        from concurrent.futures import ThreadPoolExecutor
+        
+        # Load tensors in parallel using Python threads (releases the GIL on C++ load)
+        with ThreadPoolExecutor(max_workers=self.num_threads) as executor:
+            results = list(executor.map(self.load_one, batch))
+            
+        feats = torch.stack([item[0] for item in results])
+        captions = [item[1] for item in results]
+        return feats, captions
+

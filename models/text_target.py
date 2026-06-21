@@ -70,12 +70,15 @@ class TextTarget(nn.Module):
         self.shared_dim = shared_dim
         self.native_dim = native
 
-    def encode_text(self, texts: List[str]) -> torch.Tensor:
+    def encode_text(self, texts: List[str] | dict) -> torch.Tensor:
         """texts -> (B, shared_dim), L2-normalized."""
-        tok = self.tokenizer(
-            texts, padding=True, truncation=True,
-            max_length=self.max_length, return_tensors="pt",
-        ).to(self.device_str)
+        if isinstance(texts, dict):
+            tok = {k: v.to(self.device_str) for k, v in texts.items()}
+        else:
+            tok = self.tokenizer(
+                texts, padding=True, truncation=True,
+                max_length=self.max_length, return_tensors="pt",
+            ).to(self.device_str)
 
         ctx = torch.enable_grad() if self.unfreeze_base else torch.no_grad()
         with ctx:

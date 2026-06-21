@@ -46,6 +46,31 @@ from data.cached_feature_dataset import (
     cached_collate_fn,
     validate_manifest,
 )
+
+def compute_projection_variance(p: Tensor, num_slices: int = 256) -> float:
+    """Compute mean per-projection variance of p along random unit directions."""
+    B, D = p.shape
+    device = p.device
+    A = torch.randn(D, num_slices, device=device, dtype=p.dtype)
+    A = A / A.norm(p=2, dim=0, keepdim=True)
+    proj = p.float() @ A.float()
+    var = proj.var(dim=0)
+    return var.mean().item()
+
+def compute_effective_rank(p: Tensor) -> float:
+    """Compute effective rank of the covariance of p using SVD singular values."""
+    B, D = p.shape
+    if B <= 1:
+        return 1.0
+    p_centered = p.float() - p.float().mean(dim=0, keepdim=True)
+    s = torch.linalg.svdvals(p_centered)
+    s2 = s.square()
+    sum_s2 = s2.sum()
+    sum_s4 = s2.square().sum()
+    if sum_s4.item() == 0:
+        return 1.0
+    return ((sum_s2 ** 2) / sum_s4).item()
+
 from models import SpineConfig, SpineM1, info_nce, compute_siglip_loss
 from utils import (
     AttrDict,
@@ -239,8 +264,10 @@ def build_dataloader(
     batch_size = int(cfg_get(cfg, "train.batch_size", "batch_size", default=16))
 
     if feature_cache_dir:
-        dataset = CachedFeatureDataset.from_config(cfg, "train", limit=limit)
-        active_collate = cached_collate_fn
+        from data.cached_feature_dataset import ThreadedCachedFeatureDataset, ThreadedFeatureLoader
+        dataset = ThreadedCachedFeatureDataset.from_config(cfg, "train", limit=limit)
+        loader_helper = ThreadedFeatureLoader(dataset.cache_dir, dataset.samples, num_threads=32)
+        active_collate = loader_helper.collate
     else:
         dataset = build_dataset(cfg, "train", limit=limit, decode_device="cpu")
         active_collate = collate_fn
@@ -345,6 +372,7 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
         filtered_config["skip_encoder"] = True
         filtered_config["encoder_out_dim"] = manifest["hidden_size"]
 
+    filtered_config["device"] = str(device)
     spine = SpineM1(SpineConfig(**filtered_config)).to(device)
 
     # Use the loss function from the model's config if not specified
@@ -435,6 +463,7 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
     best_loss = float("inf")
     loss_ema: Optional[float] = None
     m0_losses: List[float] = []
+    pv = None; pt = None
     m0_reported = start_step > 0   # skip M0 gate if resuming
     m0_accs: List[float] = []           
     m0_uniformities: List[float] = []  
@@ -466,12 +495,99 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
                     chunked_feats.append(chunk_feats)
                 feats = torch.cat(chunked_feats, dim=0)
 
-        with torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=amp_enabled):
-            out = model(feats, captions, global_step=step)
-            loss, zv, zt = resolve_outputs(out, loss_fn)
+        use_grad_cache = cfg_get(cfg, "train.grad_cache", default=False)
 
-        loss_accum = loss / accum_steps
-        loss_accum.backward()
+        if use_grad_cache:
+            import contextlib
+            micro_b = cfg_get(cfg, "train.grad_cache_micro_batch", default=8)
+            B = feats.shape[0]
+
+            # Pre-tokenize all captions once at the start of the step (very fast, done in parallel on CPU)
+            tokenized_captions = spine.text.tokenizer(
+                captions, padding=True, truncation=True,
+                max_length=spine.text.max_length, return_tensors="pt"
+            )
+
+            # --- Step 1: Detached forward pass to get embeddings ---
+            z_v_list = []
+            z_t_list = []
+            p_v_list = []
+            p_t_list = []
+
+            with torch.no_grad():
+                for i in range(0, B, micro_b):
+                    f_chunk = feats[i : i + micro_b]
+                    c_captions = {
+                        k: v[i : i + micro_b] for k, v in tokenized_captions.items()
+                    }
+                    with torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=amp_enabled):
+                        zv_c, zt_c, pv_c, pt_c = model(f_chunk, c_captions, return_embeds=True)
+                    z_v_list.append(zv_c)
+                    z_t_list.append(zt_c)
+                    p_v_list.append(pv_c)
+                    p_t_list.append(pt_c)
+
+            # Concatenate all micro-batch embeddings and enable grad
+            z_v = torch.cat(z_v_list, dim=0).detach().requires_grad_(True)
+            z_t = torch.cat(z_t_list, dim=0).detach().requires_grad_(True)
+            p_v = torch.cat(p_v_list, dim=0).detach().requires_grad_(True)
+            p_t = torch.cat(p_t_list, dim=0).detach().requires_grad_(True)
+
+            # --- Step 2: Compute contrastive InfoNCE + SIGReg loss ---
+            with torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=amp_enabled):
+                loss_nce, metrics = info_nce(z_v, z_t, temperature=spine.cfg.temperature)
+                from models.losses import sigreg
+                loss_reg_v = sigreg(p_v, global_step=step, num_slices=256)
+                loss_reg_t = sigreg(p_t, global_step=step, num_slices=256)
+                loss_reg = 0.5 * (loss_reg_v + loss_reg_t)
+                loss = loss_nce + spine.cfg.sigreg_lambda * loss_reg
+
+            loss.backward()
+
+            g_zv = z_v.grad
+            g_zt = z_t.grad
+            g_pv = p_v.grad
+            g_pt = p_t.grad
+
+            # --- Step 3: Accumulate gradients via second forward pass ---
+            optimizer.zero_grad()
+            is_ddp = isinstance(model, DDP)
+
+            for i in range(0, B, micro_b):
+                is_last = (i + micro_b >= B)
+                if is_ddp and not is_last:
+                    context = model.no_sync()
+                else:
+                    context = contextlib.nullcontext()
+
+                with context:
+                    f_chunk = feats[i : i + micro_b]
+                    c_captions = {
+                        k: v[i : i + micro_b] for k, v in tokenized_captions.items()
+                    }
+                    with torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=amp_enabled):
+                        zv_c, zt_c, pv_c, pt_c = model(f_chunk, c_captions, return_embeds=True)
+                        surrogate = (
+                            (zv_c * g_zv[i : i + micro_b]).sum() +
+                            (zt_c * g_zt[i : i + micro_b]).sum() +
+                            (pv_c * g_pv[i : i + micro_b]).sum() +
+                            (pt_c * g_pt[i : i + micro_b]).sum()
+                        )
+                    surrogate.backward()
+
+            # Set zv and zt for logging step diagnostics
+            zv = z_v
+            zt = z_t
+            pv = p_v
+            pt = p_t
+
+        else:
+            with torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=amp_enabled):
+                out = model(feats, captions, global_step=step)
+                loss, zv, zt = resolve_outputs(out, loss_fn)
+
+            loss_accum = loss / accum_steps
+            loss_accum.backward()
 
         if (step + 1) % accum_steps == 0 or step == total_steps - 1:
             if grad_clip > 0:
@@ -492,10 +608,25 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
                 with torch.no_grad():
                     zv = spine.predictor(feats)
                     zt = spine.embed_text(captions)
+            if pv is None or pt is None:
+                with torch.no_grad():
+                    pv = spine.sigreg_proj_v(zv)
+                    pt = spine.sigreg_proj_t(zt)
             diag = diagnostics(zv, zt)
             acc_val = reduce_mean(diag["acc_v2t"].detach()).item()
             align_val = reduce_mean(diag["alignment"].detach()).item()
             unif_val = reduce_mean(diag["uniformity"].detach()).item()
+            
+            # P-head metrics computation
+            from models.losses import sigreg
+            with torch.no_grad():
+                loss_reg_v = sigreg(pv, global_step=step, num_slices=256)
+                loss_reg_t = sigreg(pt, global_step=step, num_slices=256)
+                raw_sigreg = 0.5 * (loss_reg_v.item() + loss_reg_t.item())
+                mean_var_v = compute_projection_variance(pv)
+                mean_var_t = compute_projection_variance(pt)
+                eff_rank_v = compute_effective_rank(pv)
+                eff_rank_t = compute_effective_rank(pt)
             
             if not m0_reported: 
                 m0_accs.append(acc_val)
@@ -507,6 +638,8 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
                     f"[train] step {step:6d}/{total_steps} "
                     f"loss={loss_val:.4f} acc_v2t={acc_val:.4f} "
                     f"alignment={align_val:.4f} uniformity={unif_val:.4f} "
+                    f"sigreg={raw_sigreg:.4f} var_v={mean_var_v:.4f} var_t={mean_var_t:.4f} "
+                    f"rank_v={eff_rank_v:.1f} rank_t={eff_rank_t:.1f} "
                     f"lr={lr_now:.2e}",
                     flush=True,
                 )

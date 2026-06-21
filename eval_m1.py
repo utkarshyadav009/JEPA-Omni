@@ -61,6 +61,7 @@ def load_spine(
         model_config["skip_encoder"] = True
         model_config["encoder_out_dim"] = encoder_out_dim
 
+    model_config["device"] = str(device)
     spine = SpineM1(SpineConfig(**model_config)).to(device)
     if state is not None:
         missing, unexpected = spine.load_state_dict(state["model"], strict=False)

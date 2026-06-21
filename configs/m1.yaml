@@ -12,12 +12,12 @@ model:
   predictor_mode: llama_last8        # FAITHFUL: llama_last8 (agent task) or "transformer"
   shared_dim: 1536             # VL-JEPA shared space
   temperature: 0.07
-  stack_factor: 1
+  stack_factor: 4
   predictor_layers: 4
   text_max_length: 512
   unfreeze_text: false         # FAITHFUL: true (with optim.text_lr_mult below)
   queue_size: 0
-  loss_type: sigreg            # Changed from info_nce to sigreg
+  loss_type: info_nce            # info_nce with secondary SIGReg
   sigreg_lambda: 0.1
 
 data:
@@ -38,14 +38,16 @@ optim:
   betas: [0.9, 0.98]
   eps: 1.0e-8
   grad_clip: 1.0
-  total_steps: 10000            # Increased from 5000
-  warmup_steps: 500
+  total_steps: 200
+  warmup_steps: 20
   text_lr_mult: 0.05           # only used if model.unfreeze_text
 
 train:
-  batch_size: 8               # Decreased to avoid OOM with Llama 1B and 16k tokens
-  gradient_accumulation_steps: 8  # Effective batch size 64
-  num_workers: 8
+  batch_size: 1024            # Large batch size enabled by GradCache
+  gradient_accumulation_steps: 1
+  grad_cache: true
+  grad_cache_micro_batch: 16
+  num_workers: 0
   log_every: 20
   save_every: 1000
   ckpt_dir: /home/jovyan/work/JEPA-Omni/checkpoints/m1 
