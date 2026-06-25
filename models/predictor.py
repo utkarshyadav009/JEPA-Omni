@@ -136,8 +136,13 @@ class Predictor(nn.Module):
         x = x[:, :n, :].reshape(B, n // self.stack_factor, C * self.stack_factor)
         return x
 
-    def forward(self, tokens: torch.Tensor) -> torch.Tensor:
-        """tokens: (B, N, in_dim) from the frozen encoder -> (B, shared_dim) normalized."""
+    def forward(self, tokens: torch.Tensor, return_prenorm: bool = False):
+        """tokens: (B, N, in_dim) from the frozen encoder -> (B, shared_dim) normalized.
+
+        If return_prenorm=True, returns (z_norm, z_prenorm) where z_prenorm is
+        the pre-L2-normalised embedding — needed by the SIGReg head so it can
+        push per-direction variance toward 1.0 without fighting unit-norm.
+        """
         x = self._stack(tokens.float())
         if self.mode == "mlp":
             x = self.in_norm(x)
@@ -194,7 +199,9 @@ class Predictor(nn.Module):
             x_pooled = x[:, 1:].mean(dim=1)
             # Cast back to head weight dtype (usually float32) before linear projection
             z = self.head(x_pooled.to(dtype=self.head.weight.dtype))
-            
+
+        if return_prenorm:
+            return F.normalize(z, dim=-1), z
         return F.normalize(z, dim=-1)
 
 

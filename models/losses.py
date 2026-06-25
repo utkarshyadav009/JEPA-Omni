@@ -82,10 +82,11 @@ def sigreg(
         Scalar SIGReg loss, or (num_slices,) tensor if reduce='none'.
     """
     assert x.dim() == 2, f"expected (N, K), got {tuple(x.shape)}"
-    dev = dict(device=x.device)
+    x = x.float() # Force calculations in float32 to protect ECF tail precision
+    dev = dict(device=x.device, dtype=torch.float32)
 
     # --- slice sampling: synced across devices via global_step seed ---
-    g = torch.Generator(**dev)
+    g = torch.Generator(device=x.device)
     g.manual_seed(int(global_step))
     A = torch.randn((x.size(1), num_slices), generator=g, **dev)  # (K, M)
     A = A / A.norm(p=2, dim=0)                                    # unit-norm columns

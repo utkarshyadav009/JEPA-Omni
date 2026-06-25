@@ -479,6 +479,23 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
         if use_cached:
             # Cached path: features already [B, N, D] from DataLoader
             feats, captions = batch
+            if step == 1 and is_main_process():
+                print("="*60)
+                print("GPU TENSOR MEMORY PROFILE AT STEP 1 START")
+                print("="*60)
+                import gc
+                total_mb = 0
+                for obj in gc.get_objects():
+                    try:
+                        if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
+                            if obj.is_cuda:
+                                mb = obj.element_size() * obj.nelement() / (1024**2)
+                                print(f"  Shape: {list(obj.shape):<20} | Dtype: {obj.dtype:<10} | Size: {mb:8.2f} MB")
+                                total_mb += mb
+                    except Exception:
+                        pass
+                print(f"Total GPU tensor memory tracked: {total_mb:.2f} MB")
+                print("="*60)
             feats = feats.to(device)
         else:
             # Live path: decode video -> micro-chunk through frozen encoder
@@ -533,13 +550,11 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
             p_v = torch.cat(p_v_list, dim=0).detach().requires_grad_(True)
             p_t = torch.cat(p_t_list, dim=0).detach().requires_grad_(True)
 
-            # --- Step 2: Compute contrastive InfoNCE + SIGReg loss ---
+            # --- Step 2: Compute contrastive InfoNCE + SIGReg loss (video-only SIGReg) ---
             with torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=amp_enabled):
                 loss_nce, metrics = info_nce(z_v, z_t, temperature=spine.cfg.temperature)
                 from models.losses import sigreg
-                loss_reg_v = sigreg(p_v, global_step=step, num_slices=256)
-                loss_reg_t = sigreg(p_t, global_step=step, num_slices=256)
-                loss_reg = 0.5 * (loss_reg_v + loss_reg_t)
+                loss_reg = sigreg(p_v, global_step=step, num_slices=256)
                 loss = loss_nce + spine.cfg.sigreg_lambda * loss_reg
 
             loss.backward()
@@ -547,7 +562,6 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
             g_zv = z_v.grad
             g_zt = z_t.grad
             g_pv = p_v.grad
-            g_pt = p_t.grad
 
             # --- Step 3: Accumulate gradients via second forward pass ---
             optimizer.zero_grad()
@@ -570,8 +584,7 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
                         surrogate = (
                             (zv_c * g_zv[i : i + micro_b]).sum() +
                             (zt_c * g_zt[i : i + micro_b]).sum() +
-                            (pv_c * g_pv[i : i + micro_b]).sum() +
-                            (pt_c * g_pt[i : i + micro_b]).sum()
+                            (pv_c * g_pv[i : i + micro_b]).sum()
                         )
                     surrogate.backward()
 
@@ -604,14 +617,47 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
         if is_log_step:
             # Diagnostics use the embeddings from the forward pass when present,
             # otherwise a cheap no-grad re-embed (only on log steps) using the precomputed features.
-            if zv is None or zt is None:
+            if zv is None or zt is None or pv is None or pt is None:
                 with torch.no_grad():
-                    zv = spine.predictor(feats)
-                    zt = spine.embed_text(captions)
-            if pv is None or pt is None:
-                with torch.no_grad():
-                    pv = spine.sigreg_proj_v(zv)
-                    pt = spine.sigreg_proj_t(zt)
+                    diag_chunk = 16
+                    B = feats.shape[0] if feats is not None else len(captions)
+                    
+                    if zt is None or pt is None:
+                        tokenized_caps_diag = spine.text.tokenizer(
+                            captions, padding=True, truncation=True,
+                            max_length=spine.text.max_length, return_tensors="pt"
+                        )
+                    
+                    zv_list, zt_list = [], []
+                    zv_prenorm_list, zt_prenorm_list = [], []
+                    
+                    for i in range(0, B, diag_chunk):
+                        f_chunk = feats[i : i + diag_chunk] if feats is not None else None
+                        c_captions = {
+                            k: v[i : i + diag_chunk]
+                            for k, v in tokenized_caps_diag.items()
+                        } if (zt is None or pt is None) else None
+                        
+                        with torch.autocast(device_type=device.type, dtype=torch.bfloat16, enabled=amp_enabled):
+                            if zv is None or pv is None:
+                                chunk_zv, chunk_zv_prenorm = spine.predictor(f_chunk, return_prenorm=True)
+                                zv_list.append(chunk_zv)
+                                zv_prenorm_list.append(chunk_zv_prenorm)
+                            if zt is None or pt is None:
+                                chunk_zt, chunk_zt_prenorm = spine.embed_text(c_captions, return_prenorm=True)
+                                zt_list.append(chunk_zt)
+                                zt_prenorm_list.append(chunk_zt_prenorm)
+                    
+                    if zv is None and len(zv_list) > 0:
+                        zv = torch.cat(zv_list, dim=0)
+                    if zt is None and len(zt_list) > 0:
+                        zt = torch.cat(zt_list, dim=0)
+                    if pv is None and len(zv_prenorm_list) > 0:
+                        zv_prenorm_full = torch.cat(zv_prenorm_list, dim=0)
+                        pv = spine.sigreg_proj_v(zv_prenorm_full.to(spine.sigreg_proj_v.weight.dtype))
+                    if pt is None and len(zt_prenorm_list) > 0:
+                        zt_prenorm_full = torch.cat(zt_prenorm_list, dim=0)
+                        pt = spine.sigreg_proj_t(zt_prenorm_full.to(spine.sigreg_proj_t.weight.dtype))
             diag = diagnostics(zv, zt)
             acc_val = reduce_mean(diag["acc_v2t"].detach()).item()
             align_val = reduce_mean(diag["alignment"].detach()).item()
@@ -622,7 +668,7 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
             with torch.no_grad():
                 loss_reg_v = sigreg(pv, global_step=step, num_slices=256)
                 loss_reg_t = sigreg(pt, global_step=step, num_slices=256)
-                raw_sigreg = 0.5 * (loss_reg_v.item() + loss_reg_t.item())
+                raw_sigreg = loss_reg_v.item()
                 mean_var_v = compute_projection_variance(pv)
                 mean_var_t = compute_projection_variance(pt)
                 eff_rank_v = compute_effective_rank(pv)
@@ -661,6 +707,36 @@ def train(cfg: AttrDict, limit: Optional[int]) -> None:
                 spine, model_config, step, best_loss,
                 optimizer=optimizer, scheduler=scheduler, loss_ema=loss_ema,
             )
+
+        # Explicitly delete local GPU tensor references to avoid double-allocation peak memory usage
+        if 'feats' in locals(): del feats
+        if 'captions' in locals(): del captions
+        if 'batch' in locals(): del batch
+        if 'z_v' in locals(): del z_v
+        if 'z_t' in locals(): del z_t
+        if 'p_v' in locals(): del p_v
+        if 'p_t' in locals(): del p_t
+        if 'z_v_list' in locals(): del z_v_list
+        if 'z_t_list' in locals(): del z_t_list
+        if 'p_v_list' in locals(): del p_v_list
+        if 'p_t_list' in locals(): del p_t_list
+        if 'g_zv' in locals(): del g_zv
+        if 'g_zt' in locals(): del g_zt
+        if 'g_pv' in locals(): del g_pv
+        if 'zv' in locals(): del zv
+        if 'zt' in locals(): del zt
+        if 'pv' in locals(): del pv
+        if 'pt' in locals(): del pt
+        if 'zv_c' in locals(): del zv_c
+        if 'zt_c' in locals(): del zt_c
+        if 'pv_c' in locals(): del pv_c
+        if 'pt_c' in locals(): del pt_c
+        if 'f_chunk' in locals(): del f_chunk
+        if 'c_captions' in locals(): del c_captions
+        if 'surrogate' in locals(): del surrogate
+        if 'loss' in locals(): del loss
+        if 'loss_nce' in locals(): del loss_nce
+        if 'loss_reg' in locals(): del loss_reg
 
     if is_main_process():
         save_checkpoint(

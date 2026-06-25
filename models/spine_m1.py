@@ -73,7 +73,7 @@ class SpineM1(nn.Module):
             in_dim=enc_out_dim, shared_dim=cfg.shared_dim,
             mode=cfg.predictor_mode, n_layers=cfg.predictor_layers,
             stack_factor=cfg.stack_factor,
-        ).to(cfg.device)
+        ).to(cfg.device, dtype=cfg.dtype)
 
         # Separate non-normalized projection heads for SIGReg stabilization
         self.sigreg_proj_v = nn.Linear(cfg.shared_dim, cfg.shared_dim, dtype=cfg.dtype, device=cfg.device)
@@ -105,7 +105,7 @@ class SpineM1(nn.Module):
         """Only the text BACKBONE params (for the 0.05 LR group); excludes the projection."""
         return [p for p in self.text.base.parameters() if p.requires_grad]
 
-    def embed_video(self, videos) -> Tensor:
+    def embed_video(self, videos, return_prenorm: bool = False):
         # If videos is already a feature tensor [B, N, D], just pass it to predictor
         if isinstance(videos, torch.Tensor) and videos.dim() == 3:
             feats = videos
@@ -113,10 +113,10 @@ class SpineM1(nn.Module):
             feats = self.encoder.encode(videos)      # frozen, no grad
         else:
             feats = videos                           # already features (cached path)
-        return self.predictor(feats)                 # (B, shared_dim), normalized
+        return self.predictor(feats, return_prenorm=return_prenorm)
 
-    def embed_text(self, texts: List[str]) -> Tensor:
-        return self.text.encode_text(texts)          # (B, shared_dim), normalized
+    def embed_text(self, texts, return_prenorm: bool = False):
+        return self.text.encode_text(texts, return_prenorm=return_prenorm)
 
     # ------------------------------------------------------------------ #
     def _valid_queue(self) -> Tuple[Optional[Tensor], Optional[Tensor]]:
@@ -154,10 +154,14 @@ class SpineM1(nn.Module):
         global_step: int = 0,
         return_embeds: bool = False,
     ) -> Tuple[Tensor, Tensor, Tensor, Tensor] | Tuple[Tensor, Dict[str, float]]:
-        z_v = self.embed_video(videos)
-        z_t = self.embed_text(texts)
-        p_v = self.sigreg_proj_v(z_v)
-        p_t = self.sigreg_proj_t(z_t)
+        # Get both normalised z (for InfoNCE) and pre-normalised (for SIGReg head)
+        z_v, z_v_prenorm = self.embed_video(videos, return_prenorm=True)
+        z_t, z_t_prenorm = self.embed_text(texts, return_prenorm=True)
+        # SIGReg heads branch off PRE-normalised embeddings (not unit-sphere z)
+        # so they can push per-direction variance toward 1.0
+        # Cast to projection dtype (bfloat16) — prenorm comes out as float32 from head
+        p_v = self.sigreg_proj_v(z_v_prenorm.to(self.sigreg_proj_v.weight.dtype))
+        p_t = self.sigreg_proj_t(z_t_prenorm.to(self.sigreg_proj_t.weight.dtype))
 
         if return_embeds:
             return z_v, z_t, p_v, p_t
@@ -176,10 +180,8 @@ class SpineM1(nn.Module):
         else:
             loss_nce, metrics = info_nce(z_v, z_t, self.cfg.temperature)
 
-        # Add SIGReg only as a secondary term on non-normalized projections
-        loss_reg_v = sigreg(p_v, global_step=global_step, num_slices=256)
-        loss_reg_t = sigreg(p_t, global_step=global_step, num_slices=256)
-        loss_reg = 0.5 * (loss_reg_v + loss_reg_t)
+        # Add SIGReg only as a secondary term on non-normalized projections (video-head only)
+        loss_reg = sigreg(p_v, global_step=global_step, num_slices=256)
 
         total_loss = loss_nce + self.cfg.sigreg_lambda * loss_reg
 

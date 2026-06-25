@@ -19,7 +19,7 @@ Native dim is read from config; never hardcoded.
 
 from __future__ import annotations
 
-from typing import List
+from typing import List, Tuple, Union
 
 import torch
 import torch.nn as nn
@@ -70,8 +70,12 @@ class TextTarget(nn.Module):
         self.shared_dim = shared_dim
         self.native_dim = native
 
-    def encode_text(self, texts: List[str] | dict) -> torch.Tensor:
-        """texts -> (B, shared_dim), L2-normalized."""
+    def encode_text(self, texts: Union[List[str], dict], return_prenorm: bool = False) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
+        """Encode a list of texts -> (B, shared_dim) L2-normalised embeddings.
+
+        If return_prenorm=True, returns (z_norm, z_prenorm) where z_prenorm is
+        the pre-L2-normalised embedding for the SIGReg head.
+        """
         if isinstance(texts, dict):
             tok = {k: v.to(self.device_str) for k, v in texts.items()}
         else:
@@ -86,6 +90,8 @@ class TextTarget(nn.Module):
             pooled = _mean_pool(out, tok["attention_mask"])
 
         z = self.proj(pooled.float())
+        if return_prenorm:
+            return F.normalize(z, dim=-1), z
         return F.normalize(z, dim=-1)
 
     def forward(self, texts: List[str]) -> torch.Tensor:
