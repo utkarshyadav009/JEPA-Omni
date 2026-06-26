@@ -1,0 +1,69 @@
+# configs/m2.yaml
+# M2 — Joint Audio-Visual JEPA predictor.
+# AVJepaPredictor (models/av_jepa_predictor.py) + SIGReg (models/sigreg.py).
+# Frozen encoders: V-JEPA2 ViT-L (vision) + WavJEPA-base/nat (audio).
+# Feature cache: /dev/shm/jepa_m2_cache/ (RAM — ~1 TiB free).
+
+seed: 0
+precision: bf16
+
+model:
+  # ── frozen encoder repos (must match manifest) ────────────────────
+  vision_repo:       facebook/vjepa2-vitl-fpc64-256
+  wavjepa_base_repo: labhamlet/wavjepa-base
+  wavjepa_nat_repo:  labhamlet/wavjepa-nat-base
+
+  # ── AVJepaPredictor config ────────────────────────────────────────
+  # modality_dims matches av_jepa_predictor.AVJepaConfig defaults
+  d_model:        1024    # predictor width + World-State dim
+  depth:          8       # transformer blocks
+  heads:          8
+  mlp_ratio:      4.0
+  max_tdm_bins:   512     # shared temporal axis resolution
+  dropout:        0.0
+
+  # ── Audio mode (how to combine base+nat) ─────────────────────────
+  audio_mode: mean        # "base" | "nat" | "mean"
+
+  # ── SIGReg ────────────────────────────────────────────────────────
+  sigreg_lambda:    0.0   # start at 0 for first run (per spec)
+  sigreg_num_slices: 256  # M in Algorithm 1
+
+data:
+  # Cache produced by scripts/extract_features_av.py
+  av_cache_dir: /dev/shm/jepa_m2_cache
+
+  # Original video source (needed only for re-extraction, not training)
+  video_dir: /home/utkarsh/data/vggsound
+
+  # Annotation CSVs (used by extract_features_av.py for clip collection)
+  train_csv: data/train.csv
+  test_csv:  data/test.csv
+
+optim:
+  lr:            1.0e-4
+  weight_decay:  0.05
+  betas:         [0.9, 0.98]
+  eps:           1.0e-8
+  grad_clip:     1.0
+  total_steps:   10000
+  warmup_steps:  500
+
+train:
+  batch_size:                    32     # per-GPU; 2 GPUs → 64 effective
+  num_workers:                   4
+  log_every:                     20     # steps between console logs
+  save_every:                    500    # steps between checkpoints
+  ckpt_dir:                      /home/utkarsh/JEPA-Omni/checkpoints/m2
+  ddp_find_unused_parameters:    false
+
+  # Cross-modal masking: mask ~50% time window of one modality per batch
+  mask_prob:        0.5     # probability that a given time window is masked
+  mask_min_frac:    0.3     # min fraction of tokens to mask per modality
+  mask_max_frac:    0.7     # max fraction of tokens to mask per modality
+
+  # Rank diagnostic: batch ceiling for effective_rank
+  rank_ceil_override: null  # null → use min(batch_size-1, 1024)
+
+eval:
+  batch_size: 64
