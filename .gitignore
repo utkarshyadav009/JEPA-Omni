@@ -5,3 +5,4 @@ checkpoints/
 slurm-*.out
 *.egg-info/
 .DS_Store
+Miniconda3-latest-Linux-x86_64.sh
