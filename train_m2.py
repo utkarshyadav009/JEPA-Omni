@@ -356,6 +356,7 @@ def gradcache_contrastive_step(
     micro_batches: List[Tuple[Dict[str, Tensor], Dict[str, Tensor]]],
     temperature: float,
     amp_enabled: bool,
+    loss_weight: float = 1.0,
 ) -> Tuple[float, Dict[str, float]]:
     """GradCache composed with the differentiable cross-rank all_gather (see
     gathered_info_nce): lets the EFFECTIVE per-rank negative pool exceed what
@@ -373,6 +374,10 @@ def gradcache_contrastive_step(
     routes the exact same gradient signal into the model's parameters as one
     giant all-ranks backward would, without ever holding more than one
     microbatch's activations at a time.
+
+    ``loss_weight`` is applied to the phase-2 loss before target gradients
+    are extracted, so GradCache obeys the same contrastive coefficient as the
+    one-shot path.  Do not also scale the phase-3 surrogate.
 
     Does NOT call sync_grads() -- the caller must do that EXACTLY ONCE,
     after this returns (and after any other losses' backward calls this
@@ -395,7 +400,7 @@ def gradcache_contrastive_step(
     z_a_local = torch.cat(za_chunks, 0).detach().requires_grad_(True)
 
     loss, metrics = gathered_info_nce(z_v_local, z_a_local, temperature=temperature)
-    loss.backward()
+    (loss_weight * loss).backward()
     target_grad_v = z_v_local.grad.detach()
     target_grad_a = z_a_local.grad.detach()
 
@@ -682,8 +687,13 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
     # trade for an exploratory/config-finding run.
     model: nn.Module = predictor
     if is_distributed():
-        for t in predictor.state_dict().values():
-            dist.broadcast(t, src=0)
+        # All manually-synchronised modules must begin from the SAME state.
+        # sync_grads() only averages updates; it cannot correct different
+        # random initialisations of the contrastive/pooled heads.
+        for module in (predictor, pooled_heads, vision_proj, ambient_proj):
+            if module is not None:
+                for t in module.state_dict().values():
+                    dist.broadcast(t, src=0)
 
     # ── eval subset for STEP-3 retrieval metric ───────────────────────
     # Only activated when explicitly passed: prevents accidental exclusion during
@@ -935,6 +945,7 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
             c_loss_val, c_metrics = gradcache_contrastive_step(
                 raw, vision_proj, ambient_proj, gc_micro_batches,
                 temperature=contrast_temp, amp_enabled=amp_enabled,
+                loss_weight=lam_contrastive,
             )
             contrastive_loss_val = c_loss_val
             contrastive_acc = 0.5 * (c_metrics["acc_v2t"] + c_metrics["acc_t2v"])

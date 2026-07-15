@@ -66,6 +66,9 @@ N_PER_GPU = 96
 MICRO     = 48    # matches the known-safe per-GPU batch size from probing
 SEED      = 12345
 TEMP      = 0.05
+# A non-unit coefficient proves the production GradCache path preserves the
+# caller's contrastive weight, rather than only validating the implicit 1.0.
+LOSS_WEIGHT = 0.37
 CONTRAST_DIM = 256
 
 
@@ -150,7 +153,7 @@ def main() -> None:
         z_v = torch.cat(zv_chunks, 0).detach().requires_grad_(True)
         z_a = torch.cat(za_chunks, 0).detach().requires_grad_(True)
         loss, metrics = info_nce(z_v, z_a, temperature=TEMP)
-        loss.backward()
+        (LOSS_WEIGHT * loss).backward()
         g_zv, g_za = z_v.grad, z_a.grad
 
         for i in range(0, N_TOTAL, MICRO):
@@ -207,6 +210,7 @@ def main() -> None:
         loss, metrics = gradcache_contrastive_step(
             predictor, vision_proj, ambient_proj, micro_batches,
             temperature=TEMP, amp_enabled=amp_enabled,
+            loss_weight=LOSS_WEIGHT,
         )
         # sync_grads() called EXACTLY ONCE here, after gradcache_contrastive_
         # step() has returned (i.e. after ALL microbatches' surrogate
