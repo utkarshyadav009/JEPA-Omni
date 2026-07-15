@@ -174,13 +174,15 @@ def _decode_video_raw(path: str, num_frames: int, resolution: int) -> Tensor:
 def _decode_audio_raw(path: str, target_sr: int = AUDIO_SR) -> Tensor:
     """Decode audio from video; return (n_samples,) float32 mono."""
     try:
-        import torchaudio
-        wav, sr = torchaudio.load(path)
+        from torchcodec.decoders import AudioDecoder
+        dec    = AudioDecoder(path, sample_rate=target_sr)
+        frames = dec.get_all_samples()
+        wav    = frames.data                         # (channels, n_samples) float32
         if wav.shape[0] > 1:
-            wav = wav.mean(0, keepdim=True)
-        if sr != target_sr:
-            wav = torchaudio.functional.resample(wav, sr, target_sr)
-        return wav.squeeze(0)
+            wav = wav.mean(0)
+        else:
+            wav = wav[0]
+        return wav
     except Exception:
         return torch.zeros(int(CLIP_DURATION_S * target_sr))
 
@@ -243,15 +245,20 @@ def _write_manifest(
 
 # ── collect clips ─────────────────────────────────────────────────────────────
 def _collect_clips(video_dir: str, limit: Optional[int] = None,
-                   rank: int = 0) -> Dict[str, str]:
-    """Return {video_id: path} from data/train.csv + data/test.csv.
+                   rank: int = 0, train_only: bool = False,
+                   clip_list: Optional[List[str]] = None) -> Dict[str, str]:
+    """Return {video_id: path} from data/train.csv (+ data/test.csv unless train_only).
+
+    If clip_list is given, only those video IDs are returned (ignoring CSV order/limit).
 
     CSV format (VGGSound — no header): <filename>,<label>
     e.g.  OxPnZzn1_L8_000883.mp4,scuba diving
     """
     import csv
+    clip_set = set(clip_list) if clip_list is not None else None
     unique: Dict[str, str] = {}
-    for csv_name in ("train.csv", "test.csv"):
+    csvs = ("train.csv",) if train_only else ("train.csv", "test.csv")
+    for csv_name in csvs:
         csv_path = os.path.join(PROJECT_ROOT, "data", csv_name)
         if not os.path.exists(csv_path):
             if rank == 0:
@@ -278,8 +285,9 @@ def _collect_clips(video_dir: str, limit: Optional[int] = None,
                             vpath = p
                             break
                 if vpath and vid not in unique:
-                    unique[vid] = vpath
-    if limit:
+                    if clip_set is None or vid in clip_set:
+                        unique[vid] = vpath
+    if clip_set is None and limit:
         unique = dict(list(unique.items())[:limit])
     return unique
 
@@ -292,6 +300,8 @@ def extract(
     decode_timeout: int = 30,
     rank: int = 0,
     world_size: int = 1,
+    train_only: bool = False,
+    clip_list: Optional[List[str]] = None,
 ) -> None:
     # ── /dev/shm gate ─────────────────────────────────────────────────────
     if rank == 0:
@@ -303,7 +313,8 @@ def extract(
 
     if rank == 0:
         print(f"[av-extract] Collecting clips from {video_dir} ...", flush=True)
-    all_clips = _collect_clips(video_dir, limit=limit, rank=rank)
+    all_clips = _collect_clips(video_dir, limit=limit, rank=rank,
+                               train_only=train_only, clip_list=clip_list)
     if rank == 0:
         print(f"[av-extract] {len(all_clips)} clips total", flush=True)
 
@@ -496,6 +507,10 @@ def main() -> None:
                         help="Limit clips (32 for smoke, 50000 for subset).")
     parser.add_argument("--decode-timeout", type=int, default=30)
     parser.add_argument("--cache-dir", default=CACHE_DIR)
+    parser.add_argument("--train-only", action="store_true",
+                        help="Use only data/train.csv (exclude test clips).")
+    parser.add_argument("--clip-list", default=None,
+                        help="Text file with one clip_id per line; extract only those clips.")
     args = parser.parse_args()
 
     rank, world = _init_dist()
@@ -507,6 +522,11 @@ def main() -> None:
         cfg       = load_config(args.config)
         video_dir = str(cfg_get(cfg, "data.video_dir"))
 
+    clip_list: Optional[List[str]] = None
+    if args.clip_list:
+        with open(args.clip_list) as _f:
+            clip_list = [l.strip() for l in _f if l.strip()]
+
     extract(
         video_dir=video_dir,
         cache_dir=args.cache_dir,
@@ -514,6 +534,8 @@ def main() -> None:
         decode_timeout=args.decode_timeout,
         rank=rank,
         world_size=world,
+        train_only=args.train_only,
+        clip_list=clip_list,
     )
     _cleanup_dist()
 

@@ -173,6 +173,7 @@ class AVJepaPredictor(nn.Module):
             if mm.any():
                 pred = self.out_head[m](seg[mm])                # (n_masked, dim_m)
                 tgt = x[mm].detach()                            # FROZEN target, stop-grad
+                tgt = F.layer_norm(tgt, (tgt.shape[-1],)).detach()  # per-token normalise target (removes near-zero-constant shortcut; pred stays raw)
                 lm = F.smooth_l1_loss(pred, tgt)
                 loss = loss + lm
                 n += 1
@@ -200,6 +201,58 @@ class AVJepaPredictor(nn.Module):
         # single-query attentive pool
         attn = torch.softmax((q @ h.transpose(1, 2)) / (h.shape[-1] ** 0.5), dim=-1)  # (B,1,S)
         return (attn @ h).squeeze(1)                            # (B, d) un-normalised
+
+    def world_state(self, feats: Dict[str, Tensor], tbins: Dict[str, Tensor]) -> Tensor:
+        """Grad-enabled world-state for use in SIGReg backprop (lam_sigreg > 0).
+        SAME computation as encode_world_state but WITHOUT @torch.no_grad, so
+        gradients flow through pool_query and all transformer block parameters.
+        Do NOT call this for eval/logging — use encode_world_state() there."""
+        tokens, _, _ = self._embed(feats, tbins)
+        h = self._backbone(tokens)
+        q = self.pool_query.expand(h.shape[0], 1, -1)
+        attn = torch.softmax((q @ h.transpose(1, 2)) / (h.shape[-1] ** 0.5), dim=-1)  # (B,1,S)
+        return (attn @ h).squeeze(1)                            # (B, d) un-normalised
+
+    def encode_source_tokens(
+        self, feats: Dict[str, Tensor], tbins: Dict[str, Tensor]
+    ) -> Dict[str, Tensor]:
+        """Per-modality backbone tokens, each from a pass where every OTHER
+        modality is masked (mask_token + position-only, mirroring forward()'s
+        masking) before the backbone. This prevents modality m's tokens from
+        directly attending to another modality's real content via joint
+        self-attention -- a single shared unmasked pass would let the
+        "source" modality's pooled representation leak the real target,
+        making downstream pooled-retrieval numbers vacuous.
+
+        Used by PooledXModalHead: the source modality's slice is mean-pooled
+        and passed through the pooled prediction MLP to predict the target's
+        mean-pooled frozen repr (MJEPA Sec 4.3 cross-modal pooled predictor).
+
+        One masked backbone pass per modality (2 passes for 2 modalities).
+        Returns Dict[modality → (B, T_m, d)] post-backbone, post-norm tokens,
+        where out[m] only ever saw m's own visible content."""
+        out: Dict[str, Tensor] = {}
+        for src_m in feats:
+            tokens, _, _ = self._embed(feats, tbins)
+            B, S, d = tokens.shape
+            flat_mask = torch.cat(
+                [torch.zeros_like(tbins[m], dtype=torch.bool) if m == src_m
+                 else torch.ones_like(tbins[m], dtype=torch.bool)
+                 for m in feats],
+                1,
+            )
+            q = self.mask_token.expand(B, S, d)
+            tokens = torch.where(
+                flat_mask.unsqueeze(-1), q + self._embed_pos_only(feats, tbins), tokens,
+            )
+            h = self._backbone(tokens)                          # (B, S, d)
+            offset = 0
+            for m, x in feats.items():
+                T_m = x.shape[1]
+                if m == src_m:
+                    out[m] = h[:, offset:offset + T_m]         # (B, T_m, d)
+                offset += T_m
+        return out
 
 
 if __name__ == "__main__":
