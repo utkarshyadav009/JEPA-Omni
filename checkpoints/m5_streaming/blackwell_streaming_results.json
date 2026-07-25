@@ -1,0 +1,63 @@
+{
+  "hardware": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+  "n_ticks": 60,
+  "duration_sec": 15.0,
+  "config": {
+    "window_vision_sec": 10.0,
+    "stride_vision_sec": 2.0,
+    "window_audio_sec": 2.0,
+    "tick_interval_sec": 0.25,
+    "audio_sr": 16000,
+    "video_fps": 6.4
+  },
+  "action_counts": {
+    "backchannel": 5,
+    "silence": 3,
+    "speak": 2,
+    "gated": 50
+  },
+  "tick_wall_latency_ms": {
+    "n": 60,
+    "mean_ms": 28.300087720466156,
+    "max_ms": 395.14398109167814,
+    "p95_ms": 301.5922548249364
+  },
+  "vision_refresh_latency_ms": {
+    "n": 8,
+    "mean_ms": 90.64848645357415,
+    "max_ms": 283.7457503192127,
+    "p95_ms": 283.7457503192127
+  },
+  "vitl_forward_latency_ms": {
+    "n": 8,
+    "mean_ms": 83.6214396986179,
+    "max_ms": 244.71518211066723,
+    "p95_ms": 244.71518211066723
+  },
+  "fusion_predictor_latency_ms": {
+    "n": 8,
+    "mean_ms": 7.027046754956245,
+    "max_ms": 39.030568208545446,
+    "p95_ms": 39.030568208545446
+  },
+  "speech_activity_latency_ms": {
+    "n": 10,
+    "mean_ms": 15.745101496577263,
+    "max_ms": 34.43985199555755,
+    "p95_ms": 34.43985199555755
+  },
+  "decision_latency_ms": {
+    "n": 10,
+    "mean_ms": 3.9154904894530773,
+    "max_ms": 37.74189297109842,
+    "p95_ms": 37.74189297109842
+  },
+  "generation_latency_ms": {
+    "n": 2,
+    "mean_ms": 336.1189898569137,
+    "max_ms": 383.487808983773,
+    "p95_ms": 383.487808983773
+  },
+  "n_vision_refreshes": 8,
+  "n_generations": 2
+}

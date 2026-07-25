@@ -1,0 +1,20 @@
+{
+  "self_echo_only": {
+    "no_fix": 25,
+    "mic_gate": 0,
+    "aec_warmup": 16,
+    "aec_converged": 23,
+    "n_warmup": 17,
+    "n_converged": 23
+  },
+  "self_echo_plus_real_interrupt": {
+    "no_fix": 21,
+    "mic_gate": 0,
+    "aec_converged": 21,
+    "n": 23
+  },
+  "nlms_erle_db": {
+    "warmup_third": 13.363533020019531,
+    "converged_two_thirds": 13.228595733642578
+  }
+}

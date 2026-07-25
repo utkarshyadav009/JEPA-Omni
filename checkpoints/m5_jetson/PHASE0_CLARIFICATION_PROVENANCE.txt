@@ -1,0 +1,186 @@
+M5 PHASE 0 — PEAK-CAPTURE CLARIFICATION + OPTIMIZATION WINS
+Measured: 2026-07-25, same Jetson Orin Nano Super setup as PHASE0_PROVENANCE.txt.
+Raw data: checkpoints/m5_jetson/phase0_results_v2_final.json (steady-state
+  log), checkpoints/m5_jetson/phase0_run5.log (full run incl. the
+  continuous-sampling block, complete), checkpoints/m5_jetson/
+  qwen_int8_quality.json.
+
+═══════════════════════════════════════════════════════════════════════════
+1/2. PEAK-CAPTURE CLARIFICATION
+═══════════════════════════════════════════════════════════════════════════
+
+**Honest correction first**: the original Phase 0 report never stated a
+"2.1GB" figure. More importantly, the original run did NOT capture what
+was asked: Qwen never successfully loaded (it OOM-killed / hit NvMap error
+12 in both load orders tried), so there is no prior measurement anywhere
+of "all 5 models resident + generation live." The closest number reported
+(V-JEPA2 ViT-L's isolated-forward peak, 5354MiB) had only 4 models loaded,
+no Qwen, no generation in flight. That gap is now closed for real, below.
+
+**New run, with continuous tegrastats sampling (100ms interval) spanning
+the entire full-tick block** -- not a before/after snapshot. A single
+long-running `tegrastats --interval 100` subprocess is read continuously
+in a background thread; every line gets a wall-clock read timestamp.
+Explicit t_gen_start / t_gen_end markers are recorded immediately around
+the `llm.generate()` call so the peak sample's timestamp can be checked
+against the real generation window, not just assumed to be "during" it.
+
+Full tick exercised: V-JEPA2 ViT-L 64f/256px forward (live) -> WavJEPA
+base+nat forward -> Whisper forward -> decision head -> Qwen2.5-1.5B
+`.generate(max_new_tokens=60)` (KV-cache populated and growing token by
+token, greedy decode, 12.3s wall-clock).
+
+RESULT (from checkpoints/m5_jetson/phase0_run5.log, printed in full):
+
+    {
+      "n_samples": 151,
+      "overall_peak_used_mib": 6976,
+      "overall_peak_at_t_minus_gen_start_s": 0.257,
+      "peak_is_inside_generation_window": true,
+      "generation_window_s": 12.302,
+      "n_samples_inside_generation_window": 117,
+      "peak_used_mib_WITHIN_generation_window": 6976
+    }
+
+**CONFIRMED**: the peak sample (6976MiB) occurred 0.257s AFTER generation
+started -- i.e. inside the 12.3s generation window, not before it, not
+after it, not at steady-state-after-load. 117 of the 151 total samples
+collected fall inside the generation window itself, so this isn't a single
+lucky sample -- the window was densely sampled. Steady-state-before-the-
+tick was 6647MiB (measured immediately prior); the tick itself grew usage
+by +329MiB at peak, consistent with real activation + growing-KV-cache
+cost on top of the resident weights, not measurement noise.
+
+Two `NvMapMemAllocInternalTagged: ... error 12` warnings appeared during
+this run (at the M2-predictor-load step and again during the tick) but
+did NOT crash the process this time -- worth flagging honestly: the
+system is running close enough to its contiguity limit that these
+warnings surface intermittently even in a run that completes successfully.
+Not glossed over; noted as a live margin concern, not a hard failure here.
+
+**Full-tick headroom at peak: 7620 - 6976 = 644MiB.** Tight, but real and
+positive -- a meaningfully different answer from the original Phase 0
+finding (OOM-killed, no headroom at all, full stack didn't even load).
+
+═══════════════════════════════════════════════════════════════════════════
+3. int8 QWEN2.5-1.5B: QUALITY DELTA + MEMORY RECLAIMED
+═══════════════════════════════════════════════════════════════════════════
+
+**Quality** (scripts/m4_qwen_int8_quality.py, run on mercury -- quality is
+hardware-independent, measured on the fast GPU for speed; memory reclaimed
+is measured separately on the Jetson below): n=100 real EasyCom test
+segments, same M4b projector + frozen-LLM generation path as every other
+M4c falsifier, same semantic-cosine methodology as scripts/m4_joint_eval.py
+(sentence-transformers/all-MiniLM-L6-v2). torchao Int8WeightOnlyConfig,
+version=2, weight-only (activations stay bf16).
+
+    cos(generated, ground_truth):  bf16=0.4977   int8=0.4769   delta=-0.0209
+    bootstrap SE on bf16 (200 resamples over the 100 examples): 0.0224
+    |delta| < 2*SE (0.0449)?  YES -- within noise
+    cos(bf16_output, int8_output) directly: 0.7747 (same ballpark meaning,
+      even though exact-text-match rate is only 20% -- greedy decoding is
+      sensitive to tiny logit perturbations that cascade into different
+      token choices without changing what's actually being said)
+
+**PASSED your stated criterion ("keep int8 if within noise") -- keeping
+int8.** checkpoints/m5_jetson/qwen_int8_quality.json has the full n=100
+generations for spot-checking.
+
+**Memory reclaimed** (Jetson, tegrastats): resident cost of Qwen2.5-1.5B
+alone, int8 weight-only (version=2, with malloc_trim -- see section 4):
+tegrastats delta from before-Qwen (3241MiB) to after-Qwen (4551MiB) =
+**+1310MiB int8**, vs bf16's un-completable load (bf16 needs ~3000MiB+ and
+never fit in ANY tested configuration -- there is no valid "before" bf16
+number to diff against on this device, which is itself the point: int8
+isn't an optimization here, it's the difference between fitting and not
+fitting at all).
+
+═══════════════════════════════════════════════════════════════════════════
+4. "WAVJEPA DOUBLE-LOAD": ROOT CAUSE FOUND, BUT NOT WHAT WAS EXPECTED --
+   AND IT WASN'T WAVJEPA-SPECIFIC
+═══════════════════════════════════════════════════════════════════════════
+
+**First hypothesis (torchao API version), tested and mostly REJECTED --
+reporting this honestly rather than keeping the cleaner-sounding wrong
+answer.** Initial isolated tests (scripts/jetson_wavjepa_diag.py, a toy
+20x Linear(4096,4096) stack) showed torchao's DEPRECATED
+`Int8WeightOnlyConfig(version=1)` retaining the full pre-quantization fp32
+tensor after quantize+gc.collect() (+1281MiB, no reduction), while
+`version=2` correctly dropped to the expected int8 size (+309MiB). This
+looked like a clean, real bug.
+
+**A cleaner, single-process, real-model control test overturned that
+conclusion**: scripts/jetson_wavjepa_diag2.py loads TWO fresh WavJEPA-base
+instances back-to-back in the same process, quantizing one with v1 and one
+with v2. WITHOUT an explicit `ctypes.CDLL("libc.so.6").malloc_trim(0)`
+call, v1 showed +691MiB growth after quantization (looks like a leak) and
+v2 showed +56MiB (looks fixed) -- reproducing the earlier result. But WITH
+malloc_trim() added after quantize+gc, v1 showed -352MiB (a real DECREASE,
+i.e. the old tensor WAS being freed all along) and v2 showed -286MiB
+(statistically the same). **The version=1 "leak" was a glibc allocator
+artifact, not a torchao bug**: `gc.collect()` drops Python references, but
+glibc malloc does not return freed pages to the OS-visible RSS (which is
+what tegrastats reports) without an explicit trim -- both API versions
+free correctly once that's forced.
+
+**Real, actionable fix**: `malloc_trim(0)` after every CPU-side
+quantize-then-free step, applied to ALL 5 quantized components, not just
+WavJEPA. Consistent with `scripts/jetson_phase0_memory.py`'s update. This
+IS a genuine "eliminate a redundant/retained copy" fix in spirit -- it's
+just not WavJEPA-specific and not a double-LOAD (two separate model
+instantiations) at all; the "extra copy" was the freed-but-unreturned fp32
+weights of WHICHEVER large model was quantized most recently, sitting in
+glibc's arena.
+
+**Savings, measured before vs after (same 4 perception encoders, same
+methodology, only the malloc_trim fix changed)**:
+
+| stage | before fix (run2, buggy v1 no trim) | after fix (run5, v2 + malloc_trim) |
+|---|---|---|
+| CUDA context | 1697 | 841 |
+| + WavJEPA-base int8 | 3290 | 1503 |
+| + WavJEPA-nat int8 | 4098 | 2118 |
+| + ViT-L int8 | 4932 | 2635 |
+| + Whisper-medium int8 | 6801 | 3241 |
+| **+ Qwen2.5-1.5B int8** | **OOM-killed, never loaded** | **4551** |
+| + M2 predictor | (never reached) | 6441 |
+| + M3/M4b connectors + decision head | (never reached) | **6647 (full steady state)** |
+
+The absolute savings per-stage are real but modest (a few hundred MiB
+each) -- what actually flips the outcome is that those modest per-stage
+savings COMPOUND across 5 sequential loads into just enough headroom
+(~1GB) for Qwen to fit where it categorically did not fit before.
+
+Note: the two run baselines above (CUDA-context 1697 vs 841) also differ
+because run5 was measured immediately after a fresh reboot + preflight
+with all competing services correctly stopped, vs run2 which had some
+prior process activity in the same boot session -- both malloc_trim AND a
+clean boot state contributed to the improvement; neither alone was
+isolated as the sole cause, and both are now standard practice for this
+measurement (documented in the script and this file for anyone re-running
+it).
+
+═══════════════════════════════════════════════════════════════════════════
+BOTTOM LINE
+═══════════════════════════════════════════════════════════════════════════
+
+**M5 is "fits, now make it fast" -- not "still needs to shrink."**
+
+Full stack (WavJEPA base+nat, V-JEPA2 ViT-L, Whisper-medium, Qwen2.5-1.5B
+-- all int8 weight-only where the tooling allows, WavJEPA still fp32
+internally per its MaskedTensor constraint -- plus M2 predictor, M3
+connector, M4b projector, 3-class decision head) loads and runs a genuine
+full tick (perception forward + decision + 60-token live generation) with
+**644MiB of headroom at the measured peak**, confirmed via continuous
+sampling during the actual generation window, not a resident-after-load
+number.
+
+That headroom is real but thin. It was not stress-tested for: longer
+generations (KV-cache growth beyond 60 tokens -- 27.3 MiB/1k tokens
+theoretical, would consume the remaining 644MiB within roughly 24k tokens
+of pure KV growth, ignoring any other overhead, so multi-turn conversation
+length is still a live constraint, not a solved one), sustained/repeated
+ticks back to back, or concurrent perception + generation overlap (this
+tick ran them sequentially). Per your DEFER instructions, no C++/CUDA
+rewrite and no LLM/encoder swap were attempted -- the confirmed peak did
+NOT show a deficit requiring one, so neither was triggered.

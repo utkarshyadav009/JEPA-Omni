@@ -1,0 +1,783 @@
+{
+  "easycom_session_turntaking": {
+    "per_session": {
+      "10": {
+        "n": 477,
+        "speak_precision": 0.9850187265917603,
+        "speak_recall": 0.9887218045112782,
+        "speak_f1": 0.9868667917448405,
+        "silence_recall": 0.981042654028436
+      },
+      "11": {
+        "n": 751,
+        "speak_precision": 0.9886104783599089,
+        "speak_recall": 0.9954128440366973,
+        "speak_f1": 0.992,
+        "silence_recall": 0.9841269841269841
+      },
+      "12": {
+        "n": 724,
+        "speak_precision": 0.9737470167064439,
+        "speak_recall": 0.9951219512195122,
+        "speak_f1": 0.9843184559710495,
+        "silence_recall": 0.964968152866242
+      }
+    },
+    "overall": {
+      "speak_precision": 0.9822222222222222,
+      "speak_recall": 0.9937050359712231,
+      "speak_f1": 0.9879302637460886,
+      "silence_recall": 0.9761904761904762,
+      "n": 1952
+    }
+  },
+  "vggsound_pseudo_timeline_MECHANISM_CHECK": {
+    "speak_precision": 0.7791706846673095,
+    "speak_recall": 0.808,
+    "speak_f1": 0.7933235149729996,
+    "silence_recall": 0.9236666666666666,
+    "n": 4000,
+    "label": "MECHANISM CHECK ONLY, NOT a turn-taking result"
+  },
+  "interruption_latency_ms": {
+    "per_token_forward_pass_mean_ms": 6.975703282902638,
+    "per_token_forward_pass_p95_ms": 7.087631174363196,
+    "per_token_forward_pass_max_ms": 64.06542705371976,
+    "n_samples": 30,
+    "interrupt_at_step": 5,
+    "interpretation": "worst-case interruption latency = time for the in-flight token's forward pass to complete once the halt signal is set, since we check between tokens not mid-token"
+  },
+  "end_to_end_tick_latency_ms": {
+    "hardware": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "note": "measured on the ACTUAL available hardware (see 'hardware' field) -- NOT a consumer RTX 4090, flagging so M5 capacity planning doesn't assume 4090-class throughput",
+    "per_tick": [
+      {
+        "total_ms": 12.094260659068823,
+        "decision_ms": 2.158293966203928,
+        "generation_first_token_ms": 9.935966692864895,
+        "decided_speak": true
+      },
+      {
+        "total_ms": 2.0821839570999146,
+        "decision_ms": 2.0656739361584187,
+        "generation_first_token_ms": 0.016510020941495895,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.396110910922289,
+        "decision_ms": 2.3797410540282726,
+        "generation_first_token_ms": 0.016369856894016266,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.9853731393814087,
+        "decision_ms": 2.969152759760618,
+        "generation_first_token_ms": 0.01622037962079048,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 12.226327788084745,
+        "decision_ms": 2.3778798058629036,
+        "generation_first_token_ms": 9.848447982221842,
+        "decided_speak": true
+      },
+      {
+        "total_ms": 11.931432411074638,
+        "decision_ms": 2.030234318226576,
+        "generation_first_token_ms": 9.901198092848063,
+        "decided_speak": true
+      },
+      {
+        "total_ms": 2.393060829490423,
+        "decision_ms": 2.376530785113573,
+        "generation_first_token_ms": 0.016530044376850128,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.976783085614443,
+        "decision_ms": 2.9607433825731277,
+        "generation_first_token_ms": 0.01603970304131508,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 11.971872299909592,
+        "decision_ms": 2.0244652405381203,
+        "generation_first_token_ms": 9.947407059371471,
+        "decided_speak": true
+      },
+      {
+        "total_ms": 2.041964791715145,
+        "decision_ms": 2.0251148380339146,
+        "generation_first_token_ms": 0.016849953681230545,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.3736897855997086,
+        "decision_ms": 2.3572901263833046,
+        "generation_first_token_ms": 0.01639965921640396,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.966982778161764,
+        "decision_ms": 2.950333058834076,
+        "generation_first_token_ms": 0.016649719327688217,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 12.39044638350606,
+        "decision_ms": 2.3369910195469856,
+        "generation_first_token_ms": 10.053455363959074,
+        "decided_speak": true
+      },
+      {
+        "total_ms": 11.892152950167656,
+        "decision_ms": 2.0325048826634884,
+        "generation_first_token_ms": 9.859648067504168,
+        "decided_speak": true
+      },
+      {
+        "total_ms": 2.411319874227047,
+        "decision_ms": 2.3947199806571007,
+        "generation_first_token_ms": 0.01659989356994629,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.960244193673134,
+        "decision_ms": 2.944984007626772,
+        "generation_first_token_ms": 0.015260186046361923,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.068093977868557,
+        "decision_ms": 2.0520039834082127,
+        "generation_first_token_ms": 0.016089994460344315,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.0511052571237087,
+        "decision_ms": 2.0346250385046005,
+        "generation_first_token_ms": 0.0164802186191082,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.4118702858686447,
+        "decision_ms": 2.395479939877987,
+        "generation_first_token_ms": 0.016390345990657806,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.9683830216526985,
+        "decision_ms": 2.952402923256159,
+        "generation_first_token_ms": 0.015980098396539688,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 12.545695062726736,
+        "decision_ms": 2.045195084065199,
+        "generation_first_token_ms": 10.500499978661537,
+        "decided_speak": true
+      },
+      {
+        "total_ms": 2.061394974589348,
+        "decision_ms": 2.0449552685022354,
+        "generation_first_token_ms": 0.016439706087112427,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.3880600929260254,
+        "decision_ms": 2.3718499578535557,
+        "generation_first_token_ms": 0.01621013507246971,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.9766527004539967,
+        "decision_ms": 2.960663754492998,
+        "generation_first_token_ms": 0.015988945960998535,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 12.242987751960754,
+        "decision_ms": 2.032653894275427,
+        "generation_first_token_ms": 10.210333857685328,
+        "decided_speak": true
+      },
+      {
+        "total_ms": 2.098723780363798,
+        "decision_ms": 2.072663977742195,
+        "generation_first_token_ms": 0.026059802621603012,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.384630963206291,
+        "decision_ms": 2.3693409748375416,
+        "generation_first_token_ms": 0.015289988368749619,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.97933304682374,
+        "decision_ms": 2.9632728546857834,
+        "generation_first_token_ms": 0.01606019213795662,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 12.277468107640743,
+        "decision_ms": 2.031404059380293,
+        "generation_first_token_ms": 10.24606404826045,
+        "decided_speak": true
+      },
+      {
+        "total_ms": 11.953611858189106,
+        "decision_ms": 2.0344839431345463,
+        "generation_first_token_ms": 9.91912791505456,
+        "decided_speak": true
+      },
+      {
+        "total_ms": 2.3852400481700897,
+        "decision_ms": 2.3688706569373608,
+        "generation_first_token_ms": 0.016369391232728958,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.9650828801095486,
+        "decision_ms": 2.948462963104248,
+        "generation_first_token_ms": 0.016619917005300522,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 12.080610264092684,
+        "decision_ms": 2.0629442296922207,
+        "generation_first_token_ms": 10.017666034400463,
+        "decided_speak": true
+      },
+      {
+        "total_ms": 2.0651952363550663,
+        "decision_ms": 2.0489152520895004,
+        "generation_first_token_ms": 0.016279984265565872,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.376819960772991,
+        "decision_ms": 2.3606312461197376,
+        "generation_first_token_ms": 0.016188714653253555,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.968513872474432,
+        "decision_ms": 2.952264156192541,
+        "generation_first_token_ms": 0.01624971628189087,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 12.223288882523775,
+        "decision_ms": 2.064893953502178,
+        "generation_first_token_ms": 10.158394929021597,
+        "decided_speak": true
+      },
+      {
+        "total_ms": 2.1017342805862427,
+        "decision_ms": 2.0850342698395252,
+        "generation_first_token_ms": 0.016700010746717453,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.317280974239111,
+        "decision_ms": 2.3006508126854897,
+        "generation_first_token_ms": 0.016630161553621292,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.868935000151396,
+        "decision_ms": 2.8532547876238823,
+        "generation_first_token_ms": 0.015680212527513504,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 12.112269643694162,
+        "decision_ms": 2.0579746924340725,
+        "generation_first_token_ms": 10.05429495126009,
+        "decided_speak": true
+      },
+      {
+        "total_ms": 11.86127308756113,
+        "decision_ms": 2.0261453464627266,
+        "generation_first_token_ms": 9.835127741098404,
+        "decided_speak": true
+      },
+      {
+        "total_ms": 2.4254601448774338,
+        "decision_ms": 2.4091904051601887,
+        "generation_first_token_ms": 0.016269739717245102,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.971822861582041,
+        "decision_ms": 2.9557030647993088,
+        "generation_first_token_ms": 0.01611979678273201,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 11.972691863775253,
+        "decision_ms": 2.05025402829051,
+        "generation_first_token_ms": 9.922437835484743,
+        "decided_speak": true
+      },
+      {
+        "total_ms": 2.059175167232752,
+        "decision_ms": 2.042585052549839,
+        "generation_first_token_ms": 0.016590114682912827,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.3902300745248795,
+        "decision_ms": 2.3737801238894463,
+        "generation_first_token_ms": 0.016449950635433197,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.957373857498169,
+        "decision_ms": 2.9409737326204777,
+        "generation_first_token_ms": 0.01640012487769127,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 12.12752889841795,
+        "decision_ms": 2.059353981167078,
+        "generation_first_token_ms": 10.068174917250872,
+        "decided_speak": true
+      },
+      {
+        "total_ms": 2.0697740837931633,
+        "decision_ms": 2.0531853660941124,
+        "generation_first_token_ms": 0.016588717699050903,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.392080146819353,
+        "decision_ms": 2.376181073486805,
+        "generation_first_token_ms": 0.01589907333254814,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.971082925796509,
+        "decision_ms": 2.9548928141593933,
+        "generation_first_token_ms": 0.01619011163711548,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 12.117269914597273,
+        "decision_ms": 2.0532337948679924,
+        "generation_first_token_ms": 10.06403611972928,
+        "decided_speak": true
+      },
+      {
+        "total_ms": 11.941181961447,
+        "decision_ms": 2.0420649088919163,
+        "generation_first_token_ms": 9.899117052555084,
+        "decided_speak": true
+      },
+      {
+        "total_ms": 2.3270612582564354,
+        "decision_ms": 2.3112022317945957,
+        "generation_first_token_ms": 0.015859026461839676,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.87890387699008,
+        "decision_ms": 2.8622946701943874,
+        "generation_first_token_ms": 0.016609206795692444,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 11.920723132789135,
+        "decision_ms": 2.04130494967103,
+        "generation_first_token_ms": 9.879418183118105,
+        "decided_speak": true
+      },
+      {
+        "total_ms": 2.0564040169119835,
+        "decision_ms": 2.0394050516188145,
+        "generation_first_token_ms": 0.01699896529316902,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.3844712413847446,
+        "decision_ms": 2.368540968745947,
+        "generation_first_token_ms": 0.01593027263879776,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.986402716487646,
+        "decision_ms": 2.970342990010977,
+        "generation_first_token_ms": 0.01605972647666931,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 12.032391037791967,
+        "decision_ms": 2.041613683104515,
+        "generation_first_token_ms": 9.990777354687452,
+        "decided_speak": true
+      },
+      {
+        "total_ms": 11.9313420727849,
+        "decision_ms": 2.0551341585814953,
+        "generation_first_token_ms": 9.876207914203405,
+        "decided_speak": true
+      },
+      {
+        "total_ms": 2.3422110825777054,
+        "decision_ms": 2.325311303138733,
+        "generation_first_token_ms": 0.016899779438972473,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.8927037492394447,
+        "decision_ms": 2.876714803278446,
+        "generation_first_token_ms": 0.015988945960998535,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.030674833804369,
+        "decision_ms": 2.014294732362032,
+        "generation_first_token_ms": 0.016380101442337036,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.0190346986055374,
+        "decision_ms": 2.0034248009324074,
+        "generation_first_token_ms": 0.015609897673130035,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.3070410825312138,
+        "decision_ms": 2.2905408404767513,
+        "generation_first_token_ms": 0.016500242054462433,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.936283592134714,
+        "decision_ms": 2.9200036078691483,
+        "generation_first_token_ms": 0.016279984265565872,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 12.336727231740952,
+        "decision_ms": 2.022045198827982,
+        "generation_first_token_ms": 10.31468203291297,
+        "decided_speak": true
+      },
+      {
+        "total_ms": 11.956661939620972,
+        "decision_ms": 2.0655649714171886,
+        "generation_first_token_ms": 9.891096968203783,
+        "decided_speak": true
+      },
+      {
+        "total_ms": 2.366800792515278,
+        "decision_ms": 2.3503811098635197,
+        "generation_first_token_ms": 0.016419682651758194,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.9756431467831135,
+        "decision_ms": 2.959372941404581,
+        "generation_first_token_ms": 0.01627020537853241,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 12.048820033669472,
+        "decision_ms": 2.060124184936285,
+        "generation_first_token_ms": 9.988695848733187,
+        "decided_speak": true
+      },
+      {
+        "total_ms": 2.0572743378579617,
+        "decision_ms": 2.040575258433819,
+        "generation_first_token_ms": 0.016699079424142838,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.401229925453663,
+        "decision_ms": 2.384719904512167,
+        "generation_first_token_ms": 0.016510020941495895,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.9785227961838245,
+        "decision_ms": 2.962412778288126,
+        "generation_first_token_ms": 0.016110017895698547,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 12.02382193878293,
+        "decision_ms": 2.0219050347805023,
+        "generation_first_token_ms": 10.001916904002428,
+        "decided_speak": true
+      },
+      {
+        "total_ms": 2.0472249016165733,
+        "decision_ms": 2.031204756349325,
+        "generation_first_token_ms": 0.016020145267248154,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.3196409456431866,
+        "decision_ms": 2.3035816848278046,
+        "generation_first_token_ms": 0.016059260815382004,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.8764447197318077,
+        "decision_ms": 2.860054839402437,
+        "generation_first_token_ms": 0.0163898803293705,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 12.115329969674349,
+        "decision_ms": 2.05748388543725,
+        "generation_first_token_ms": 10.057846084237099,
+        "decided_speak": true
+      },
+      {
+        "total_ms": 2.0615048706531525,
+        "decision_ms": 2.0446348935365677,
+        "generation_first_token_ms": 0.016869977116584778,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.305672038346529,
+        "decision_ms": 2.289191819727421,
+        "generation_first_token_ms": 0.0164802186191082,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.95500410720706,
+        "decision_ms": 2.9387339018285275,
+        "generation_first_token_ms": 0.01627020537853241,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 12.034730985760689,
+        "decision_ms": 2.029714174568653,
+        "generation_first_token_ms": 10.005016811192036,
+        "decided_speak": true
+      },
+      {
+        "total_ms": 2.058334182947874,
+        "decision_ms": 2.0416341722011566,
+        "generation_first_token_ms": 0.016700010746717453,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.4076602421700954,
+        "decision_ms": 2.3914198391139507,
+        "generation_first_token_ms": 0.016240403056144714,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.952583134174347,
+        "decision_ms": 2.9361043125391006,
+        "generation_first_token_ms": 0.016478821635246277,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 12.2617082670331,
+        "decision_ms": 2.0324853248894215,
+        "generation_first_token_ms": 10.229222942143679,
+        "decided_speak": true
+      },
+      {
+        "total_ms": 2.0574741065502167,
+        "decision_ms": 2.041934058070183,
+        "generation_first_token_ms": 0.015540048480033875,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.3222509771585464,
+        "decision_ms": 2.3056105710566044,
+        "generation_first_token_ms": 0.016640406101942062,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.8718640096485615,
+        "decision_ms": 2.855194266885519,
+        "generation_first_token_ms": 0.01666974276304245,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 12.09506019949913,
+        "decision_ms": 2.0150751806795597,
+        "generation_first_token_ms": 10.07998501881957,
+        "decided_speak": true
+      },
+      {
+        "total_ms": 11.894803028553724,
+        "decision_ms": 2.02437536790967,
+        "generation_first_token_ms": 9.870427660644054,
+        "decided_speak": true
+      },
+      {
+        "total_ms": 2.339181024581194,
+        "decision_ms": 2.3224912583827972,
+        "generation_first_token_ms": 0.016689766198396683,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.905454020947218,
+        "decision_ms": 2.8894739225506783,
+        "generation_first_token_ms": 0.015980098396539688,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 11.98639115318656,
+        "decision_ms": 2.033734228461981,
+        "generation_first_token_ms": 9.952656924724579,
+        "decided_speak": true
+      },
+      {
+        "total_ms": 2.051294781267643,
+        "decision_ms": 2.0348047837615013,
+        "generation_first_token_ms": 0.016489997506141663,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.4085002951323986,
+        "decision_ms": 2.3918901570141315,
+        "generation_first_token_ms": 0.01661013811826706,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.9721329919993877,
+        "decision_ms": 2.9557542875409126,
+        "generation_first_token_ms": 0.016378704458475113,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 12.074611149728298,
+        "decision_ms": 2.036405261605978,
+        "generation_first_token_ms": 10.03820588812232,
+        "decided_speak": true
+      },
+      {
+        "total_ms": 2.0599341951310635,
+        "decision_ms": 2.043275162577629,
+        "generation_first_token_ms": 0.016659032553434372,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.3936601355671883,
+        "decision_ms": 2.3769610561430454,
+        "generation_first_token_ms": 0.016699079424142838,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.974012866616249,
+        "decision_ms": 2.9575428925454617,
+        "generation_first_token_ms": 0.01646997407078743,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 12.191788759082556,
+        "decision_ms": 2.0255250856280327,
+        "generation_first_token_ms": 10.166263673454523,
+        "decided_speak": true
+      },
+      {
+        "total_ms": 2.0620147697627544,
+        "decision_ms": 2.0456151105463505,
+        "generation_first_token_ms": 0.01639965921640396,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.385050058364868,
+        "decision_ms": 2.3696408607065678,
+        "generation_first_token_ms": 0.0154091976583004,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.9576029628515244,
+        "decision_ms": 2.941553946584463,
+        "generation_first_token_ms": 0.016049016267061234,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 12.091000098735094,
+        "decision_ms": 2.065564040094614,
+        "generation_first_token_ms": 10.02543605864048,
+        "decided_speak": true
+      },
+      {
+        "total_ms": 11.911341920495033,
+        "decision_ms": 2.0395349711179733,
+        "generation_first_token_ms": 9.87180694937706,
+        "decided_speak": true
+      },
+      {
+        "total_ms": 2.3344112560153008,
+        "decision_ms": 2.318921033293009,
+        "generation_first_token_ms": 0.015490222722291946,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.8935340233147144,
+        "decision_ms": 2.8775837272405624,
+        "generation_first_token_ms": 0.015950296074151993,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 11.991961393505335,
+        "decision_ms": 2.0264252088963985,
+        "generation_first_token_ms": 9.965536184608936,
+        "decided_speak": true
+      },
+      {
+        "total_ms": 11.886732652783394,
+        "decision_ms": 2.042934764176607,
+        "generation_first_token_ms": 9.843797888606787,
+        "decided_speak": true
+      },
+      {
+        "total_ms": 12.326446827501059,
+        "decision_ms": 2.331031020730734,
+        "generation_first_token_ms": 9.995415806770325,
+        "decided_speak": true
+      },
+      {
+        "total_ms": 2.9764831997454166,
+        "decision_ms": 2.959524281322956,
+        "generation_first_token_ms": 0.016958918422460556,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.0490740425884724,
+        "decision_ms": 2.032675314694643,
+        "generation_first_token_ms": 0.016398727893829346,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.057915087789297,
+        "decision_ms": 2.041855361312628,
+        "generation_first_token_ms": 0.01605972647666931,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.392800059169531,
+        "decision_ms": 2.3763799108564854,
+        "generation_first_token_ms": 0.0164201483130455,
+        "decided_speak": false
+      },
+      {
+        "total_ms": 2.9716533608734608,
+        "decision_ms": 2.9553831554949284,
+        "generation_first_token_ms": 0.01627020537853241,
+        "decided_speak": false
+      }
+    ],
+    "mean_ms": 5.530812975484878,
+    "p95_ms": 12.260772241279483,
+    "max_ms": 12.545695062726736,
+    "n_decided_speak": 38,
+    "n_decided_silence": 82,
+    "mean_ms_when_speak_branch": 12.080914831083073,
+    "mean_ms_when_silence_branch": 2.495399920451568
+  }
+}

@@ -1,0 +1,75 @@
+M3 STAGE-1 CONNECTOR — FROZEN RESULT
+Frozen: 2026-07-23
+Source: checkpoints/m3_connector/last.pt (step 10000, end of training run)
+
+MILESTONE STATUS: gate passed. Grounding falsifier confirms the connector
+is reading clip-specific World-State content, not emitting corpus priors.
+See falsifier_results.json (full raw output) for complete numbers.
+
+── Architecture ──────────────────────────────────────────────────────────
+Connector: M3Connector (models/m3_connector.py), Perceiver-style aggregator
+  - n_layers        = 3
+  - n_latents        = 32 learned queries
+  - d_model          = 1024  (matches frozen M2 predictor output dim)
+  - n_heads          = 8
+  - mlp_ratio        = 4.0
+  - llm_hidden       = 1536  (read from Qwen2.5-1.5B-Instruct AutoConfig, not hardcoded)
+  - dropout          = 0.0
+  - total params     = 39,404,032 (39.4M) — ONLY trainable component
+
+LLM: Qwen/Qwen2.5-1.5B-Instruct, hidden_size=1536, FROZEN (no LoRA).
+  Soft-prompt conditioning: connector output (B, 32, 1536) concatenated
+  with caption token embeddings; loss is standard causal LM cross-entropy
+  over caption tokens only (labels=-100 on the 32 soft-prompt positions).
+
+M2 (frozen, feature source): checkpoints/m2_fusion_20k_best/step19000_peak.pt
+  Predictor forward pass produces PRE-POOL tokens via the new additive
+  AVJepaPredictor.encode_pre_pool_tokens() method (models/av_jepa_predictor.py),
+  not the pooled encode_world_state() vector — a 32-latent Perceiver needs
+  a real sequence to attend over. Pre-pool tokens are recomputed on the fly
+  each training step (not cached to disk): measured 1.89ms/clip @ batch=64,
+  seq_len=1510 (512 vision + ~998 ambient); a full disk cache would have
+  needed ~594GB. Caching deviation explicitly approved by user.
+
+── Data ───────────────────────────────────────────────────────────────────
+Caption field trained on (stage 1): gpt_sound_acoustic (single granularity)
+Source: scripts/qwen_omni_full_captions.jsonl (188,657 clips, verified
+  unique clip_ids, 0 malformed lines)
+Split: derived from ORIGINAL VGGSound data/train.csv / data/test.csv
+  membership (not a fresh arbitrary split) —
+  - train = 174,817 clips
+  - test  =  13,840 clips
+  - zero overlap verified via assert
+
+── Training run ──────────────────────────────────────────────────────────
+Steps: 10,000, batch_size=32, lr=1e-4 (AdamW + cosine schedule), connector
+  params only optimized. Wall time ~1937s (~32.3 min) on 1 GPU.
+Test-loss curve (every 500 steps): 1.559 -> 1.382 -> 1.334 -> 1.278 -> 1.204
+  -> 1.159 -> 1.115 -> 1.085 -> 1.068 -> 1.047 -> 1.025 -> 1.011 -> 0.997
+  -> 0.983 -> 0.972 -> 0.960 -> 0.955 -> 0.952 -> 0.950 -> FINAL 0.9576
+  (50-batch average at step 10000)
+30 held-out sample generations: mean_word_overlap_f1 = 0.519
+  (vs ~0.10-0.12 for an untrained connector baseline), 2 exact matches.
+
+── Grounding falsifier (scripts/m3_grounding_falsifier.py, n=200) ────────
+World-State swap control:
+  - normal (own World-State)              F1 = 0.482
+  - swapped (different clip's World-State) F1 = 0.267
+  - zeroed (all-zero World-State)          F1 = 0.152
+Prior-only baselines (calibrates the above):
+  - most-common training caption (n=1052/174817)  F1 = 0.262
+  - random training caption                        F1 = 0.291
+
+Verdict: normal >> everything else. Side-by-side generations show swapped
+outputs are near-verbatim reproductions of the DONOR clip's own normal
+output (not noise, not the target's ground truth) — i.e. the model
+deterministically and faithfully reads whatever World-State it is given.
+Swapped tracks the prior-only baseline level (0.267 vs 0.262-0.291) because
+wrong-clip conditioning is uncorrelated with the target's ground truth, not
+because conditioning is being ignored. Caption-noise check on the 6
+wrong-category clips from the 30-sample review: 0/6 ground-truth captions
+are sound-blind/broken (all coherent, audio-first); residual errors are
+genuine model imprecision, not data noise.
+
+CONCLUSION: connector genuinely grounds language generation in the M2
+World-State. Gate passed. Approved to scale to all 5 caption granularities.

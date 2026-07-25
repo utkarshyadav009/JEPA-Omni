@@ -1,0 +1,168 @@
+M3 STAGE-2 CONNECTOR — MULTI-GRANULARITY, FROZEN RESULT
+Frozen: 2026-07-24
+Source: checkpoints/m3_multigran/last.pt (step 40000, end of training run)
+
+MILESTONE STATUS: gate passed for all 5 caption granularities. Grounding
+falsifier + failure trace both run to completion with falsified/confirmed
+hypotheses reported honestly (see below). Approved to skip M2 modality-
+dropout and proceed to M4 design.
+
+── Post-joint-training falsifier tracking (2026-07-24) ────────────────────
+This connector (frozen here) was later loaded as the INIT for
+train_m4_joint.py's joint-exposure fine-tune (M3 connector + M4b projector
+trained together to fix a composition failure found in M4b gates c/d --
+see checkpoints/m4b/PROVENANCE.txt and checkpoints/m4_joint/PROVENANCE.txt).
+That produced a SEPARATE connector checkpoint (checkpoints/m4_joint/best.pt,
+key "m3_connector") -- this file's own connector.pt is UNCHANGED and still
+represents the pre-joint, frozen-LLM-only M3 result documented below.
+
+Standing rule (added 2026-07-24): after every stage that touches the M3
+connector or M4b projector, both standalone falsifiers get re-run and
+logged in checkpoints/falsifier_tracking.md -- check there for the current
+full history. Snapshot as of the joint-exposure fine-tune:
+  frozen-LLM baseline (this file's connector.pt): F1 normal=0.471 swapped=0.268
+    zeroed=0.274, cos_normal=0.724
+  post-joint (checkpoints/m4_joint/best.pt):      F1 normal=0.430 swapped=0.270
+    zeroed=0.249, cos_normal=0.714
+  (F1 normal -8.7% relative, cos -1.4% relative -- not catastrophic, but a
+  real, monitored cost. See checkpoints/falsifier_tracking.md for the
+  running total across all future stages -- the risk is compounding drift,
+  not any single stage's hit.)
+
+── M2 World-State effective-rank record correction (2026-07-24) ───────────
+The frozen M2 checkpoint this connector was trained against
+(checkpoints/m2_fusion_20k_best/step19000_peak.pt) previously had an
+on-record effective-rank figure of "~19-21/47" which was CEILING-LIMITED,
+not a true measurement -- train_m2.py's logging path estimates
+effective_rank() from a single mini-batch, so 47 was min(batch_size-1,
+d_model), not d_model itself. Re-measured at N=5000 (true d_model=1024
+ceiling reached by N=1500): effective_rank = 37.71/1024 (3.68%). The
+representation is confirmed genuinely anisotropic (far from isotropic
+N(0,I) in practice, despite SIGReg's training-time target) but NOT
+collapsed (37.71 is well above 0). Full sweep showing the batch-size
+artifact explicitly: checkpoints/m2_fusion_20k_best/PROVENANCE.txt and
+effective_rank_large_n.json. This does not change any M3 conclusion in
+this file -- it corrects the M2 rank record that M4's shift-metric
+selection (Correction 1, kept as Euclidean/cosine/Mahalanobis behind a
+config flag rather than locked) was reasoning from.
+
+── Architecture ──────────────────────────────────────────────────────────
+Connector: M3Connector (models/m3_connector.py), Perceiver-style aggregator,
+IDENTICAL architecture/hyperparameters to the stage-1 (single-granularity)
+connector frozen in checkpoints/m3_best/ -- only the training data and a
+text-prefix granularity tag changed.
+  - n_layers = 3, n_latents = 32, d_model = 1024, n_heads = 8, mlp_ratio = 4.0
+  - llm_hidden = 1536 (Qwen2.5-1.5B-Instruct, read from AutoConfig)
+  - total params = 39,404,032 (39.4M) -- ONLY trainable component
+
+Granularity conditioning: a plain-text tag is prepended after the 32
+soft-prompt embeddings, tokenized with the frozen LLM's own embedding table
+(no new parameters), masked out of the loss (label=-100), e.g.:
+  gpt_action_brief      -> "Task: state the main physical action in one short sentence."
+  gpt_action_detailed   -> "Task: describe the sequence of actions in detail."
+  gpt_summary_brief     -> "Task: summarize the whole scene in one short sentence."
+  gpt_summary_detailed  -> "Task: summarize the scene, setting, and context in a short paragraph."
+  gpt_sound_acoustic    -> "Task: describe the sound itself and its likely source."
+
+LLM: Qwen/Qwen2.5-1.5B-Instruct, FROZEN throughout (no LoRA).
+M2 (frozen, feature source): checkpoints/m2_fusion_20k_best/step19000_peak.pt
+  (same checkpoint used for stage-1; encode_pre_pool_tokens(), recomputed
+  on the fly, not disk-cached -- same 1.89ms/clip justification as stage 1).
+
+── Data / split ────────────────────────────────────────────────────────────
+Trained jointly on all 5 granularities: gpt_action_brief, gpt_action_detailed,
+gpt_summary_brief, gpt_summary_detailed, gpt_sound_acoustic.
+Source: scripts/qwen_omni_full_captions.jsonl (188,657 clips).
+Split: derived from ORIGINAL VGGSound data/train.csv / data/test.csv
+  membership (same principle as stage 1, disjoint by construction):
+  - train = 867,282 (clip, granularity) examples / 174,817 clips
+  - test  =  68,752 (clip, granularity) examples /  13,840 clips
+  - 0 clip overlap between train and test (verified via assert)
+  - falsifier eval pool: 13,679 test clips have all 5 fields present
+    (common-clip pool used for the apples-to-apples per-field comparison)
+
+── Training run ──────────────────────────────────────────────────────────
+Steps: 40,000, batch_size=32, lr=1e-4 (AdamW + cosine), connector params
+  only. Wall time ~10,063s (~2.8 hr) on 1 GPU.
+Final test_loss (aggregate over all 5 fields) = 1.585 (NOT comparable to
+  stage-1's 0.958, which was acoustic-only -- this loss averages over 5
+  fields of varying difficulty/length).
+30 held-out mixed-granularity sample generations: mean_word_overlap_f1 = 0.355.
+
+── Per-granularity grounding falsifier (n=200, fixed common-clip pool) ────
+Word-overlap F1 (word_overlap_f1, unigram set F1):
+
+  field                  group      normal  swapped  mode_baseline  random_baseline
+  gpt_action_brief       visual     0.431   0.096    0.115          0.078
+  gpt_action_detailed    visual     0.302   0.173    0.096          0.154
+  gpt_summary_brief      visual     0.355   0.125    0.074          0.120
+  gpt_summary_detailed   visual     0.281   0.192    0.158          0.169
+  gpt_sound_acoustic     acoustic   0.440   0.283    0.210          0.282
+
+HEADLINE METRIC for the two "detailed" fields is SEMANTIC (sentence cosine,
+raw sentence-transformers/all-MiniLM-L6-v2, mean-pooled, native embedding
+space) -- word-overlap F1 under-measures grounding on long free-text prose;
+confirmed the gap is 3.3-4x larger under the correct metric:
+
+  field                  cos_normal  cos_swapped  cos_mode  cos_random  semantic_gap  (vs F1_gap)
+  gpt_action_detailed    0.599       0.169        0.143     0.160       0.431         (vs 0.129)
+  gpt_summary_detailed   0.666       0.315        0.285     0.323       0.351         (vs 0.089)
+
+Verdict: normal >> swapped >> both prior baselines, for all 5 granularities
+individually, under whichever metric is appropriate for that field's text
+length/style. Visual grounding is NOT weaker than acoustic grounding --
+the connector is not audio-dominant at the language layer. Style modulation
+via the text-tag prefix works cleanly (verified on 10 clips x 5 granularities,
+see multigran_falsifier_results.json "side_by_side"). Errors cluster BY CLIP
+across all 5 granularities together, not by granularity.
+
+── Failure trace: M3 clustered failures vs M2 (n=200) ─────────────────────
+Hypothesis: clips M3 fails across ALL 5 granularities also perform poorly
+on M2's own contrastive retrieval and linear-probe classification.
+
+RETRIEVAL -- HYPOTHESIS FALSIFIED. Clean within-pool test (4000-clip gallery
+  drawn from the same M3 common-test distribution; whole-pool sanity R@1=57.5%,
+  consistent with the standard 1545-gallery baseline ~52%).
+  Spearman rho(M3 caption-quality percentile, M2 retrieval percentile) ~ 0.10-0.15,
+  borderline/non-significant. Worst-15 M3 clips have near-PERFECT M2 retrieval
+  (mean percentile 99.9/100, rank 1-2 of 4000) -- statistically indistinguishable
+  from the best-15 M3 clips (100.0). Retrieval measures distinctiveness, not
+  correct understanding -- an initial naive test (extra queries inserted into
+  the small fixed 1545-clip gallery) gave a spuriously inflated near-100% rank
+  for nearly every clip and was discarded as confounded by gallery composition;
+  see scripts/m3_retrieval_within_pool.py for the corrected methodology.
+
+LINEAR PROBE -- HYPOTHESIS CONFIRMED. 309-way VGGSound probe reproduces the
+  known ~54% aggregate top-1 (54.4% this run). Restricted to the 200 M3-eval
+  clips:
+    Spearman rho(M3 percentile, true-class rank)  = -0.36  (p=1.2e-7)
+    Spearman rho(M3 percentile, true-class prob)  = +0.41  (p=2.3e-9)
+  Worst-15-by-M3 clips: 20% probe accuracy, mean true-class rank 14.9/309.
+  Best-15-by-M3 clips:  80% probe accuracy, mean true-class rank  1.9/309.
+
+Characterization of the worst-15 (median train class count 507 vs corpus
+median 575 -- only mildly long-tail, not the dominant driver):
+  - ~1/3 audio-dominance mismatches: the VGGSound label names an action that
+    is NOT the acoustically dominant signal in the clip (e.g. "shot football"
+    clips dominated by crowd talk/laughter; "swimming" dominated by pool-
+    equipment hum; "strike lighter" dominated by a person saying "okay").
+    In these cases M3's caption is often an ACCURATE audio-first description
+    that simply doesn't match the VGGSound label's framing -- not a model
+    failure.
+  - ~1/3 fine-grained acoustically-confusable long-tail classes (air horn vs.
+    civil defense siren; sailing vs. rowing; elk bugling vs. fox barking;
+    shofar vs. theremin; heartbeat/medical-beep vs. whistling).
+  - ~1 likely VGGSound label noise case (label names one thing, both M3's
+    caption and the M2 probe's top prediction independently describe
+    something else entirely).
+  - No evidence of low visual salience or off-distribution/animation content.
+
+CONCLUSION: no vision-specific weakness signature. Failures correlate with
+M2's classification/semantic-identification difficulty (not retrieval), and
+are largely explained by genuinely hard/ambiguous content and label-vs-audio-
+dominance mismatches. Per the user's decision rule, this supports proceeding
+to M4 design over M2 modality-dropout.
+
+Full raw data: multigran_falsifier_results.json, semantic_rescore_results.json,
+failure_trace_results.json, retrieval_within_pool_results.json,
+sample_generations.jsonl (all copied alongside this file).

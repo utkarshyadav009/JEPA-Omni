@@ -1,0 +1,89 @@
+M4 SPEAK/SILENCE DECISION HEAD — REPLACES THE LLM/LoRA CONTROL-TOKEN ROUTE
+Frozen: 2026-07-24
+Source: checkpoints/m4_decision_head/best.pt
+
+── Why this exists ──────────────────────────────────────────────────────────
+The LLM+LoRA route for control-token emission (checkpoints/m4a_lora*)
+produced a flat-zero silence_recall across 40 checkpoints, 2 LoRA ranks
+(r=8, r=4), 6x class reweighting, and 4x training duration (2000->8000
+steps) -- not slow convergence, a genuine optimization obstacle. SIGReg was
+considered and ruled out: it regularizes CONTINUOUS embedding distributions
+against representation collapse (targets N(0,I)); this is a DISCRETE
+next-token-emission failure competing against a ~150K-token vocabulary and
+a strong pretrained fluent-text prior, with no embedding distribution to
+shape. Per direction, the decision was moved OUT of the LLM entirely.
+
+── Architecture ──────────────────────────────────────────────────────────
+models/m4_decision_head.py: SpeakSilenceHead, 1,316,353 params (1.32M) --
+a small MLP (LayerNorm -> Linear(2048,512) -> GELU -> Dropout -> Linear(512,512)
+-> GELU -> Dropout -> Linear(512,1)), NOT a transformer over a World-State
+sequence -- our tick data is i.i.d. single-tick samples, not temporal
+sequences; building genuine sequence context would need restructuring the
+data pipeline (flagged as a limitation, not attempted).
+
+Input: concatenation of
+  - World-State (1024-d, M2's encode_world_state -- REAL for VGGSound
+    pseudo-timeline ticks, ZERO-VECTOR for EasyCom ticks)
+  - speech-activity feature (1024-d, mean-pooled frozen whisper-medium
+    encoder hidden state over the tick's valid audio frames -- REAL for
+    EasyCom ticks, ZERO-VECTOR for VGGSound ticks)
+Missing-modality-as-zero mirrors the single-stream-at-a-time principle used
+throughout Phase 1/1a (no genuinely-paired data yet, per the Phase 2 scoping).
+
+The LLM is NOT modified by this at all -- M3/M4b grounding is untouched by
+this component's existence.
+
+── Training ─────────────────────────────────────────────────────────────
+Plain BCEWithLogitsLoss + pos_weight class balancing (pos_weight=2.10,
+computed from the actual training pool: 8,370 speak / 17,579 silence
+across 25,949 combined examples). 100 epochs, AdamW lr=1e-3, batch=256.
+Genuinely cheap: no LLM forward/backward anywhere in this pipeline -- M2
+and Whisper features extracted ONCE and cached (checkpoints/
+m4_decision_head/features_cache.pt), then the tiny MLP trains on cached
+tensors in seconds.
+
+Data: VGGSound pseudo-timeline (5000 clips, 20000 ticks, data/
+m4_pseudo_timeline.py) + EasyCom turn-taking (7901 ticks, real audio gaps,
+data/m4_easycom_turntaking.py) -- same two sources as the failed LoRA
+attempt, same session/clip splits.
+
+── Gate results — PASSED ────────────────────────────────────────────────
+checkpoints/m4_decision_head/gate_results.json, held-out (n=4000 VGGSound
+ticks / 1000 clips, n=1952 EasyCom ticks), threshold=0.5:
+
+  VGGSound pseudo-timeline: gt_speak_rate=0.250  speak_recall=0.808
+    silence_recall=0.924  accuracy=0.895
+  EasyCom turn-taking:      gt_speak_rate=0.570  speak_recall=0.994
+    silence_recall=0.976  accuracy=0.986
+
+Both recalls clearly non-zero on both sources -- direct contrast with the
+LLM/LoRA route's flat 0.000/1.000 collapse under the same underlying data
+and imbalance. Confirms the hypothesis: this is a standard 2-class
+imbalance problem once removed from the discrete-token-competition setting,
+not an inherently hard task.
+
+── Swap-control — PASSED ────────────────────────────────────────────────
+checkpoints/m4_decision_head/swap_control_results.json, n=4000, World-State
+swapped in from a different (rolled) example:
+  normal accuracy (own World-State vs own label):        0.895
+  swapped accuracy vs TARGET's label (want ~chance):      0.493
+  swapped accuracy vs DONOR's label (want ~= normal):     0.895 (exact match)
+  fraction of decisions that changed under swap:          0.404
+Swapped decisions track whichever World-State they were actually given
+(donor's label, not target's) -- the head reads its input, doesn't
+memorize a fixed prior. Same pattern as every other swap-control run in
+this project (M3, M4b).
+
+── LoRA recommendation ──────────────────────────────────────────────────
+DROP LoRA entirely. Its only purpose was control-token emission, which no
+longer lives in the LLM. Revert to frozen LLM + joint-trained connectors
+(checkpoints/m4_joint/best.pt) as the base for M4c -- restores M3 to 0.430
+F1 / 0.714 cos and M4b to 0.419 cos, undoing the LoRA-stage cost entirely.
+See checkpoints/falsifier_tracking.md for the full comparison table
+including the one attention-only r=4 LoRA run kept for the record.
+
+── Interruption handling ────────────────────────────────────────────────
+Per instruction, moves to an external controller on speech-activity
+detection (VAD), NOT a `<stop_interruption>` LLM token: on user-speech
+onset, halt generation externally. Not built in this stage -- scoped for
+M4c.

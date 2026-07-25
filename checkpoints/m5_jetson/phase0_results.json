@@ -1,0 +1,109 @@
+{
+  "log": [
+    {
+      "tag": "00_process_start_no_cuda_context",
+      "t": 1784945548.1896527,
+      "tegrastats": {
+        "used_mib": 1691,
+        "total_mib": 7620,
+        "raw": "07-25-2026 03:12:28 RAM 1691/7620MB (lfb 179x4MB) SWAP 54/4096MB (cached 14MB) CPU [3%@1728,0%@1728,0%@1728,0%@1728,0%@1728,0%@1728] GR3D_FREQ 0% cpu@55.25C soc2@54.843C soc0@56.25C gpu@55.343C tj@56.25C soc1@55.781C VDD_IN 9057mW/9057mW VDD_CPU_GPU_CV 1776mW/1776mW VDD_SOC 3678mW/3678mW"
+      },
+      "torch": {
+        "allocated_mib": 0.0,
+        "reserved_mib": 0.0,
+        "max_allocated_mib": 0.0
+      }
+    },
+    {
+      "tag": "01_cuda_context_created",
+      "t": 1784945551.2094955,
+      "tegrastats": {
+        "used_mib": 1697,
+        "total_mib": 7620,
+        "raw": "07-25-2026 03:12:31 RAM 1697/7620MB (lfb 179x4MB) SWAP 54/4096MB (cached 14MB) CPU [0%@1728,0%@1728,0%@1728,0%@1728,0%@1728,0%@1728] GR3D_FREQ 0% cpu@55.125C soc2@54.593C soc0@56.156C gpu@55.312C tj@56.125C soc1@55.656C VDD_IN 8661mW/8661mW VDD_CPU_GPU_CV 1502mW/1502mW VDD_SOC 3599mW/3599mW"
+      },
+      "torch": {
+        "allocated_mib": 0.00048828125,
+        "reserved_mib": 2.0,
+        "max_allocated_mib": 0.00048828125
+      }
+    },
+    {
+      "tag": "02_wavjepa_base_int8_on_gpu",
+      "t": 1784945564.2009568,
+      "tegrastats": {
+        "used_mib": 3290,
+        "total_mib": 7620,
+        "raw": "07-25-2026 03:12:44 RAM 3290/7620MB (lfb 122x4MB) SWAP 54/4096MB (cached 14MB) CPU [3%@1728,0%@1728,0%@1728,0%@1728,0%@1728,0%@1728] GR3D_FREQ 0% cpu@55.531C soc2@55.156C soc0@56.468C gpu@55.781C tj@56.468C soc1@55.968C VDD_IN 9990mW/9990mW VDD_CPU_GPU_CV 2207mW/2207mW VDD_SOC 3909mW/3909mW"
+      },
+      "torch": {
+        "allocated_mib": 385.6630859375,
+        "reserved_mib": 406.0,
+        "max_allocated_mib": 385.6630859375
+      }
+    },
+    {
+      "tag": "03_wavjepa_nat_int8_on_gpu",
+      "t": 1784945570.8051846,
+      "tegrastats": {
+        "used_mib": 4098,
+        "total_mib": 7620,
+        "raw": "07-25-2026 03:12:51 RAM 4098/7620MB (lfb 16x4MB) SWAP 54/4096MB (cached 14MB) CPU [0%@1728,0%@1728,0%@1728,0%@1728,0%@1728,0%@1728] GR3D_FREQ 0% cpu@55.875C soc2@55.25C soc0@56.656C gpu@55.906C tj@56.75C soc1@56.156C VDD_IN 10029mW/10029mW VDD_CPU_GPU_CV 2247mW/2247mW VDD_SOC 3909mW/3909mW"
+      },
+      "torch": {
+        "allocated_mib": 787.93115234375,
+        "reserved_mib": 832.0,
+        "max_allocated_mib": 787.93115234375
+      }
+    },
+    {
+      "tag": "04_vjepa2_vitl_int8_on_gpu",
+      "t": 1784945577.615002,
+      "tegrastats": {
+        "used_mib": 4932,
+        "total_mib": 7620,
+        "raw": "07-25-2026 03:12:57 RAM 4932/7620MB (lfb 3x2MB) SWAP 54/4096MB (cached 14MB) CPU [0%@1728,0%@1728,0%@1728,0%@1728,0%@1728,0%@1728] GR3D_FREQ 0% cpu@55.875C soc2@55.312C soc0@56.656C gpu@56.187C tj@56.656C soc1@56.187C VDD_IN 9674mW/9674mW VDD_CPU_GPU_CV 2128mW/2128mW VDD_SOC 3790mW/3790mW"
+      },
+      "torch": {
+        "allocated_mib": 1103.732421875,
+        "reserved_mib": 1130.0,
+        "max_allocated_mib": 1103.732421875
+      }
+    },
+    {
+      "tag": "05_VJEPA2_VITL_ISOLATED_FORWARD_64f_256px",
+      "t": 1784945583.1446397,
+      "tegrastats": {
+        "used_mib": 5354,
+        "total_mib": 7620,
+        "raw": "07-25-2026 03:13:03 RAM 5354/7620MB (lfb 19x4MB) SWAP 54/4096MB (cached 13MB) CPU [0%@1728,0%@1728,0%@1728,3%@1728,0%@1728,0%@1728] GR3D_FREQ 0% cpu@56.968C soc2@56.593C soc0@58.156C gpu@57.218C tj@58.156C soc1@57C VDD_IN 15432mW/15432mW VDD_CPU_GPU_CV 5934mW/5934mW VDD_SOC 4809mW/4809mW"
+      },
+      "torch": {
+        "allocated_mib": 1127.857421875,
+        "reserved_mib": 1478.0,
+        "max_allocated_mib": 1375.857421875
+      },
+      "forward_latency_s": 2.4283504486083984,
+      "output_shape": [
+        1,
+        8192,
+        1024
+      ]
+    },
+    {
+      "tag": "06_whisper_medium_int8_on_gpu",
+      "t": 1784945591.119733,
+      "tegrastats": {
+        "used_mib": 6801,
+        "total_mib": 7620,
+        "raw": "07-25-2026 03:13:11 RAM 6801/7620MB (lfb 5x4MB) SWAP 55/4096MB (cached 13MB) CPU [6%@1728,0%@1728,0%@1728,0%@1728,0%@1728,0%@1728] GR3D_FREQ 0% cpu@56.406C soc2@55.875C soc0@57.187C gpu@56.562C tj@57.187C soc1@57C VDD_IN 10069mW/10069mW VDD_CPU_GPU_CV 2326mW/2326mW VDD_SOC 3909mW/3909mW"
+      },
+      "torch": {
+        "allocated_mib": 1411.935546875,
+        "reserved_mib": 1460.0,
+        "max_allocated_mib": 1411.935546875
+      }
+    }
+  ],
+  "status": "IN_PROGRESS"
+}

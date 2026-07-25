@@ -1,0 +1,41 @@
+M2 PRODUCTION CHECKPOINT — step19000_peak.pt
+This is the M2 checkpoint used as the frozen feature source for every M3
+and M4 component built so far (train_m3.py, m3_grounding_falsifier.py,
+m3_multigran_falsifier.py, m3_failure_trace.py, m3_retrieval_within_pool.py,
+m4_shift_metric_eval.py, train_m4.py all default --m2-ckpt to this file).
+
+── EFFECTIVE-RANK RECORD CORRECTION (2026-07-24) ──────────────────────────
+Prior figures on record ("effective rank plateaued at ~19-21/47") were NOT
+wrong measurements, but were CEILING-LIMITED: train_m2.py's logging path
+estimates effective_rank() from a covariance computed over a single
+mini-batch (`ws_sub = ws[:rank_ceil+1]`), so the reported ceiling was
+min(batch_size-1, d_model) = 47, not the true d_model=1024. The "19-21"
+number describes rank within a 47-dimensional subsample ceiling, not
+rank within the true 1024-dim World-State space.
+
+Re-measured at N=5000 (scripts/m2_effective_rank_large_n.py), where
+N >> d_model so the ceiling is the TRUE d_model=1024:
+
+  N       ceiling=min(N-1,D)   effective_rank   note
+  48      47                   21.52            CEILING-LIMITED (reproduces the old "19-21/47" figure)
+  128     127                  29.38            CEILING-LIMITED
+  512     511                  35.53            CEILING-LIMITED
+  1500    1024                 37.06            true d_model ceiling reached
+  5000    1024                 37.71            true d_model ceiling, converged
+
+  FINAL: effective_rank = 37.71 / 1024  (3.68% of full dimensionality)
+
+Interpretation: the World-State IS genuinely anisotropic (only ~38 of 1024
+dimensions carry most of the variance at true scale) -- this reconfirms,
+rather than overturns, the qualitative conclusion that motivated dropping
+the SIGReg-isotropy argument for M4's shift-metric selection (Correction 1,
+2026-07-24): the representation is real but concentrated, not collapsed
+(37.71 is well above 0, i.e. not degenerate) and not remotely isotropic
+(37.71 is far below 1024). Both facts matter for downstream design: not
+collapsed = M2 passed its own milestone gate; not isotropic = Euclidean
+distance in the raw World-State space is dominated by a small number of
+high-variance directions, which is exactly why the M4 shift-metric
+selection is being kept configurable (Euclidean / cosine / Mahalanobis)
+rather than locked to Euclidean by an isotropy argument that doesn't hold.
+
+Full sweep + raw numbers: checkpoints/m2_fusion_20k_best/effective_rank_large_n.json

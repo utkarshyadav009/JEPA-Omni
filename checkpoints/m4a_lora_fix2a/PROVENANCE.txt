@@ -1,0 +1,41 @@
+PHASE 1a — FIX 2a ATTEMPT (grounding drift: lower LoRA rank)
+Frozen: 2026-07-24
+Source: checkpoints/m4a_lora_fix2a/last.pt (step 8000). best.pt (step 3600,
+  test_loss=2.572, selected by test_loss since best_silence_balance.pt was
+  never updated -- balance score stayed at 0.000 for all 40 eval points,
+  same as Fix 1).
+
+STATUS: FAILED the hard floor, but closest yet -- clear positive signal.
+
+── Change from the original Phase 1a run ───────────────────────────────────
+  - lora_r=4 (down from 8) -- FIX 2a specifically
+  - silence_weight=6.0, max_steps=8000 (same as Fix 1, since these were
+    kept fixed to isolate rank as Fix 2's one variable, per instruction)
+  - Everything else identical to Fix 1 / the original Phase 1a run.
+
+── Result: silence-rate trajectory ─────────────────────────────────────────
+Same flat-zero pattern as Fix 1, all 40 checkpoints: silence_recall=0.000,
+speak_recall=1.000, both sources, entire 8000-step run. Confirms the
+silence-collapse problem is NOT rank-sensitive -- consistent with it being
+an optimization/curriculum issue rather than a capacity issue.
+
+── Result: mandatory falsifier regression ──────────────────────────────────
+Full numbers: checkpoints/falsifier_tracking.md.
+  M3 standalone:  F1 0.391/0.283/0.294, cos=0.667. Gap (normal-swapped)
+    = 0.108 -- clearly better than the original Phase 1a's 0.083 and Fix 1's
+    0.075, but still BELOW the 0.12 hard floor.
+  M4b standalone: cos_normal=0.594, swap_donor=0.594 (exact match, swap-
+    control intact) -- the best M4b number seen across every stage so far,
+    including the original frozen-LLM baseline (0.517) and post-joint
+    (0.419).
+
+── Verdict ──────────────────────────────────────────────────────────────────
+Lowering LoRA rank 8->4 moved BOTH grounding metrics in the right direction
+(M3 gap +0.033, M4b cos +0.139) -- confirms the hypothesis that control-
+token emission doesn't need much capacity and that the extra capacity at
+r=8 was spending itself on drifting the LLM's general behavior rather than
+learning the narrow control-token task. Still short of the 0.12 floor by
+0.012. Per the pre-agreed decision tree, next step is Fix 2b (restrict LoRA
+to attention projections only, dropping FFN/gate_proj/up_proj/down_proj),
+most naturally tried ON TOP of r=4 since that's the improvement already
+banked here -- flagged for review, not started.

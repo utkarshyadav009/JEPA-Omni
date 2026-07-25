@@ -1,0 +1,40 @@
+{
+  "m3_standalone_baseline": {
+    "n": 100,
+    "f1_normal": 0.47107096436072804,
+    "f1_swapped": 0.26786503165199227,
+    "f1_zeroed": 0.27412973356545883,
+    "cos_normal": 0.7238028049468994
+  },
+  "m3_standalone_joint": {
+    "n": 100,
+    "f1_normal": 0.4297873342059165,
+    "f1_swapped": 0.27025840226980047,
+    "f1_zeroed": 0.24911704531894385,
+    "cos_normal": 0.7136731743812561
+  },
+  "m4b_standalone_baseline": {
+    "n": 100,
+    "cos_normal": 0.5173842469975353,
+    "cos_swapped_vs_target": 0.15208581923507153,
+    "cos_swapped_vs_donor": 0.5173842469975353
+  },
+  "m4b_standalone_joint": {
+    "n": 100,
+    "cos_normal": 0.41897144000977277,
+    "cos_swapped_vs_target": 0.13276858719531448,
+    "cos_swapped_vs_donor": 0.41897144000977277
+  },
+  "c_m3_joint_with_speech": {
+    "n": 100,
+    "f1_normal": 0.3907353886533276,
+    "f1_swapped": 0.29850601874570687,
+    "f1_zeroed": 0.24354045487021356
+  },
+  "d_m4b_joint_with_m3": {
+    "n": 100,
+    "cos_normal": 0.2913718864507973,
+    "cos_swapped_vs_target": 0.11494570943526923,
+    "cos_swapped_vs_donor": 0.2913718864507973
+  }
+}

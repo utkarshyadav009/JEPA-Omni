@@ -1,0 +1,65 @@
+M4 JOINT-EXPOSURE FINE-TUNE — FIX FOR THE M3/M4b COMPOSITION FAILURE
+Frozen: 2026-07-24
+Source: checkpoints/m4_joint/last.pt (step 1500). best.pt (step 700,
+  test_loss=1.130) is the checkpoint to use -- train_m4_joint.py tracks
+  best-by-test-loss (same discipline established after the M4b overfitting
+  bug).
+
+── Why this run exists ─────────────────────────────────────────────────────
+Gates (c)/(d) (checkpoints/m4b/PROVENANCE.txt) found that M3's connector
+(trained on VGGSound, frozen) and M4b's projector (trained on EasyCom,
+frozen) do NOT compose safely by naive concatenation in the shared LLM
+input space -- (c) collapsed to F1=0.000, (d) degraded substantially.
+Two cheap fixes were tried and failed first (dummy-token diagnostic,
+stream-delimiter text) -- see checkpoints/m4b/PROVENANCE.txt for both.
+This joint fine-tune was the fallback per the agreed decision tree.
+
+── Data construction -- ARTIFICIALITY FLAGGED ──────────────────────────────
+No real corpus pairs a VGGSound-style scene with EasyCom speech. Each
+training step independently samples ONE VGGSound (clip, caption) pair and
+ONE EasyCom (audio, transcript) segment -- unrelated, i.i.d., no temporal
+or causal correspondence. 50% of steps target the VGGSound caption
+(GRANULARITY_TAGS tag -- attend to M3 latents, ignore the present-but-
+irrelevant speech block); 50% target the EasyCom transcript (new
+SPEECH_TASK_TAG -- attend to speech, ignore the present-but-irrelevant M3
+latents). This teaches STREAM ROUTING under a task tag, NOT reasoning over
+two streams that are actually causally related in time -- a real
+limitation carried into M4c planning, not a hidden one. See the 2026-07-24
+scoping report on genuinely-paired EasyCom-only data (speech + a caption of
+the SAME segment's actual AV scene) for the fix to this limitation.
+
+── Architecture / training ─────────────────────────────────────────────────
+Trainable: M3Connector (39,404,032 params, re-init from
+  m3_multigran_best/connector.pt) + UltravoxProjector (73,408,512 params,
+  re-init from m4b/best.pt), BOTH unfrozen, trained together.
+Frozen: M2 predictor, whisper-medium encoder, Qwen2.5-1.5B-Instruct LLM.
+  NO LoRA in this run (one variable, per instruction).
+1,500 steps, per-example gradient steps (not batched -- variable sequence
+shape per example), lr=3e-5 cosine, best checkpoint at step 700
+(test_loss=1.130; final step-1500 test_loss=1.340, i.e. mild overfitting
+past the trough, same pattern as M4b stage-1 -- best-checkpoint tracking
+caught it automatically this time, no manual intervention needed).
+
+── Mandatory post-training checks ──────────────────────────────────────────
+Full numbers + methodology: checkpoints/falsifier_tracking.md (the running
+table this run seeded) and checkpoints/m4b/joint_eval_results.json.
+
+Standalone regression (neither collapsed -- joint training did NOT trade
+away the banked M3 or M4b results, though both paid a real, non-zero cost):
+  M3 standalone:  F1 0.471/0.268/0.274 -> 0.430/0.270/0.249 (F1 normal -8.7%
+    relative), cos 0.724 -> 0.714 (-1.4% relative)
+  M4b standalone: cos_normal 0.517 -> 0.419 (-19.0% relative, the larger
+    cost); swapped_vs_donor == cos_normal exactly preserved in both
+
+Composition (c)/(d), the actual target of this run:
+  (c) M3-with-fixed-speech:  0.000/0.000/0.001 -> 0.391/0.299/0.244
+    (recovered to within ~17% of the no-speech baseline of 0.471, with a
+    real normal >> swapped/zeroed gap restored)
+  (d) M4b-with-fixed-M3:     cos_normal 0.244 -> 0.291 (improved further;
+    still below M4b's own new standalone baseline of 0.419, but swap-
+    control structure intact throughout)
+
+VERDICT: composition failure fixed. Approved to proceed to M4c planning
+with this as the basis, per the standing rule that every future stage
+touching either connector re-runs and logs both standalone falsifiers in
+checkpoints/falsifier_tracking.md before being considered done.

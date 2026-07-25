@@ -1,0 +1,95 @@
+M5 DAY 2 — SUSTAINED-CONVERSATION FIT ON JETSON: CONFIRMED CREEP, ROOT
+CAUSE NOT YET IDENTIFIED, STOPPING PER INSTRUCTION.
+Measured: 2026-07-25, Jetson Orin Nano Super, same setup as Phase 0/
+clarification (nvpmodel MAXN_SUPER, jetson_clocks locked, fresh reboot +
+preflight PASS before every run).
+Script: scripts/jetson_sustained_conversation.py.
+Raw data: checkpoints/m5_streaming/sustained_{baseline,cleanup,expandable}.json.
+
+── Test design ──────────────────────────────────────────────────────────
+Loaded int8-quantized Whisper + Qwen2.5-1.5B (torchao v2 + malloc_trim,
+same recipe as Phase 0) + M4b projector + 3-class decision head (vision/M2
+NOT loaded -- isolates the generation/KV-cache risk specifically, see
+scope note below). Ran 40 SEQUENTIAL generation turns, each on a
+different real EasyCom speak-segment (cycling through the pool), forcing
+generation-dense stress far beyond natural conversation pacing to get a
+fast, direct answer to "does repeated generate_interruptible() leak."
+Continuous tegrastats sampling (200ms interval, background thread) spans
+the entire run; per-turn resident memory logged directly (not inferred).
+
+── RESULT: A REAL, CONSISTENT, UNFIXED CREEP ────────────────────────────
+Three independent 40-turn runs, each starting from a fresh reboot +
+preflight PASS:
+
+| condition | linear trend (MiB/turn) | delta first-5 -> last-5 turns (MiB) |
+|---|---|---|
+| baseline (no extra cleanup) | +10.00 | +335 |
+| + gc.collect/empty_cache/malloc_trim after every turn | +9.82 | +335 |
+| + PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True | +11.20 | +378 |
+
+All three are statistically the same (~10 MiB/turn) -- **neither of the
+two standard remediations changed anything.** This is diagnostically
+useful, not just a failed attempt: it RULES OUT the two most common
+causes of this symptom.
+  - Ruled out: CPU-heap (glibc) retention -- explicit malloc_trim() made
+    no difference (this is the SAME class of fix that DID work for the
+    WavJEPA weight-loading issue in Phase-0 clarification, so the
+    contrast is informative: that was a CPU-heap-retention problem, this
+    is not).
+  - Ruled out: CUDA caching-allocator fragmentation from variable-length
+    KV-cache shapes across turns (5 to 40 generated tokens each) --
+    `expandable_segments:True` is PyTorch's documented fix for exactly
+    this failure mode, and it made no difference either.
+
+**Root cause NOT identified in this session.** Candidates not yet
+distinguished: a genuine Python-level reference leak specific to
+`generate_interruptible`'s manual per-token decode loop (models/
+m4_duplex_loop.py) or `DuplexLoop`/HF-internals retaining state across
+calls; or a Jetson-specific NvMap/Tegra memory-manager fragmentation layer
+sitting BELOW both the glibc heap and CUDA's caching allocator, which
+neither of the two remedies tried would touch. Distinguishing these needs
+a memory profiler (tracemalloc/objgraph on the Python side, or an
+isolated test of plain HF `.generate()` without the custom manual-decode
+loop to see if the creep is specific to `generate_interruptible`) --
+flagged as the necessary next step, not attempted here per the stop
+instruction.
+
+── Scope note, stated plainly ───────────────────────────────────────────
+This test isolates the LLM-generation-repeat risk specifically (no
+vision/M2 loaded) for speed and directness. The Phase-0-clarification run
+separately measured the FULL 5-model stack's first-turn peak at 6976MiB
+with 644MiB headroom (checkpoints/m5_jetson/PHASE0_CLARIFICATION_
+PROVENANCE.txt). Combining the two (a PROJECTION, not a directly-measured
+full-stack multi-turn run):
+
+    644MiB headroom / ~10MiB per turn creep ~= 64 more turns before the
+    full stack's headroom is exhausted, IF the same creep rate applies
+    unchanged when vision/M2 are also resident (not verified directly --
+    the mechanism causing the creep is not yet identified, so whether it
+    interacts with the rest of the stack is unknown, not assumed safe).
+
+At ~1-9s of generation latency per turn observed in this test (Jetson,
+int8, 5-40 tokens), 64 turns is roughly 64 conversational exchanges --
+plausibly tens of minutes of real back-and-forth, but this is an
+extrapolation from a partial measurement, not a validated "the system
+holds a conversation of length X" claim.
+
+── Interpretation for the demo-vs-conversation question ────────────────
+The answer to "does it demo for 20s or hold a conversation" is: **it
+holds noticeably longer than 20s (the creep is slow relative to any
+single tick), but it does NOT hold indefinitely** -- there is a real,
+measured ceiling, currently unmitigated. This is a genuine "sustained fit
+failure" by the letter of your instruction (memory does creep, and the
+two most likely fixes didn't resolve it), even though the practical
+window before exhaustion (tens of turns) is not immediately catastrophic
+for a bounded demo.
+
+── STOPPING HERE per instruction ────────────────────────────────────────
+"STOP if sustained fit fails — that changes the plan." Not proceeding to
+Day 3 (latency tuning) or the V-JEPA 2.1 shelving until direction is
+given on how to treat this: (a) root-cause the creep further (profiler-
+based investigation, isolate generate_interruptible vs stock .generate()),
+(b) implement a pragmatic bound now (periodic process/session restart
+after N turns, or explicit KV-cache/model-reload cycling) without full
+root-causing, or (c) something else. Jetson's paused services have been
+restored; the machine is in its normal state.

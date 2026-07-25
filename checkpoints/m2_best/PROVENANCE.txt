@@ -1,0 +1,3 @@
+192-negative baseline (6000 steps) source: checkpoints/m2_diag192/step6000.pt
+step=6000/6000  a->v R@1=43.75  v->a R@1=46.88  (avg=45.31, effectively tied with step5000's 45.31)
+copied Tue 14 Jul 12:17:27 UTC 2026

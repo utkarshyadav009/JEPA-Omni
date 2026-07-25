@@ -1,0 +1,171 @@
+M5 PHASE 0 — JETSON ORIN NANO SUPER MEMORY WALL
+Measured: 2026-07-25, on bmo-desktop (Jetson Orin Nano Super, 8GB unified
+LPDDR5, JetPack 6 / L4T R36.4.7, torch 2.8.0+cu126, aarch64), accessed via
+Tailscale SSH from mercury.
+Scripts: scripts/jetson_phase0_memory.py (this repo), tools/
+  jetson_preflight.sh (reused from the moshi_oracle project on the same
+  Jetson -- NOT part of this repo, credited here).
+Raw data: checkpoints/m5_jetson/phase0_results.json (partial -- the run
+  ended in a real OOM-kill, itself the headline finding, not a bug).
+
+── Setup, for reproducibility ──────────────────────────────────────────────
+nvpmodel -m 2 (MAXN_SUPER, uncapped) + jetson_clocks (CPU 1728MHz x6, GPU
+1020MHz, EMC 3199MHz -- all locked to max) BEFORE measuring, so numbers
+reflect the device's actual ceiling, not a throttled/idle state. Fresh
+reboot, then jetson_preflight.sh run and PASSED (free_MiB=7122,
+large_block_MiB[order>=10, all zones]=6476 -- the real contiguity signal
+this platform needs; tegrastats' own "lfb" field under-reports it on this
+kernel, confirmed directly against /proc/buddyinfo). Preflight stops 8
+memory-competing services (two cloudflared tunnels, jtop, packagekit,
+snapd, two app daemons) for the duration of the measurement; restarted
+afterward.
+
+── Method note: int8 tooling reality on this device ─────────────────────
+No bitsandbytes (unsupported on aarch64/Jetson). No prebuilt torchao cpp
+extensions (needs torch>=2.11, this device has 2.8.0) -- BUT torchao
+0.17.0's Int8WeightOnlyConfig works via torch's native int8-packed-matmul
+op regardless, verified directly on a toy Linear (8.4MB bf16 -> 4.2MB
+int8, exact 2-byte->1-byte packing). This is WEIGHT-ONLY int8 (activations
+stay bf16/fp32) -- real and standard, but it does NOT shrink activation-
+memory peaks, only resident weight memory. TensorRT 10.3 is present but
+real per-model INT8 there needs ONNX export + calibration data, a
+multi-day effort across 5 different architectures -- out of scope for
+Phase 0, flagged as a possible Phase-1+ lever, not attempted.
+WavJEPA stays fp32 regardless (existing repo constraint: its internal
+MaskedTensor usage doesn't support bf16) -- quantized to int8 from fp32.
+
+── Loading strategy tested: CPU-quantize-then-move ─────────────────────
+Loaded each component on CPU, quantized to int8 there, THEN moved to GPU
+-- the theoretically memory-safer order (never materialize the full bf16
+footprint AND its int8 copy on the SAME memory pool simultaneously). This
+is also the correct real-deployment pattern, not just a measurement trick.
+
+CRITICAL FINDING, stated up front: this strategy does NOT save memory on
+this hardware the way it would on a discrete-GPU box like mercury. Jetson
+is UNIFIED memory -- CPU RAM and "GPU" memory are the exact same physical
+7.4GB pool. Loading a model's bf16 weights "on CPU" still consumes the
+identical budget that loading them "on GPU" would. The only thing the
+CPU-first order avoided was the specific CUDA-allocator NvMap contiguity
+failure seen in the first (naive, load-to-GPU-then-quantize) attempt --
+it did NOT avoid the underlying total-memory exhaustion, which is the real
+constraint. This directly matters for M5 design: any mitigation that
+assumes "just keep it on CPU" as an escape hatch is not real on this
+target.
+
+── STEADY-STATE RESIDENT MEMORY, progressive load (tegrastats = ground truth) ──
+
+| stage | tegrastats used (MiB) | delta (MiB) | torch self-reported (MiB) |
+|---|---|---|---|
+| OS baseline, fresh reboot, preflight-clean | 498  | -- | -- |
+| + `import torch` (before any CUDA call)    | 1691 | +1193 | 0 |
+| + CUDA context created                     | 1697 | +6    | 0 |
+| + WavJEPA-base, int8 (fp32->int8)           | 3290 | +1593 | 386 |
+| + WavJEPA-nat, int8 (fp32->int8)            | 4098 | +808  | 788 |
+| + V-JEPA2 ViT-L, int8 (bf16->int8)          | 4932 | +834  | 1104 |
+| + Whisper-medium, int8 (bf16->int8)         | 6801 | **+1869** | 1412 |
+| + Qwen2.5-1.5B-Instruct, bf16 (pre-quant)   | **OOM-KILLED** (see below) | -- | -- |
+
+**torch's own allocator stats undercount reality by ~5.4GB at the last
+successful stage** (tegrastats 6801MiB vs torch-reported 1412MiB) --
+confirms the docstring's warning: driver/context/library overhead and
+(on this CPU-then-GPU strategy) host-side tensor memory are real, large,
+and invisible to `torch.cuda.memory_allocated()`. Any future Jetson memory
+work MUST read tegrastats (or /proc/buddyinfo), not torch's self-reports.
+
+Whisper-medium's jump (+1869MiB) is the single largest of the four
+perception encoders, larger than either WavJEPA variant -- even after
+quantization, its CPU-side bf16 intermediate (947 tensors) briefly had to
+coexist with the three already-GPU-resident encoders in the same 7.4GB
+pool, and the quantized encoder that remains resident is still the largest
+of the four.
+
+── V-JEPA2 ViT-L isolated forward (64f/256px) -- the flagged "prime suspect" ──
+Peak: tegrastats=5354MiB (torch max_allocated=1376MiB, i.e. real activation
+overhead over the 1104MiB resident int8 weights was only ~272MiB by torch's
+own count -- consistent with tegrastats delta 4932->5354 = 422MiB). Forward
+latency: 2.43s (MAXN_SUPER, locked clocks). Output shape (1, 8192, 1024) as
+expected (64/2 temporal x (256/16)^2 spatial tokens).
+
+**CORRECTION to the hypothesis this measurement was designed to test**: a
+single ViT-L forward pass is NOT, in isolation, what blows the budget --
+at the point it ran there was still ~2.3GB of headroom (5354/7620 used).
+The wall is not one component's activation spike; it's the CUMULATIVE
+resident weight footprint of loading all four perception encoders
+simultaneously, which alone consumes 6801/7620 MiB (89%) before the LLM
+-- the actual dialogue-generating component -- gets a chance to load at
+all. This is a real, useful correction: it redirects the M5 mitigation
+target from "shrink one forward pass" to "don't keep everything resident
+at once" / "shrink the LLM specifically," which is where the room actually
+is.
+
+── Qwen2.5-1.5B-Instruct: confirmed does not fit alongside the perception stack ──
+Attempting to load Qwen bf16 on CPU (per the CPU-first strategy) triggered
+a Linux OOM-kill, not a graceful CUDA error this time -- because on
+unified memory, CPU-side allocation competes for the exact same pool:
+
+    dmesg: Out of memory: Killed process 2591 (python3)
+    total-vm:25318348kB anon-rss:7010184kB (6.68 GiB) file-rss:13296kB
+
+At kill time the process's resident memory (perception stack already on
+GPU + Qwen's partially-materialized bf16 weights on CPU, same physical
+pool) exceeded the full 7.4GB system budget. Only 819MiB of headroom
+remained after the perception stack (7620-6801), and Qwen2.5-1.5B needs
+~3GB in bf16 or a minimum ~1.5-2GB even at int8 (weight-only; embedding/
+lm_head tables are large at 151,936-token vocab x 1536 dim and are
+typically kept at higher precision) -- doesn't fit under any quantization
+scheme tested, not even before accounting for activation memory or any
+KV-cache at all.
+
+**A first, naive attempt (load bf16 straight to GPU, quantize in place
+after) failed even earlier**, with a distinct failure mode: `NvMapMemAllocInternalTagged:
+... error 12` -- the exact memory-CONTIGUITY failure jetson_preflight.sh's
+own header documents, hit organically during real measurement, not
+manufactured. Both failure modes (NvMap contiguity error, and this run's
+Linux OOM-kill) point at the same underlying fact: the naive full stack
+does not fit.
+
+── KV-cache headroom (item 3 of the ask): a DEFICIT, not a headroom number ──
+Qwen2.5-1.5B-Instruct: 28 layers, 2 KV heads (GQA), head_dim=128 (from the
+actual HF config, not assumed) -> bytes/token = 2(K+V) x 28 x 2 x 128 x
+2(bf16) = 28,672 bytes = **28.0 KiB/token, 27.3 MiB per 1,000 tokens**
+(bf16 KV-cache; int8 KV-cache would halve this but was not attempted here).
+
+This cannot be answered as "how many tokens of headroom" because the
+PRECONDITION (base model resident) was never reached -- the honest answer
+is a DEFICIT: the perception stack alone leaves 819MiB, Qwen's weights
+alone need more than that even at int8, so the KV-cache question is moot
+until the base footprint is solved. Once it is, 27.3 MiB/1k tokens is the
+real, config-derived number to re-apply.
+
+── BOTTOM LINE, answering "does it fit" ────────────────────────────────────
+**NO -- the naive full int8-where-possible stack does not fit in 8GB
+unified memory.** Four perception encoders alone (WavJEPA base+nat,
+V-JEPA2 ViT-L, Whisper-medium, all int8 weight-only where the tooling
+allows) consume 6801/7620 MiB (89%) before Qwen2.5-1.5B -- the component
+that actually produces speech -- can load at all, under any quantization
+scheme tested. This is a genuine deficit, confirmed by two independent
+real failure modes (NvMap contiguity error on the naive load order; Linux
+OOM-kill on the CPU-first order), not a projected/assumed number.
+
+Where the room actually is, per the measurements above (for scoping the
+next, "make it fit" pass -- not yet designed here):
+  1. Whisper-medium is the single largest perception-stack cost (1869MiB
+     marginal) despite being "medium"-sized -- worth checking whether a
+     smaller Whisper variant or a non-Whisper speech-activity feature
+     source changes the picture more than any of the vision/audio JEPA
+     encoders would.
+  2. WavJEPA base+nat together cost 2401MiB (3290 minus the 1697MiB CUDA
+     baseline) for two variants of the SAME architecture loaded
+     simultaneously -- whether the live pipeline genuinely needs both
+     resident at once, or could load one on demand, is worth checking
+     against how extract_features_av.py actually uses them.
+  3. Qwen2.5-1.5B itself is the biggest single remaining unknown -- int4
+     (not just int8) weight-only, or a smaller instruct model, may be
+     required; this Phase-0 run never got far enough to measure Qwen's
+     actual resident/peak cost in isolation, which is the natural next
+     measurement.
+  4. "Load on CPU to save memory" is NOT a valid mitigation on this
+     hardware -- ruled out directly, not assumed.
+
+Per the standing instruction, STOPPING here for direction before
+designing the "make it fit" pass.

@@ -1,0 +1,98 @@
+{
+  "n_events": 1796,
+  "n_backchannel_only_overlaps_excluded": 496,
+  "n_chunks_with_overlap": 273,
+  "outcome_counts": {
+    "RE-PLAN": 1098,
+    "ABANDON": 613,
+    "RESUME": 85
+  },
+  "outcome_fractions": {
+    "RE-PLAN": 0.611358574610245,
+    "ABANDON": 0.3413140311804009,
+    "RESUME": 0.04732739420935412
+  },
+  "median_interrupter_duration_sec": {
+    "RESUME": 1.3999999999999986,
+    "RE-PLAN": 1.9000000000000004,
+    "ABANDON": 2.1499999999999986
+  },
+  "resume_window_sec": 10.0,
+  "sim_threshold": 0.3,
+  "examples": {
+    "RESUME": [
+      {
+        "session": 1,
+        "interrupted_text": "[H] You know what? We can put the triple IPA and the double IPA together and get a quintuple IPA. Alright.",
+        "interrupter_text": "I think that's how it works. I'll have one of those.",
+        "resumed_text": "One quintuple IPA? And for you ma'am, what can I get for you?"
+      },
+      {
+        "session": 1,
+        "interrupted_text": "And just water, alright. Meaty group* [U] And how do you want your burger cooked, sir? I forgot to ask.",
+        "interrupter_text": "Awesome.",
+        "resumed_text": "How do you want your steak cooked?"
+      },
+      {
+        "session": 1,
+        "interrupted_text": "[H]",
+        "interrupter_text": "You fill the five. Pour three of it out into the three.",
+        "resumed_text": "[H]"
+      },
+      {
+        "session": 1,
+        "interrupted_text": "You can turn them on and off as many times as you want to. Could you go up and feel if they're warm?",
+        "interrupter_text": "Can you- can you touch them? Yeah.",
+        "resumed_text": "[L] Could you turn one of them on, and then turn it off, and then go turn another one on? Yeah."
+      }
+    ],
+    "RE-PLAN": [
+      {
+        "session": 1,
+        "interrupted_text": "[H] [L] I'm [H] I'm Jessica Garcia and I'm a customer service representative. How bout you guys?",
+        "interrupter_text": "Awesome.",
+        "resumed_text": "Awesome."
+      },
+      {
+        "session": 1,
+        "interrupted_text": "Awesome. I am Jack Williams and I'm a software engineer. What type of school do you teach? Or what level of school do you teach?",
+        "interrupter_text": "Awesome.",
+        "resumed_text": "Awesome."
+      },
+      {
+        "session": 1,
+        "interrupted_text": "[H] I teach [H] computer programming and math so t- two classes.",
+        "interrupter_text": "Awesome.",
+        "resumed_text": "Little bit. Yeah. That- that makes it easier."
+      },
+      {
+        "session": 1,
+        "interrupted_text": "Awesome. What do you represent as a customer service representative?",
+        "interrupter_text": "[H] So, I actually work for a small company that has the local dessert. [H] Yeah. So, I deal with people who want to deliver stuff out of town for this dessert. Yeah.",
+        "resumed_text": "[H] I work for Microsoft. Yup."
+      }
+    ],
+    "ABANDON": [
+      {
+        "session": 1,
+        "interrupted_text": "Heavy on the analytics, then? [L]",
+        "interrupter_text": "Little bit. Yeah. That- that makes it easier."
+      },
+      {
+        "session": 1,
+        "interrupted_text": "Little bit. Yeah. That- that makes it easier.",
+        "interrupter_text": "Awesome. What do you represent as a customer service representative?"
+      },
+      {
+        "session": 1,
+        "interrupted_text": "I- I teach [H] Javascript at the high school. What- Do you use much Javascript in your job?",
+        "interrupter_text": "Oh sweet!"
+      },
+      {
+        "session": 1,
+        "interrupted_text": "You kinda have to not take things personally. Yeah.",
+        "interrupter_text": "Definitely. It's definitely [X]"
+      }
+    ]
+  }
+}

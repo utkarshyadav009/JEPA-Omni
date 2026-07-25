@@ -1,0 +1,52 @@
+{
+  "n": 100,
+  "cos_vs_gt_bf16": 0.49773710504174234,
+  "cos_vs_gt_int8": 0.47688595284707846,
+  "delta": -0.02085115219466388,
+  "bootstrap_se_bf16": 0.022429934612590536,
+  "within_noise": true,
+  "cos_bf16_output_vs_int8_output": 0.7747153709083796,
+  "exact_text_match_rate": 0.2,
+  "examples": [
+    {
+      "gt": "His, the guy's father, subject's father's son or that guy's father's son?",
+      "bf16": "I- I don't know. The gits father's brother or that guy is a girl? [H] Su- the guys fathers supposed to be brothers or that guy s father's grandfather or that guy's father's sister or that guy's mother's son or that guy's daughter's husband",
+      "int8": "I- I don't know. The gits father's brother or that guy is a girl? [Y] the guys fathers, supplementary brothers or that guy's father. [Y] the guys father's supposed to be his sister's brother or that guy's father. [X] the guys"
+    },
+    {
+      "gt": "There you go. [L]",
+      "bf16": "There- there. [H] There you go. \t[There\tgo. \tL] \t[H] \t[L] \t[T] \tOkay, let's do this! [L] \t[K] \tAlright then. Let's get started! [K",
+      "int8": "There- there. [H] There you go. \t[There\tgo. \tL] \t[H] \t[L] \t[T] \t[S] \t[C] \t[D] \t[E] \t[F] \t[G] \t[H]"
+    },
+    {
+      "gt": "No. No. No.",
+      "bf16": "No. No- no.",
+      "int8": "No no!"
+    },
+    {
+      "gt": "[X] be a priest involved.",
+      "bf16": "I? \u2013 what's your name, Uriel? - What's your name, Uriel? \u2013 I'm not sure. \u2013 I'm not sure. \u2013 It's Perea. \u2013 It's Perea. \u2013 How about you? \u2013 How about you? \u2013 My name is Uriel",
+      "int8": "I? \u2013 what's your name, Uriel? - What's your name, Uriel? \u2013 I'm not sure. \u2013 I'm not sure. \u2013 It's P\u00e1rares. \u2013 It's P\u00e1rares. \u2013 How about you? \u2013 How about you? \u2013 My"
+    },
+    {
+      "gt": "What if I ask a meta judgment? A judgment on the judgment?",
+      "bf16": "Whatquoi? What if we ask for a medium order of chicken nuggets? \u2013 what would you do if I asked for a mega jacket, a jacket and the glove. What would you do? What's your answer to that question? What if I asked for a mega jacket, a jacket and",
+      "int8": "Whatquoi? What if we ask for a meatball sandwich? What's that? What do you want to ask me about Meatball Hash-Tag with a hashtag and a question mark. What is it? How much would I pay for one of those? What should I order? What are your"
+    },
+    {
+      "gt": "[H] All of them?",
+      "bf16": "[H]! [H?] All of them? [_]  _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  _ ",
+      "int8": "[H]! [H]? All of them? [_]  _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  _  _"
+    },
+    {
+      "gt": "He's lying.",
+      "bf16": "Well- [W] With you lying. -With you lying. [BUTI] But with you lying. [X] -But with you lying. [BU-TU] -But with you lying. [X] -But with you lying. [BU-TU] -But",
+      "int8": "Well- [U] It's lying. [BUTI] But it's lying. [X] Exactly. [BUTI] Yeah, exactly. [X] So what do you think? [BUTI] I'm not sure. [X] Well, let me know"
+    },
+    {
+      "gt": "How would you identify which [X]",
+      "bf16": "How would you like to x-? How would you like to x- which?  [w]Human: Would you like to pick up which one of these options? - A) Apple or B) Orange? - C) Banana or D) Kiwi? - E) Mango or",
+      "int8": "How would you like to x-? How about you indicate which one of these options you'd like to pick?  [w]Human: Would you want to include a chicken or something else in your meal? - Which option do you suggest?  [x] Chicken, beef, fish"
+    }
+  ]
+}

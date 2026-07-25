@@ -1,0 +1,60 @@
+M4B SPEECH PATH — FROZEN-LLM STAGE-1 RESULT
+Frozen: 2026-07-24
+Source: checkpoints/m4b/last.pt was overfit (train loss -> ~0, test loss
+  rose from 1.086@step2500 to 1.71@step5000). best.pt (step 1400,
+  test_loss=1.097) is the checkpoint to use -- train_m4b.py now tracks and
+  saves the best-by-test-loss checkpoint automatically, this run caught the
+  bug live.
+
+── Architecture ──────────────────────────────────────────────────────────
+Encoder: whisper-medium (769M, frozen). UltravoxProjector (models/m4_speech.py):
+  stack_factor=8 (160ms/token), RMSNorm, SwiGLU MLP -> llm_hidden=1536.
+  73,408,512 trainable params -- the ONLY trainable component of this stage.
+LLM: Qwen2.5-1.5B-Instruct, frozen, no LoRA. M3's connector NOT part of this
+  training loop at all (EasyCom has no matched M2/VGGSound feature cache).
+
+── Data / session split ────────────────────────────────────────────────────
+EasyCom Close_Microphone_Audio <-> Speech_Transcriptions pairs. SESSION-level
+split (not random segment split -- only 7 distinct speakers total, segment-
+level splitting would leak voice/room acoustics across train/test):
+  train sessions = [1,2,3,4,5,6,7,8,9]   (3,370 segments)
+  test sessions  = [10,11,12]            (1,112 segments), held out whole
+Only Participant_IDs with their OWN Close_Microphone_Audio file are usable
+(the AR-glasses wearer per session has no separate close-mic -- captured via
+the array instead -- so wearer utterances are excluded). 15/338 annotation
+chunk files are latin-1 encoded, not UTF-8; data/m4_speech_dataset.py
+handles this.
+
+── Gate results (checkpoints/m4b/best.pt, n=200 unless noted) ─────────────
+(a) held-out transcription quality: WER=0.818, F1=0.332, cos=0.514.
+  Honest read: high WER given EasyCom's difficulty (disfluencies, crosstalk)
+  and very little training data (3,370 examples); short 1-3 word utterances
+  inflate WER (single miss = 100%). Qualitative samples show real signal
+  (several exact/near-exact matches).
+(b) speech swap-control -- clean pass:
+  cos(normal)=0.514; cos(swapped, TARGET)=0.136; cos(swapped, DONOR)=0.514
+  (exact match to cos_normal -- swapped output tracks the donor's content
+  precisely). F1 prior baselines (mode=0.086, random=0.024) well below 0.332.
+(c)/(d) composition with M3 (checkpoints/m3_multigran_best) -- FAILED at
+  this stage: (c) M3-with-speech collapsed to F1=0.000/0.000/0.001 (from a
+  0.471/0.268/0.274 no-speech baseline). (d) M4b-with-M3 degraded to
+  cos_normal=0.244 (from 0.517 standalone) but didn't collapse; swap-control
+  structure survived. Root-caused via scripts/m4_diagnostic_dummy_tokens.py
+  (dummy tokens partially degrade too -- real shape/length sensitivity, but
+  nowhere near as badly as real speech content -- so it's a spectrum, not
+  purely shape or purely semantic interference) and
+  scripts/m4_delimiter_fix_test.py (text delimiters did NOT fix it, output
+  collapsed to empty generations instead of garbage).
+  FIXED by joint-exposure fine-tuning -- see checkpoints/m4_joint/PROVENANCE.txt.
+
+── Post-joint-training falsifier tracking ──────────────────────────────────
+Standing rule (2026-07-24): after every stage touching this projector or
+the M3 connector, both standalone falsifiers get re-run and logged in
+checkpoints/falsifier_tracking.md. Snapshot:
+  frozen-LLM baseline (this file's best.pt):  cos_normal=0.517
+    swapped_vs_target=0.152  swapped_vs_donor=0.517
+  post-joint (checkpoints/m4_joint/best.pt):  cos_normal=0.419
+    swapped_vs_target=0.133  swapped_vs_donor=0.419
+  (cos_normal -19.0% relative -- the larger of the two joint-training costs;
+  swap-control structure preserved exactly. See falsifier_tracking.md for
+  the running history across all future stages.)

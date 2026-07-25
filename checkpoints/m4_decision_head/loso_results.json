@@ -1,0 +1,91 @@
+{
+  "per_speaker": {
+    "speaker_3": {
+      "vgg_mechanism_check": {
+        "n": 4000,
+        "gt_speak_rate": 0.25,
+        "speak_recall": 0.814,
+        "silence_recall": 0.9213333333333333,
+        "accuracy": 0.8945000171661377
+      },
+      "easycom_heldout_speaker": {
+        "n": 942,
+        "gt_speak_rate": 0.559447983014862,
+        "speak_recall": 0.9924098671726755,
+        "silence_recall": 0.9951807228915662,
+        "accuracy": 0.9936306476593018
+      }
+    },
+    "speaker_4": {
+      "vgg_mechanism_check": {
+        "n": 4000,
+        "gt_speak_rate": 0.25,
+        "speak_recall": 0.824,
+        "silence_recall": 0.9193333333333333,
+        "accuracy": 0.8955000638961792
+      },
+      "easycom_heldout_speaker": {
+        "n": 2828,
+        "gt_speak_rate": 0.5611739745403111,
+        "speak_recall": 0.9861373660995589,
+        "silence_recall": 0.9879129734085415,
+        "accuracy": 0.9869165420532227
+      }
+    },
+    "speaker_5": {
+      "vgg_mechanism_check": {
+        "n": 4000,
+        "gt_speak_rate": 0.25,
+        "speak_recall": 0.802,
+        "silence_recall": 0.9216666666666666,
+        "accuracy": 0.8917500376701355
+      },
+      "easycom_heldout_speaker": {
+        "n": 493,
+        "gt_speak_rate": 0.5740365111561866,
+        "speak_recall": 0.9646643109540636,
+        "silence_recall": 0.9714285714285714,
+        "accuracy": 0.9675456285476685
+      }
+    },
+    "speaker_6": {
+      "vgg_mechanism_check": {
+        "n": 4000,
+        "gt_speak_rate": 0.25,
+        "speak_recall": 0.804,
+        "silence_recall": 0.9236666666666666,
+        "accuracy": 0.8937500715255737
+      },
+      "easycom_heldout_speaker": {
+        "n": 2973,
+        "gt_speak_rate": 0.5697948200470905,
+        "speak_recall": 0.9923258559622196,
+        "silence_recall": 0.9851446442533229,
+        "accuracy": 0.9892364144325256
+      }
+    },
+    "speaker_7": {
+      "vgg_mechanism_check": {
+        "n": 4000,
+        "gt_speak_rate": 0.25,
+        "speak_recall": 0.806,
+        "silence_recall": 0.922,
+        "accuracy": 0.893000066280365
+      },
+      "easycom_heldout_speaker": {
+        "n": 665,
+        "gt_speak_rate": 0.58796992481203,
+        "speak_recall": 0.9923273657289002,
+        "silence_recall": 0.9963503649635036,
+        "accuracy": 0.9939849972724915
+      }
+    }
+  },
+  "summary": {
+    "macro_speak_recall": 0.9855729531834836,
+    "macro_silence_recall": 0.987203455389101,
+    "macro_accuracy": 0.986262845993042,
+    "micro_accuracy": 0.9879761965814051,
+    "n_total_heldout_ticks": 7901
+  }
+}

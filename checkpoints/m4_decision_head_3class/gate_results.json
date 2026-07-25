@@ -1,0 +1,35 @@
+{
+  "vgg": {
+    "n": 4000,
+    "accuracy": 0.8920000195503235,
+    "per_class_recall": {
+      "silence": {
+        "n": 3000,
+        "recall": 0.922333300113678
+      },
+      "speak": {
+        "n": 1000,
+        "recall": 0.8010000586509705
+      },
+      "backchannel": null
+    }
+  },
+  "easycom": {
+    "n": 1952,
+    "accuracy": 0.9595286250114441,
+    "per_class_recall": {
+      "silence": {
+        "n": 840,
+        "recall": 0.9797619581222534
+      },
+      "speak": {
+        "n": 895,
+        "recall": 0.9620111584663391
+      },
+      "backchannel": {
+        "n": 217,
+        "recall": 0.8709677457809448
+      }
+    }
+  }
+}

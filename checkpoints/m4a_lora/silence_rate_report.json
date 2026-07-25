@@ -1,0 +1,16 @@
+{
+  "vgg": {
+    "n": 5,
+    "gt_silence_rate": 0.6,
+    "gt_speak_rate": 0.4,
+    "silence_recall": 0.0,
+    "speak_recall": 1.0
+  },
+  "easycom": {
+    "n": 5,
+    "gt_silence_rate": 0.6,
+    "gt_speak_rate": 0.4,
+    "silence_recall": 0.0,
+    "speak_recall": 1.0
+  }
+}

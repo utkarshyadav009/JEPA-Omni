@@ -1,0 +1,110 @@
+M5 DAY 1 — STREAMING PIPELINE, BUILT AND WORKING END-TO-END
+Built/measured: 2026-07-25, on mercury (NVIDIA RTX PRO 6000 Blackwell).
+Components: models/m5_streaming_loop.py (StreamingConfig, RollingVideoBuffer,
+  RollingAudioBuffer, StreamingLoop), models/m4_duplex_loop.py (added
+  decide3() for the 3-class head), scripts/m5_streaming_demo.py.
+Raw results: checkpoints/m5_streaming/blackwell_streaming_results.json.
+
+── The core streaming design question ──────────────────────────────────
+V-JEPA2 and WavJEPA are BIDIRECTIONAL transformers -- no KV-cache, no way
+to feed one new frame/sample at a time. Every "refresh" is a full forward
+pass over a window of recent input. Design choices, grounded in existing
+project numbers rather than picked blind:
+
+  WINDOW_VISION = 10.0s -- matches CLIP_DURATION_S in
+    scripts/extract_features_av.py, the real-world duration a 64-frame
+    V-JEPA2 input was TRAINED to represent. A shorter window puts ViT-L
+    outside its trained distribution.
+  STRIDE_VISION = 2.0s (default, tunable -- Day 3 profiles this) --
+    re-encode 5x per window span rather than every tick; between
+    refreshes the loop reuses the last World-State (matches the existing
+    duplex-loop principle that perception refresh is decoupled from
+    tick/generation cadence).
+  WINDOW_AUDIO = 2.0s -- matches EasyCom's SILENCE_WINDOW_SEC
+    (data/m4_easycom_turntaking.py); audio is far cheaper than ViT-L so
+    it's refreshed every tick, not strided.
+  TICK_INTERVAL = 0.25s -- the decision head is a ~1.3M-param MLP
+    (microseconds); it can poll far more often than perception refreshes.
+
+── What's real vs simulated in this test, stated plainly ───────────────
+REAL: EasyCom test-set audio (120 concatenated real ticks, 253.9s,
+  speak/silence/backchannel mix) drives the audio buffer, Whisper
+  speech-activity feature, decision head, and M4b-path generation.
+  V-JEPA2 ViT-L (real forward pass, real weights) runs on the rolling
+  video buffer every stride. Qwen2.5-1.5B (frozen, bf16) actually
+  generates tokens. MicGate actually gates subsequent ticks based on
+  estimated TTS duration from real generated text.
+SIMULATED: video CONTENT is random noise frames (no long real AV-paired
+  stream exists yet -- consistent with the same disclosed choice in Phase
+  0). TTS is not a real synthesis engine -- "playback duration" is
+  estimated from generated word count at 150 wpm, same simulation
+  methodology already established for the echo-cancellation gate
+  (scripts/m4_echo_test.py: real EasyCom segments standing in for TTS
+  output).
+NOT EXERCISED in this specific 15s run: no genuine externally-detected
+  interruption fired (no overlapping "user speaks while robot is
+  generating" event happened to occur in this window) -- the
+  InterruptionPolicy object is wired in and available, but its
+  resolve()/RESUME mechanism was already separately verified with real
+  KV-cache continuity (checkpoints/m4_interruption_policy/PROVENANCE.txt);
+  this run doesn't re-exercise that specific path.
+
+HONEST CAVEAT, not glossed over: feeding a real-computed (dummy-CONTENT)
+World-State simultaneously with real audio is an input regime the
+decision head was never trained on -- training always zeroed exactly one
+modality (VGGSound ticks: real World-State + zero speech-feat; EasyCom
+ticks: zero World-State + real speech-feat). This run is a WIRING/latency
+mechanism test, not a validated production decision-quality claim. Real
+paired AV+speech training data remains the flagged Phase-2 gap.
+
+── A wiring bug found and fixed while building this ─────────────────────
+First version gated vision refresh behind the same MicGate check as
+audio/decision -- but MicGate exists specifically to stop the robot's own
+TTS output re-entering the AUDIO decision path; the camera doesn't "hear"
+the robot's voice, so freezing World-State during TTS playback was
+unnecessary and wrong. Fixed: vision refresh now runs on its own cadence
+regardless of audio gating; only audio/decision/generation are gated.
+Confirmed by the refresh count: 3 refreshes/15s (bug) -> 8 refreshes/15s
+(fixed, matches the 2s-stride expectation almost exactly: 15/2=7.5).
+
+Second bug: the first version fed pre-fabricated (1,32,1024) random
+tensors directly as "World-State input features," never actually calling
+VisionEncoder.encode() -- meaning the reported "vision_refresh_ms" was
+really just the M2 fusion predictor's latency, not ViT-L's. Fixed by
+wiring a real models.vision_encoder.VisionEncoder into StreamingLoop and
+timing the ViT-L forward and fusion-predictor forward SEPARATELY.
+
+── Results (n=60 ticks, 15s simulated, Blackwell) ───────────────────────
+action_counts: backchannel=5, silence=3, speak=2, gated=50 (most ticks
+  land in "gated" because each "speak" decision triggers simulated TTS
+  playback for several seconds, during which MicGate correctly suppresses
+  the decision pipeline -- this is the self-interruption fix working as
+  designed, not a bug: without it, every one of those gated ticks would
+  have been a spurious re-trigger on the robot's own voice).
+
+| component | n | mean (ms) | max (ms) | p95 (ms) |
+|---|---|---|---|---|
+| V-JEPA2 ViT-L forward (real, 64f/256px) | 8 | 83.6 | 244.7 | 244.7 |
+| M2 fusion predictor (encode_world_state) | 8 | 7.0 | 39.0 | 39.0 |
+| Whisper speech-activity feature | 10 | 15.7 | 34.4 | 34.4 |
+| 3-class decision head | 10 | 3.9 | 37.7 | 37.7 |
+| generation (M4b path, 40-token budget) | 2 | 336.1 | 383.5 | 383.5 |
+| full tick wall-clock (all above combined) | 60 | 28.3 | 395.1 | 301.6 |
+
+Generation dominates per-tick cost when it fires (336ms mean for a
+40-token budget) but fires rarely relative to tick count (2/60 ticks in
+this window) since most ticks are silence/gated. ViT-L's real forward
+(83.6ms mean on Blackwell) is an order of magnitude more expensive than
+every other perception/decision component, confirming it as the right
+target for the stride tuning Day 3 focuses on.
+
+Full JSON (all latency distributions, per-tick action log) in
+checkpoints/m5_streaming/blackwell_streaming_results.json.
+
+── Status ────────────────────────────────────────────────────────────────
+Day 1 deliverable met: the full loop (rolling AV windows -> World-State
+refresh -> 3-class decision -> generate -> simulated TTS + echo-gating ->
+mic-gate suppression) runs end-to-end on real audio + real model forward
+passes, with per-component latency instrumented on Blackwell. Moving to
+Day 2 (sustained-conversation fit on the Jetson) next, per the explicit
+stop-here-if-it-fails instruction.

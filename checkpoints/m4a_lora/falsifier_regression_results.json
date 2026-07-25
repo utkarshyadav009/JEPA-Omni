@@ -1,0 +1,15 @@
+{
+  "m3_standalone_with_lora": {
+    "n": 100,
+    "f1_normal": 0.3765726447010253,
+    "f1_swapped": 0.2943455309363055,
+    "f1_zeroed": 0.26195342929198806,
+    "cos_normal": 0.6509684920310974
+  },
+  "m4b_standalone_with_lora": {
+    "n": 100,
+    "cos_normal": 0.4545726153627038,
+    "cos_swapped_vs_target": 0.12430304414592683,
+    "cos_swapped_vs_donor": 0.4545726153627038
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "c_m3_with_speech": {
+    "n": 100,
+    "without_speech": {
+      "f1_normal": 0.47107096436072804,
+      "f1_swapped": 0.26786503165199227,
+      "f1_zeroed": 0.27412973356545883
+    },
+    "with_speech": {
+      "f1_normal": 0.0,
+      "f1_swapped": 0.0,
+      "f1_zeroed": 0.0007142857142857144
+    }
+  },
+  "d_m4b_with_m3": {
+    "n": 100,
+    "without_m3": {
+      "cos_normal": 0.589223042819649,
+      "cos_swapped_vs_target": 0.15158651126082986,
+      "cos_swapped_vs_donor": 0.589223042819649
+    },
+    "with_m3": {
+      "cos_normal": 0.24415011217584834,
+      "cos_swapped_vs_target": 0.12033129119314254,
+      "cos_swapped_vs_donor": 0.24415011217584834
+    }
+  }
+}

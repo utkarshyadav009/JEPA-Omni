@@ -1,0 +1,1407 @@
+{
+  "gallery_size": 4000,
+  "whole_pool_R1_v2a": 0.574999988079071,
+  "whole_pool_R5_v2a": 0.909500002861023,
+  "per_clip": {
+    "QUygd54m8uc_000112": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "DIKZP8-TnOQ_000020": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "zexkXRiD9zk_000050": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "f9vxHKU8Au4_000054": {
+      "rank_vision_to_ambient": 3,
+      "rank_ambient_to_vision": 3,
+      "percentile_v2a": 99.95,
+      "percentile_a2v": 99.95,
+      "gallery_size": 4000
+    },
+    "Y5Qrawu3guY_000030": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "DlAnJVkaHn0_000311": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "MX5ei7dDgPc_000137": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "vM8jzj2bAG0_000210": {
+      "rank_vision_to_ambient": 3,
+      "rank_ambient_to_vision": 6,
+      "percentile_v2a": 99.95,
+      "percentile_a2v": 99.87,
+      "gallery_size": 4000
+    },
+    "B6V6cA5p08M_000083": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "0q1zNZNjzaA_000001": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "3kDi5Hk-Vmw_000030": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 2,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 99.97,
+      "gallery_size": 4000
+    },
+    "G5-Q3SegMa0_000030": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "tLJgj3kUmPI_000112": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "e0i5J6wbnwM_000392": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 3,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 99.95,
+      "gallery_size": 4000
+    },
+    "-7sg--aJdrc_000039": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "ca-rGWC4xPc_000030": {
+      "rank_vision_to_ambient": 17,
+      "rank_ambient_to_vision": 6,
+      "percentile_v2a": 99.6,
+      "percentile_a2v": 99.87,
+      "gallery_size": 4000
+    },
+    "r1j1X3KJibM_000194": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "G7IRrV4fNpU_000191": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "SX07l57Ylmc_000031": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 2,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 99.97,
+      "gallery_size": 4000
+    },
+    "RF8fPkV9HNc_000010": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 2,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 99.97,
+      "gallery_size": 4000
+    },
+    "bMQoIreWQKU_000267": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "mJaX4ZpfULM_000030": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 7,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 99.85,
+      "gallery_size": 4000
+    },
+    "tvcJENqxr1c_000030": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 3,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 99.95,
+      "gallery_size": 4000
+    },
+    "Yb4A_pPqgfM_000019": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "JWK-arpzfMo_000020": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "aj8uvaCqH4U_000000": {
+      "rank_vision_to_ambient": 7,
+      "rank_ambient_to_vision": 3,
+      "percentile_v2a": 99.85,
+      "percentile_a2v": 99.95,
+      "gallery_size": 4000
+    },
+    "yXKFzL5lFKE_000041": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 3,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 99.95,
+      "gallery_size": 4000
+    },
+    "djoF51W8zqw_000048": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "ZkUT6D-H7mk_000006": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "2qg5P9IJ_9U_000070": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "8HUmHsf6dG4_000000": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "TK2lPYfkG-8_000030": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "u06wUniQVlk_000090": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 2,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 99.97,
+      "gallery_size": 4000
+    },
+    "Ia6C4k0o2hc_000020": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "30kPsWBW45w_000020": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 5,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 99.9,
+      "gallery_size": 4000
+    },
+    "F6IUxAJutsk_000030": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "iBH5X5SKirU_000080": {
+      "rank_vision_to_ambient": 4,
+      "rank_ambient_to_vision": 4,
+      "percentile_v2a": 99.92,
+      "percentile_a2v": 99.92,
+      "gallery_size": 4000
+    },
+    "t5kpBQv8trY_000015": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "LEUkbkdBupE_000004": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "99A5reksPts_000520": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 3,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 99.95,
+      "gallery_size": 4000
+    },
+    "Ih3hZZRw9Fg_000415": {
+      "rank_vision_to_ambient": 5,
+      "rank_ambient_to_vision": 9,
+      "percentile_v2a": 99.9,
+      "percentile_a2v": 99.8,
+      "gallery_size": 4000
+    },
+    "w9IrUp87_UQ_000120": {
+      "rank_vision_to_ambient": 4,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 99.92,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "_FEgDYpg5to_000002": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "cVQsteRY8F4_000020": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "d7Xf7brOPzw_000149": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 2,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 99.97,
+      "gallery_size": 4000
+    },
+    "B-K7y3QUkkw_000030": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "XT4XDJR-HtQ_000057": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 2,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 99.97,
+      "gallery_size": 4000
+    },
+    "X_nfMNpw9SA_000060": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "XG1fNGITN08_000400": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "JBCFIEjHh2o_000005": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "Fj9Hv1gEJLA_000030": {
+      "rank_vision_to_ambient": 3,
+      "rank_ambient_to_vision": 4,
+      "percentile_v2a": 99.95,
+      "percentile_a2v": 99.92,
+      "gallery_size": 4000
+    },
+    "5TDg3MSfck8_000030": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "5WL7gVP9i58_000121": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "TgQA1mgDudE_000208": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "x-t8155hXt4_000080": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "6zlMP_kQ_-w_000030": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 2,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 99.97,
+      "gallery_size": 4000
+    },
+    "1vrJPFfLMvA_000233": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "ScNLWuogqpI_000150": {
+      "rank_vision_to_ambient": 3,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 99.95,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "T7ZSZhcsfjA_000009": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 4,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 99.92,
+      "gallery_size": 4000
+    },
+    "Daa2SyGiFBA_000361": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "n0cQ9m7SXqU_000135": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "40AD_oH9eCU_000030": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "Peuy1VcJ17s_000017": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "_2KUAaGiFcE_000002": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "z3h01MBxikE_000000": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "JoE9F2eO_jE_000080": {
+      "rank_vision_to_ambient": 3,
+      "rank_ambient_to_vision": 2,
+      "percentile_v2a": 99.95,
+      "percentile_a2v": 99.97,
+      "gallery_size": 4000
+    },
+    "EXhkQXpZmN8_000093": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 3,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 99.95,
+      "gallery_size": 4000
+    },
+    "zyJ9oIWMEBQ_000110": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 2,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 99.97,
+      "gallery_size": 4000
+    },
+    "KXuB62SMFvA_000030": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "NChR0sxb9ig_000039": {
+      "rank_vision_to_ambient": 3,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 99.95,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "Oj5FYrd3MkQ_000026": {
+      "rank_vision_to_ambient": 18,
+      "rank_ambient_to_vision": 31,
+      "percentile_v2a": 99.57,
+      "percentile_a2v": 99.25,
+      "gallery_size": 4000
+    },
+    "j32gZWkBHUw_000000": {
+      "rank_vision_to_ambient": 1082,
+      "rank_ambient_to_vision": 918,
+      "percentile_v2a": 72.97,
+      "percentile_a2v": 77.07,
+      "gallery_size": 4000
+    },
+    "dLLRg0sur6g_000060": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "lT1j4b8slBI_000039": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "NIRF2ugmr9o_000030": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "_6uZ1HyHSQY_000110": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "_Bvc901F7Ig_000110": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 2,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 99.97,
+      "gallery_size": 4000
+    },
+    "Jikk3-uCa8w_000260": {
+      "rank_vision_to_ambient": 7,
+      "rank_ambient_to_vision": 4,
+      "percentile_v2a": 99.85,
+      "percentile_a2v": 99.92,
+      "gallery_size": 4000
+    },
+    "XHQGUbMSPTM_000030": {
+      "rank_vision_to_ambient": 3,
+      "rank_ambient_to_vision": 3,
+      "percentile_v2a": 99.95,
+      "percentile_a2v": 99.95,
+      "gallery_size": 4000
+    },
+    "VfD2zft-E-M_000030": {
+      "rank_vision_to_ambient": 20,
+      "rank_ambient_to_vision": 10,
+      "percentile_v2a": 99.52,
+      "percentile_a2v": 99.77,
+      "gallery_size": 4000
+    },
+    "ZIm_awdgw_Q_000181": {
+      "rank_vision_to_ambient": 4,
+      "rank_ambient_to_vision": 2,
+      "percentile_v2a": 99.92,
+      "percentile_a2v": 99.97,
+      "gallery_size": 4000
+    },
+    "R3ZTE3rmutA_000036": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 2,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 99.97,
+      "gallery_size": 4000
+    },
+    "m-FO9gFY5Go_000030": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 6,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 99.87,
+      "gallery_size": 4000
+    },
+    "bu2JMRlDl94_000150": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "-t-htrAtNvM_000030": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "nRZ4Vi-4qMQ_000000": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "BeZqhYLzRg4_000181": {
+      "rank_vision_to_ambient": 6,
+      "rank_ambient_to_vision": 4,
+      "percentile_v2a": 99.87,
+      "percentile_a2v": 99.92,
+      "gallery_size": 4000
+    },
+    "xIG97I7qRz8_000097": {
+      "rank_vision_to_ambient": 3,
+      "rank_ambient_to_vision": 3,
+      "percentile_v2a": 99.95,
+      "percentile_a2v": 99.95,
+      "gallery_size": 4000
+    },
+    "YcDPHZA3Dc8_000130": {
+      "rank_vision_to_ambient": 5,
+      "rank_ambient_to_vision": 8,
+      "percentile_v2a": 99.9,
+      "percentile_a2v": 99.82,
+      "gallery_size": 4000
+    },
+    "gykTJfcqaH4_000234": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "dyX9ElZE7TQ_000070": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "IkUsSY47oBk_000020": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "DNwWLZCupMc_000300": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "BiRPlINV5N4_000023": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "baayJxbQepY_000188": {
+      "rank_vision_to_ambient": 7,
+      "rank_ambient_to_vision": 7,
+      "percentile_v2a": 99.85,
+      "percentile_a2v": 99.85,
+      "gallery_size": 4000
+    },
+    "_R9Ma9rjEWg_000030": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "3RfBwL7tXuk_000188": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "usDISc3rmPI_000030": {
+      "rank_vision_to_ambient": 3,
+      "rank_ambient_to_vision": 2,
+      "percentile_v2a": 99.95,
+      "percentile_a2v": 99.97,
+      "gallery_size": 4000
+    },
+    "sKglR9n1aFg_000030": {
+      "rank_vision_to_ambient": 7,
+      "rank_ambient_to_vision": 6,
+      "percentile_v2a": 99.85,
+      "percentile_a2v": 99.87,
+      "gallery_size": 4000
+    },
+    "VfquVEoPZq8_000097": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 2,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 99.97,
+      "gallery_size": 4000
+    },
+    "j-UGe1kz-HY_000003": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "FszIzkuAyHo_000028": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 2,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 99.97,
+      "gallery_size": 4000
+    },
+    "pAvk3k0LPtI_000220": {
+      "rank_vision_to_ambient": 20,
+      "rank_ambient_to_vision": 21,
+      "percentile_v2a": 99.52,
+      "percentile_a2v": 99.5,
+      "gallery_size": 4000
+    },
+    "QHVUSqKkrMc_000030": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "1WGfcIOLUK8_000030": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "lb_m2AVVb5M_000100": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "Rg-vGSWc0sk_000458": {
+      "rank_vision_to_ambient": 3,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 99.95,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "RAB0TWMYQHI_000000": {
+      "rank_vision_to_ambient": 5,
+      "rank_ambient_to_vision": 2,
+      "percentile_v2a": 99.9,
+      "percentile_a2v": 99.97,
+      "gallery_size": 4000
+    },
+    "WW4_c2J79QA_000030": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 6,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 99.87,
+      "gallery_size": 4000
+    },
+    "s4PCAzr_fdY_000046": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 2,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 99.97,
+      "gallery_size": 4000
+    },
+    "jFumbdalT2g_000022": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 4,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 99.92,
+      "gallery_size": 4000
+    },
+    "RS8hMORLDPE_000091": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "ZMN2Bs_Cr1A_000450": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 2,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 99.97,
+      "gallery_size": 4000
+    },
+    "_ObtURsKv-U_000001": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "hsWx3U6etY8_000018": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "E8tUICNlnu0_000137": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "w_mRCETV-aU_000004": {
+      "rank_vision_to_ambient": 4,
+      "rank_ambient_to_vision": 3,
+      "percentile_v2a": 99.92,
+      "percentile_a2v": 99.95,
+      "gallery_size": 4000
+    },
+    "LDGzSk_vzPo_000260": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "kOHIIEOam_8_000000": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "EoquowIMQWA_000000": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "pzRIDUOCOlA_000471": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "REAlPEWq33c_000340": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "kLySMIzASNE_000030": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "zzbTaK7CXJY_000030": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "VM-U7MyZAck_000030": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "IAf3HUIy0lA_000030": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "jas53wmLSNU_000188": {
+      "rank_vision_to_ambient": 12,
+      "rank_ambient_to_vision": 12,
+      "percentile_v2a": 99.72,
+      "percentile_a2v": 99.72,
+      "gallery_size": 4000
+    },
+    "pcGbob7fSgE_000071": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "YiYb6WwdTDA_000030": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 3,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 99.95,
+      "gallery_size": 4000
+    },
+    "hrctp_88BjU_000000": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 2,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 99.97,
+      "gallery_size": 4000
+    },
+    "a8cRcNvRJgg_000064": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "w1-Rli9XnlI_000068": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 4,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 99.92,
+      "gallery_size": 4000
+    },
+    "_rgOfS3NOSY_000108": {
+      "rank_vision_to_ambient": 4,
+      "rank_ambient_to_vision": 3,
+      "percentile_v2a": 99.92,
+      "percentile_a2v": 99.95,
+      "gallery_size": 4000
+    },
+    "k211h3tMeGQ_000060": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "EKcJR2caDAk_000153": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "55z-Cp00-O4_000045": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "zbiJEml563w_000030": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 5,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 99.9,
+      "gallery_size": 4000
+    },
+    "kHNWRR0hJ08_000022": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "7hIUlBvcT5k_000106": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 2,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 99.97,
+      "gallery_size": 4000
+    },
+    "hnpnc72pQOQ_000677": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 2,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 99.97,
+      "gallery_size": 4000
+    },
+    "fxRqbj5xiRg_000029": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 2,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 99.97,
+      "gallery_size": 4000
+    },
+    "yNqzpXyIB1o_000030": {
+      "rank_vision_to_ambient": 3,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 99.95,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "jy9DUEVrrIQ_000192": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "PaZ4aVEsPsE_000019": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "bjb7QtMEBUg_000283": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "76UZQRJq028_000181": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 2,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 99.97,
+      "gallery_size": 4000
+    },
+    "tNzp5xotBjs_000120": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "DSHtSIWAHhM_000062": {
+      "rank_vision_to_ambient": 69,
+      "rank_ambient_to_vision": 66,
+      "percentile_v2a": 98.3,
+      "percentile_a2v": 98.37,
+      "gallery_size": 4000
+    },
+    "DvAImxOHY0g_000006": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "wa7MW_cTrMw_000116": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "z8-pznb0LUQ_000050": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "1sukRxLM77w_000021": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "ZfhY0JZqbQU_000030": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 2,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 99.97,
+      "gallery_size": 4000
+    },
+    "eBwcofimB3M_000165": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 4,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 99.92,
+      "gallery_size": 4000
+    },
+    "QTyxozlbkkQ_000175": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "lYs6JuXM-34_000002": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "h_U-Seegsmo_000018": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "v5IM8bUpeP8_000030": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "I-HlrcP6Qg4_000030": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "SMAOB1Wt6QQ_000406": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "J6bVy2iKZZM_000138": {
+      "rank_vision_to_ambient": 22,
+      "rank_ambient_to_vision": 28,
+      "percentile_v2a": 99.47,
+      "percentile_a2v": 99.32,
+      "gallery_size": 4000
+    },
+    "p1gQTumLv5M_000020": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "tuL0hAaeb_I_000060": {
+      "rank_vision_to_ambient": 6,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 99.87,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "A6T7Pu4pL1M_000030": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "3ZGi57Zl1Qk_000030": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "R1DA-D5mA54_000038": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "QFovsFrNNfw_000136": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 2,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 99.97,
+      "gallery_size": 4000
+    },
+    "DCpWtyLjKmM_000030": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "-6u76q0L5o8_000067": {
+      "rank_vision_to_ambient": 18,
+      "rank_ambient_to_vision": 13,
+      "percentile_v2a": 99.57,
+      "percentile_a2v": 99.7,
+      "gallery_size": 4000
+    },
+    "JL9pKeXjNQ0_000010": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 3,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 99.95,
+      "gallery_size": 4000
+    },
+    "TjP-9AlPShg_000140": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 2,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 99.97,
+      "gallery_size": 4000
+    },
+    "zL1shfumYZI_000000": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 3,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 99.95,
+      "gallery_size": 4000
+    },
+    "eor__yOOiNc_000060": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "kuszXUbEiIA_000014": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "YkTTlw86Yqw_000049": {
+      "rank_vision_to_ambient": 4,
+      "rank_ambient_to_vision": 5,
+      "percentile_v2a": 99.92,
+      "percentile_a2v": 99.9,
+      "gallery_size": 4000
+    },
+    "rCB9BicDeyE_000056": {
+      "rank_vision_to_ambient": 19,
+      "rank_ambient_to_vision": 18,
+      "percentile_v2a": 99.55,
+      "percentile_a2v": 99.57,
+      "gallery_size": 4000
+    },
+    "pFgm8rJ27eg_000060": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "pDUm_JKSk8k_000120": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "o5LsmKXZTCQ_000030": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "_Uro9suV3xU_000130": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 2,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 99.97,
+      "gallery_size": 4000
+    },
+    "ZZ_rDlqB9YM_000207": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 2,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 99.97,
+      "gallery_size": 4000
+    },
+    "kShykuz60oA_000036": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 4,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 99.92,
+      "gallery_size": 4000
+    },
+    "NjFkfmusEbM_000140": {
+      "rank_vision_to_ambient": 3,
+      "rank_ambient_to_vision": 4,
+      "percentile_v2a": 99.95,
+      "percentile_a2v": 99.92,
+      "gallery_size": 4000
+    },
+    "HvGwWk3wjM4_000307": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "kK4aLN6sn0A_000056": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "o4Z9DJi8AJo_000050": {
+      "rank_vision_to_ambient": 3,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 99.95,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "_r--eecSZRk_000024": {
+      "rank_vision_to_ambient": 6,
+      "rank_ambient_to_vision": 2,
+      "percentile_v2a": 99.87,
+      "percentile_a2v": 99.97,
+      "gallery_size": 4000
+    },
+    "qcDtb4adATE_000160": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "l8huGsnYzus_000023": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "eaYJfcK4R-o_000030": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "WhX3jQxHZWc_000030": {
+      "rank_vision_to_ambient": 3,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 99.95,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "NSLj9a8PXhI_000080": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 2,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 99.97,
+      "gallery_size": 4000
+    },
+    "XvXsYOMYa0k_000112": {
+      "rank_vision_to_ambient": 11,
+      "rank_ambient_to_vision": 9,
+      "percentile_v2a": 99.75,
+      "percentile_a2v": 99.8,
+      "gallery_size": 4000
+    },
+    "LXuw0i0_aCI_000040": {
+      "rank_vision_to_ambient": 14,
+      "rank_ambient_to_vision": 8,
+      "percentile_v2a": 99.67,
+      "percentile_a2v": 99.82,
+      "gallery_size": 4000
+    },
+    "SRjsxeOWFnw_000030": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "1XxHC7eMNg8_000024": {
+      "rank_vision_to_ambient": 33,
+      "rank_ambient_to_vision": 37,
+      "percentile_v2a": 99.2,
+      "percentile_a2v": 99.1,
+      "gallery_size": 4000
+    },
+    "qJqlad8lMJ0_000040": {
+      "rank_vision_to_ambient": 2,
+      "rank_ambient_to_vision": 6,
+      "percentile_v2a": 99.97,
+      "percentile_a2v": 99.87,
+      "gallery_size": 4000
+    },
+    "_rmgWtvhMl4_000001": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 2,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 99.97,
+      "gallery_size": 4000
+    },
+    "8JPwzZvlX6E_000095": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 1,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 100.0,
+      "gallery_size": 4000
+    },
+    "IZR4G9Hhy5U_000030": {
+      "rank_vision_to_ambient": 1,
+      "rank_ambient_to_vision": 2,
+      "percentile_v2a": 100.0,
+      "percentile_a2v": 99.97,
+      "gallery_size": 4000
+    }
+  }
+}

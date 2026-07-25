@@ -1,0 +1,192 @@
+{
+  "log": [
+    {
+      "tag": "00_process_start_no_cuda_context",
+      "t": 1784947184.655523,
+      "tegrastats": {
+        "used_mib": 810,
+        "total_mib": 7620,
+        "raw": "07-25-2026 03:39:44 RAM 810/7620MB (lfb 3x4MB) SWAP 0/4096MB (cached 0MB) CPU [0%@1728,0%@1728,0%@1728,0%@1728,0%@1728,0%@1728] GR3D_FREQ 0% cpu@56.5C soc2@55.906C soc0@57.406C gpu@56.781C tj@57.406C soc1@57.156C VDD_IN 9176mW/9176mW VDD_CPU_GPU_CV 1895mW/1895mW VDD_SOC 3678mW/3678mW"
+      },
+      "torch": {
+        "allocated_mib": 0.0,
+        "reserved_mib": 0.0,
+        "max_allocated_mib": 0.0
+      }
+    },
+    {
+      "tag": "01_cuda_context_created",
+      "t": 1784947187.6817446,
+      "tegrastats": {
+        "used_mib": 841,
+        "total_mib": 7620,
+        "raw": "07-25-2026 03:39:47 RAM 841/7620MB (lfb 3x4MB) SWAP 0/4096MB (cached 0MB) CPU [3%@1728,0%@1728,0%@1728,0%@1728,0%@1728,0%@1728] GR3D_FREQ 0% cpu@56.5C soc2@55.812C soc0@57.375C gpu@56.562C tj@57.375C soc1@56.812C VDD_IN 8740mW/8740mW VDD_CPU_GPU_CV 1540mW/1540mW VDD_SOC 3638mW/3638mW"
+      },
+      "torch": {
+        "allocated_mib": 0.00048828125,
+        "reserved_mib": 2.0,
+        "max_allocated_mib": 0.00048828125
+      }
+    },
+    {
+      "tag": "02_wavjepa_base_int8_on_gpu",
+      "t": 1784947201.1402905,
+      "tegrastats": {
+        "used_mib": 1503,
+        "total_mib": 7620,
+        "raw": "07-25-2026 03:40:01 RAM 1503/7620MB (lfb 60x4MB) SWAP 0/4096MB (cached 0MB) CPU [0%@1728,3%@1728,0%@1728,0%@1728,0%@1728,0%@1728] GR3D_FREQ 0% cpu@56.687C soc2@55.906C soc0@57.437C gpu@56.687C tj@57.437C soc1@57.093C VDD_IN 9452mW/9452mW VDD_CPU_GPU_CV 1855mW/1855mW VDD_SOC 3830mW/3830mW"
+      },
+      "torch": {
+        "allocated_mib": 384.88916015625,
+        "reserved_mib": 406.0,
+        "max_allocated_mib": 384.88916015625
+      }
+    },
+    {
+      "tag": "03_wavjepa_nat_int8_on_gpu",
+      "t": 1784947208.6919427,
+      "tegrastats": {
+        "used_mib": 2118,
+        "total_mib": 7620,
+        "raw": "07-25-2026 03:40:09 RAM 2118/7620MB (lfb 57x4MB) SWAP 0/4096MB (cached 0MB) CPU [0%@1728,0%@1728,0%@1728,0%@1728,0%@1728,0%@1728] GR3D_FREQ 0% cpu@56.531C soc2@56.093C soc0@57.625C gpu@56.968C tj@57.625C soc1@57.031C VDD_IN 9477mW/9477mW VDD_CPU_GPU_CV 1895mW/1895mW VDD_SOC 3830mW/3830mW"
+      },
+      "torch": {
+        "allocated_mib": 786.38330078125,
+        "reserved_mib": 832.0,
+        "max_allocated_mib": 786.38330078125
+      }
+    },
+    {
+      "tag": "04_vjepa2_vitl_int8_on_gpu",
+      "t": 1784947216.1239188,
+      "tegrastats": {
+        "used_mib": 2635,
+        "total_mib": 7620,
+        "raw": "07-25-2026 03:40:16 RAM 2635/7620MB (lfb 70x4MB) SWAP 0/4096MB (cached 0MB) CPU [0%@1728,0%@1728,3%@1728,0%@1728,0%@1728,0%@1728] GR3D_FREQ 0% cpu@56.656C soc2@56.031C soc0@57.625C gpu@56.843C tj@57.625C soc1@57.062C VDD_IN 9373mW/9373mW VDD_CPU_GPU_CV 1855mW/1855mW VDD_SOC 3751mW/3751mW"
+      },
+      "torch": {
+        "allocated_mib": 1100.42919921875,
+        "reserved_mib": 1128.0,
+        "max_allocated_mib": 1100.42919921875
+      }
+    },
+    {
+      "tag": "05_VJEPA2_VITL_ISOLATED_FORWARD_64f_256px",
+      "t": 1784947221.6595826,
+      "tegrastats": {
+        "used_mib": 3398,
+        "total_mib": 7620,
+        "raw": "07-25-2026 03:40:21 RAM 3398/7620MB (lfb 64x4MB) SWAP 0/4096MB (cached 0MB) CPU [0%@1728,0%@1728,0%@1728,0%@1728,0%@1728,0%@1728] GR3D_FREQ 0% cpu@57.656C soc2@57.343C soc0@58.968C gpu@58.125C tj@58.968C soc1@57.812C VDD_IN 15549mW/15549mW VDD_CPU_GPU_CV 6080mW/6080mW VDD_SOC 4809mW/4809mW"
+      },
+      "torch": {
+        "allocated_mib": 1124.55419921875,
+        "reserved_mib": 1474.0,
+        "max_allocated_mib": 1372.55419921875
+      },
+      "forward_latency_s": 2.4477338790893555,
+      "output_shape": [
+        1,
+        8192,
+        1024
+      ]
+    },
+    {
+      "tag": "06_whisper_medium_int8_on_gpu",
+      "t": 1784947229.8202019,
+      "tegrastats": {
+        "used_mib": 3241,
+        "total_mib": 7620,
+        "raw": "07-25-2026 03:40:30 RAM 3241/7620MB (lfb 39x4MB) SWAP 0/4096MB (cached 0MB) CPU [0%@1728,0%@1728,0%@1728,0%@1728,0%@1728,0%@1728] GR3D_FREQ 0% cpu@56.968C soc2@56.437C soc0@58C gpu@57.125C tj@58C soc1@57.406C VDD_IN 9413mW/9413mW VDD_CPU_GPU_CV 1855mW/1855mW VDD_SOC 3790mW/3790mW"
+      },
+      "torch": {
+        "allocated_mib": 1407.15576171875,
+        "reserved_mib": 1454.0,
+        "max_allocated_mib": 1407.15576171875
+      }
+    },
+    {
+      "tag": "07_qwen1.5b_int8_on_gpu",
+      "t": 1784947279.0050595,
+      "tegrastats": {
+        "used_mib": 4551,
+        "total_mib": 7620,
+        "raw": "07-25-2026 03:41:19 RAM 4551/7620MB (lfb 44x4MB) SWAP 853/4096MB (cached 444MB) CPU [0%@1728,0%@1728,0%@1728,0%@1728,0%@1728,0%@1728] GR3D_FREQ 0% cpu@56.437C soc2@55.781C soc0@57.25C gpu@56.437C tj@57.25C soc1@56.75C VDD_IN 9413mW/9413mW VDD_CPU_GPU_CV 1855mW/1855mW VDD_SOC 3790mW/3790mW"
+      },
+      "torch": {
+        "allocated_mib": 3388.3740234375,
+        "reserved_mib": 3418.0,
+        "max_allocated_mib": 3388.3740234375
+      }
+    },
+    {
+      "tag": "08_m2_predictor_loaded_fp32",
+      "t": 1784947283.9874425,
+      "tegrastats": {
+        "used_mib": 6441,
+        "total_mib": 7620,
+        "raw": "07-25-2026 03:41:24 RAM 6441/7620MB (lfb 4x4MB) SWAP 853/4096MB (cached 397MB) CPU [0%@1728,0%@1728,0%@1728,0%@1728,0%@1728,0%@1728] GR3D_FREQ 0% cpu@56.312C soc2@55.75C soc0@57.281C gpu@56.593C tj@57.281C soc1@56.781C VDD_IN 9674mW/9674mW VDD_CPU_GPU_CV 1931mW/1931mW VDD_SOC 3909mW/3909mW"
+      },
+      "torch": {
+        "allocated_mib": 3788.818359375,
+        "reserved_mib": 4414.0,
+        "max_allocated_mib": 4383.47998046875
+      }
+    },
+    {
+      "tag": "09_m3_connector_m4b_projector_loaded",
+      "t": 1784947288.4431632,
+      "tegrastats": {
+        "used_mib": 6643,
+        "total_mib": 7620,
+        "raw": "07-25-2026 03:41:28 RAM 6643/7620MB (lfb 10x4MB) SWAP 856/4096MB (cached 270MB) CPU [0%@1728,0%@1728,0%@1728,0%@1728,0%@1728,0%@1728] GR3D_FREQ 0% cpu@56.343C soc2@55.718C soc0@57.218C gpu@56.656C tj@57.218C soc1@56.875C VDD_IN 9492mW/9492mW VDD_CPU_GPU_CV 1895mW/1895mW VDD_SOC 3830mW/3830mW"
+      },
+      "torch": {
+        "allocated_mib": 4219.1640625,
+        "reserved_mib": 4700.0,
+        "max_allocated_mib": 4649.509765625
+      }
+    },
+    {
+      "tag": "10_FULL_STACK_LOADED_STEADY_STATE",
+      "t": 1784947291.4803593,
+      "tegrastats": {
+        "used_mib": 6647,
+        "total_mib": 7620,
+        "raw": "07-25-2026 03:41:31 RAM 6647/7620MB (lfb 10x4MB) SWAP 856/4096MB (cached 270MB) CPU [0%@1728,0%@1728,3%@1728,0%@1728,0%@1728,0%@1728] GR3D_FREQ 0% cpu@56.281C soc2@55.531C soc0@57.093C gpu@56.25C tj@57.093C soc1@56.781C VDD_IN 8701mW/8701mW VDD_CPU_GPU_CV 1540mW/1540mW VDD_SOC 3638mW/3638mW"
+      },
+      "torch": {
+        "allocated_mib": 4224.18994140625,
+        "reserved_mib": 4702.0,
+        "max_allocated_mib": 4649.509765625
+      }
+    },
+    {
+      "tag": "11_FULL_TICK_AFTER_perception+decision+generation",
+      "t": 1784947310.3449872,
+      "tegrastats": {
+        "used_mib": 6863,
+        "total_mib": 7620,
+        "raw": "07-25-2026 03:41:50 RAM 6863/7620MB (lfb 8x4MB) SWAP 879/4096MB (cached 139MB) CPU [3%@1728,0%@1728,0%@1728,0%@1728,0%@1728,0%@1728] GR3D_FREQ 0% cpu@58.812C soc2@58.218C soc0@59.687C gpu@59.062C tj@59.687C soc1@59.156C VDD_IN 10881mW/10881mW VDD_CPU_GPU_CV 2558mW/2558mW VDD_SOC 4218mW/4218mW"
+      },
+      "torch": {
+        "allocated_mib": 4244.7216796875,
+        "reserved_mib": 4756.0,
+        "max_allocated_mib": 4693.84716796875
+      },
+      "tick_latency_s": 15.228837966918945
+    }
+  ],
+  "kv_cache_report": {
+    "n_layers": 28,
+    "n_kv_heads": 2,
+    "head_dim": 128,
+    "bytes_per_token": 28672,
+    "mib_per_1k_tokens": 27.34375,
+    "steady_state_used_mib": 6647,
+    "total_mib": 7620,
+    "raw_headroom_mib": 973,
+    "max_kv_tokens_at_raw_headroom": 35584
+  },
+  "quantized": true,
+  "status": "COMPLETE"
+}

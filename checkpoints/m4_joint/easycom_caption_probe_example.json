@@ -1,0 +1,164 @@
+{
+  "session": 1,
+  "chunk": "00-00-000",
+  "scene_caption": "The audio contains a conversation between two people. The speech is in English with no discernible accent.",
+  "n_segments": 17,
+  "segments": [
+    {
+      "Start_Frame": 108,
+      "End_Frame": 119,
+      "Participant_ID": 2,
+      "Transcription": "Awesome.",
+      "Target_of_Speech": [
+        6
+      ]
+    },
+    {
+      "Start_Frame": 210,
+      "End_Frame": 325,
+      "Participant_ID": 2,
+      "Transcription": "Awesome. I am Jack Williams and I'm a software engineer. What type of school do you teach? Or what level of school do you teach? ",
+      "Target_of_Speech": [
+        "Group",
+        4
+      ]
+    },
+    {
+      "Start_Frame": 374,
+      "End_Frame": 391,
+      "Participant_ID": 2,
+      "Transcription": "Awesome. ",
+      "Target_of_Speech": [
+        4
+      ]
+    },
+    {
+      "Start_Frame": 416,
+      "End_Frame": 454,
+      "Participant_ID": 2,
+      "Transcription": "Heavy on the analytics, then? [L] ",
+      "Target_of_Speech": [
+        4
+      ]
+    },
+    {
+      "Start_Frame": 498,
+      "End_Frame": 556,
+      "Participant_ID": 2,
+      "Transcription": "Awesome. What do you represent as a customer service representative? ",
+      "Target_of_Speech": [
+        4,
+        6
+      ]
+    },
+    {
+      "Start_Frame": 763,
+      "End_Frame": 880,
+      "Participant_ID": 2,
+      "Transcription": "Awesome! Very cool. Well maybe you'll deliver some to school then. [L]",
+      "Target_of_Speech": [
+        6
+      ]
+    },
+    {
+      "Start_Frame": 924,
+      "End_Frame": 976,
+      "Participant_ID": 2,
+      "Transcription": "[H] I work for Microsoft. Yup. ",
+      "Target_of_Speech": [
+        6,
+        4
+      ]
+    },
+    {
+      "Start_Frame": 1006,
+      "End_Frame": 1200,
+      "Participant_ID": 2,
+      "Transcription": "[H] Anything that's kind of at the software integration level. So, [H] I'm currently in training as an intern. [H] Kind of looking to find where my expertise [X]",
+      "Target_of_Speech": [
+        "Group"
+      ]
+    },
+    {
+      "Start_Frame": 1,
+      "End_Frame": 109,
+      "Participant_ID": 6,
+      "Transcription": "[H] [L] I'm [H] I'm Jessica Garcia and I'm a customer service representative. How bout you guys? ",
+      "Target_of_Speech": [
+        "Group"
+      ]
+    },
+    {
+      "Start_Frame": 119,
+      "End_Frame": 208,
+      "Participant_ID": 4,
+      "Transcription": "I'm [H] Charlie Wilson and I'm a high school teacher. ",
+      "Target_of_Speech": [
+        "Group"
+      ]
+    },
+    {
+      "Start_Frame": 312,
+      "End_Frame": 420,
+      "Participant_ID": 4,
+      "Transcription": "[H] I teach [H] computer programming and math so t- two classes. ",
+      "Target_of_Speech": [
+        2
+      ]
+    },
+    {
+      "Start_Frame": 449,
+      "End_Frame": 500,
+      "Participant_ID": 4,
+      "Transcription": "Little bit. Yeah. That- that makes it easier. ",
+      "Target_of_Speech": [
+        4
+      ]
+    },
+    {
+      "Start_Frame": 978,
+      "End_Frame": 1005,
+      "Participant_ID": 4,
+      "Transcription": "What kind of software do you work on? ",
+      "Target_of_Speech": [
+        2
+      ]
+    },
+    {
+      "Start_Frame": 271,
+      "End_Frame": 281,
+      "Participant_ID": 6,
+      "Transcription": "Awesome. ",
+      "Target_of_Speech": [
+        4
+      ]
+    },
+    {
+      "Start_Frame": 554,
+      "End_Frame": 779,
+      "Participant_ID": 6,
+      "Transcription": "[H] So, I actually work for a small company that has the local dessert. [H] Yeah. So, I deal with people who want to deliver stuff out of town for this dessert. Yeah.",
+      "Target_of_Speech": [
+        2
+      ]
+    },
+    {
+      "Start_Frame": 845,
+      "End_Frame": 922,
+      "Participant_ID": 6,
+      "Transcription": "[L] Yeah maybe. So, what company do you work for? ",
+      "Target_of_Speech": [
+        2
+      ]
+    },
+    {
+      "Start_Frame": 955,
+      "End_Frame": 977,
+      "Participant_ID": 6,
+      "Transcription": "Oh man! [L]",
+      "Target_of_Speech": [
+        2
+      ]
+    }
+  ]
+}

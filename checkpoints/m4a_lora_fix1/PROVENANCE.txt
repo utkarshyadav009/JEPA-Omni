@@ -1,0 +1,47 @@
+PHASE 1a — FIX 1 ATTEMPT (silence-collapse: loss reweighting + longer training)
+Frozen: 2026-07-24
+Source: checkpoints/m4a_lora_fix1/last.pt (step 8000). best.pt (step 2400,
+  test_loss=2.588, selected by test_loss since best_silence_balance.pt was
+  never updated -- balance score stayed at 0.000 for all 40 eval points).
+
+STATUS: FAILED. Isolates Fix 1 in the pre-agreed decision tree (loss
+reweighting + longer training, LoRA rank UNCHANGED at r=8, same as the
+original Phase 1a run) against the silence-collapse gate.
+
+── Change from the original Phase 1a run ───────────────────────────────────
+  - silence_weight=6.0 (loss multiplier on <silence>-labeled examples only;
+    speak examples stay 1.0)
+  - max_steps=8000 (4x the original 2000)
+  - Everything else identical: LoRA r=8/alpha=16/dropout=0.05 (full target
+    modules), M2/M3/whisper/M4b frozen at their post-joint-training state
+    (checkpoints/m4_joint/best.pt), same mixed VGGSound-pseudo-timeline +
+    EasyCom-turn-taking training data.
+
+── Result: silence-rate trajectory, full history ───────────────────────────
+Logged every 200 steps, all 40 points, in train_log.jsonl. Every single one:
+  silence_recall=0.000, speak_recall=1.000 (both vgg and easycom sources)
+FLAT AT ZERO for the entire 8000-step run -- not slow convergence, no
+measurable movement at any point. 6x reweighting and 4x more training did
+not budge this metric by any amount detectable at this eval resolution
+(n=60 per checkpoint, n=300 final).
+
+── Result: mandatory falsifier regression ──────────────────────────────────
+Full numbers: checkpoints/falsifier_tracking.md.
+  M3 standalone:  F1 0.365/0.290/0.290, cos=0.623. Gap (normal-swapped)
+    = 0.075 -- WORSE than the original Phase 1a run's 0.083, still fails
+    the 0.12 hard floor by a wide margin. (Rank wasn't changed here, so
+    this is expected -- Fix 1 targets silence-learning, not grounding.)
+  M4b standalone: cos_normal=0.519, swap_donor=0.519 (matches cos_normal
+    exactly, swap-control intact) -- improved over the original 1a run's
+    0.455 and even over post-joint's 0.419.
+
+── Verdict ──────────────────────────────────────────────────────────────────
+Fix 1a (reweighting) + Fix 1b (longer training) as specified do NOT solve
+the silence-collapse problem, with zero measurable progress across the
+entire trajectory. This is a stronger negative result than "not enough
+steps yet" -- flat-zero for 8000 steps suggests a genuine optimization
+obstacle (e.g. a very sharp/narrow basin the LoRA+2-token gradient can't
+reach), not merely insufficient exposure. Per the pre-agreed decision tree,
+this points toward Fix 1c (curriculum: train the speak/silence decision
+ALONE, no content generation mixed in, before reintroducing captioning) as
+the next thing to try -- flagged for review, not started.

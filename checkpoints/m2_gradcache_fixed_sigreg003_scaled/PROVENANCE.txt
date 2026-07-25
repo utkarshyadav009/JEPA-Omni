@@ -1,0 +1,5 @@
+Run 4 (STEP 1 negatives bet): GradCache, 1536 negatives, scaled SIGReg (lam=0.00375).
+Killed at step 2000 per pre-registered gate: avg R@1 collapsed 24.76%(step1000)->19.19%(step2000),
+c_acc=0.995 (saturated). Third independent negatives null (192->200->1536), worst of the three.
+Only step2000.pt kept -- it is the checkpoint the reported 19.19% number came from.
+best.pt/last.pt/step1000.pt removed (not individually referenced in any report).

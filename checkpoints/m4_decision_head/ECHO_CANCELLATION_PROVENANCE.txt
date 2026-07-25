@@ -1,0 +1,86 @@
+ECHO CANCELLATION / SELF-INTERRUPTION FIX
+Built: 2026-07-25
+Components: models/m4_echo_cancellation.py (MicGate, PyAecCanceller,
+  NLMSEchoCanceller-for-reference, simulate_echo_path), scripts/
+  m4_echo_test.py.
+
+── The problem ──────────────────────────────────────────────────────────
+When TTS is attached, the robot's own speech enters its own mic, VAD fires
+(the decision head detects speech-activity), and the controller halts its
+own generation -- a self-interruption loop. Tested via simulation: real
+EasyCom speech segments stand in for TTS output, a standard AEC test
+methodology (fixed delay + attenuation + noise) simulates the acoustic
+loopback path, real EasyCom segments (different clips) stand in for
+genuine simultaneous user interruptions.
+
+── First bug found and fixed: naive mic gating is worse than no fix ──────
+Initial implementation fed an all-ZERO waveform through the Whisper->
+decision-head pipeline while "gated." Direct test: P(speak) on an all-zero
+2s waveform = 0.999 -- an all-zero input is OUT OF DISTRIBUTION for the
+decision head (training silence was always real quiet-room audio, never
+mathematically-zero digital silence), so naive zero-feeding GUARANTEES a
+false trigger rather than preventing one. Fixed: MicGate.should_run_decision()
+short-circuits the pipeline BEFORE the model call -- skip the decision
+entirely while gated, don't feed zeroed audio into it.
+
+── Second bug found and fixed: from-scratch NLMS doesn't converge on real speech ──
+A from-scratch time-domain NLMS filter (models/m4_echo_cancellation.py
+NLMSEchoCanceller, kept for reference) was verified correct on stationary
+test signals (26.6dB ERLE on a two-tone sine) but did NOT converge on real,
+non-stationary EasyCom speech even over a 409s continuous stream (~-1dB
+ERLE, i.e. no improvement) despite retuning mu/eps for stability. This is a
+genuine, measured limitation of naive time-domain NLMS on real speech, not
+a bug in the test -- confirmed by isolating the variable (same delay/
+attenuation setup on a stationary tone converged fine at 21.7dB).
+
+── Fix: pyaec (C library binding) with preprocessing enabled ─────────────
+Installed `pyaec` (ctypes binding to a compiled C AEC library, speex-
+family). enable_preprocess=False gave <1dB ERLE on real speech (same
+non-convergence problem as the from-scratch NLMS); enable_preprocess=True
+gave 14.24dB ERLE in an isolated check and 13.2-13.4dB ERLE in the full
+test (consistent across simulated attenuation levels 0.05-0.6) --
+preprocessing turned out to be load-bearing, not optional, for real speech.
+
+── Measured results (n=40 eval points spread across a 520.9s concatenated
+   stream of 240 real EasyCom segments; see checkpoints/m4_decision_head/
+   echo_test_results.json) ──────────────────────────────────────────────
+
+Case A -- self-echo ONLY (no real user speech), false-interruption rate:
+  no fix:                    0.625  (25/40)
+  mic gating:                0.000  (0/40)   <- only condition at zero
+  AEC, warm-up region:       0.941  (16/17)
+  AEC, converged region:     1.000  (23/23)  <- see root cause below
+
+Case B -- self-echo + REAL simultaneous interruption, detection-preserved rate:
+  no fix:                    0.913  (21/23)
+  mic gating:                0.000  (0/23)   <- blocks real interruptions too
+  AEC, converged region:     0.913  (21/23)  <- preserves real interruptions
+
+── Root cause of AEC's residual false-interruption rate ──────────────────
+Measured directly: AEC residual RMS is ~0.0022 REGARDLESS of the input
+echo's attenuation level (tested 0.05 to 0.6, residual RMS identical to 3
+decimal places each time) -- an apparent noise floor independent of echo
+loudness, likely comfort-noise injected by enable_preprocess=True. That
+floor (0.0022) is comparable to or louder than genuine quiet real speech
+(EasyCom measured RMS: mean 0.00188, p10 0.00077, min 0.00024) -- so a
+downstream energy/SNR gate on top of AEC would NOT cleanly separate
+residual self-echo from real quiet speech either; both approaches were
+considered and this one was verified insufficient before ruling it out,
+not assumed.
+
+── RECOMMENDATION (hybrid, evidence-based, not a clean single answer) ────
+MIC GATING as the safe default during TTS playback -- the only condition
+measured at 0% false-interruption -- accepting the real, measured cost
+that it also blocks genuine barge-in during robot speech (0% detection-
+preserved). AEC (pyaec, preprocessing on) is NOT sufficient on its own:
+its false-interruption rate in the converged region (100%) was actually
+WORSE than doing nothing at all (62.5% no-fix) in this test, because its
+comfort-noise floor is loud enough to itself look like speech to the
+current decision head. AEC still provides real, measured echo suppression
+(13dB ERLE) and stays in the pipeline as a legitimate building block, but
+should NOT be relied on alone to enable barge-in during TTS playback until
+either (a) hardware-level echo suppression reduces the raw echo level AEC
+has to work with, or (b) the decision head is retrained with real
+AEC-residual/comfort-noise negative examples so it stops treating that
+specific noise floor as speech. Neither attempted here -- flagged as
+follow-up work, not silently deferred.

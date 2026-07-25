@@ -1,0 +1,33 @@
+{
+  "n_boundary_pairs": 2318,
+  "n_within_pairs": 1850,
+  "pca_K": 318,
+  "pca_explained_var": 0.950065428575097,
+  "metrics": {
+    "euclidean": {
+      "roc_auc": 0.6137627964461442,
+      "cohens_d": 0.4003614988031517,
+      "boundary_mean": 19.662823691154454,
+      "boundary_std": 4.864707923609163,
+      "within_mean": 17.64801388434746,
+      "within_std": 5.192442530990037
+    },
+    "cosine": {
+      "roc_auc": 0.6118203017512768,
+      "cohens_d": 0.36318203721913983,
+      "boundary_mean": 0.2243970929253153,
+      "boundary_std": 0.10141212742125347,
+      "within_mean": 0.1878698168418647,
+      "within_std": 0.09968298611300275
+    },
+    "mahalanobis": {
+      "roc_auc": 0.49699577921320803,
+      "cohens_d": -0.003956981978847676,
+      "boundary_mean": 23.938648273470164,
+      "boundary_std": 4.915024924432754,
+      "within_mean": 23.958204750234774,
+      "within_std": 4.966975306566111
+    }
+  },
+  "selected_metric": "euclidean"
+}

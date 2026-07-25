@@ -213,6 +213,18 @@ class AVJepaPredictor(nn.Module):
         attn = torch.softmax((q @ h.transpose(1, 2)) / (h.shape[-1] ** 0.5), dim=-1)  # (B,1,S)
         return (attn @ h).squeeze(1)                            # (B, d) un-normalised
 
+    @torch.no_grad()
+    def encode_pre_pool_tokens(self, feats: Dict[str, Tensor], tbins: Dict[str, Tensor]) -> Tensor:
+        """Full (unmasked) sequence -> post-backbone, PRE-POOL tokens (B, S, d).
+        For M3: the connector's Perceiver-style latent queries cross-attend this
+        per-token sequence, not the already-collapsed single World-State vector
+        (encode_world_state) -- a fixed set of latent queries attending a
+        sequence of length 1 has nothing to aggregate. Same backbone forward as
+        encode_world_state, just returned before the attentive pool collapses
+        it to one vector. Frozen/no-grad, like encode_world_state."""
+        tokens, _, _ = self._embed(feats, tbins)
+        return self._backbone(tokens)                            # (B, S, d)
+
     def encode_source_tokens(
         self, feats: Dict[str, Tensor], tbins: Dict[str, Tensor]
     ) -> Dict[str, Tensor]:

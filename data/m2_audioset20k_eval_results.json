@@ -1,0 +1,15 @@
+{
+  "checkpoint": "checkpoints/m2_fusion_20k_best/step19000_peak.pt",
+  "n_train": 20550,
+  "n_test": 18886,
+  "wavjepa_baseline": {
+    "mAP": 16.82,
+    "Top-1 Acc": 51.66,
+    "Top-5 Acc": 69.76
+  },
+  "m2_predictor": {
+    "mAP": 19.08,
+    "Top-1 Acc": 55.76,
+    "Top-5 Acc": 75.29
+  }
+}

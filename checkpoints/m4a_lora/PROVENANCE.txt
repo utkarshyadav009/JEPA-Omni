@@ -1,0 +1,64 @@
+PHASE 1a — LoRA-ONLY RUN (M4a control-token emission)
+Frozen: 2026-07-24
+Source: checkpoints/m4a_lora/last.pt (step 2000). best.pt (step 1200,
+  test_loss=2.4726) is the checkpoint to use.
+
+STATUS: FAILED the silence-rate gate. Do not proceed to Phase 1b (duplex
+loop) on this checkpoint. See checkpoints/falsifier_tracking.md for the
+full picture including the mandatory falsifier regression.
+
+── What this run tested ────────────────────────────────────────────────────
+Isolates ONE question: can the LLM learn to emit <silence>/<stop_interruption>
+at the right times via LoRA + the control-token delta, WITHOUT the full
+duplex loop (no example contains both M3 and M4b streams at once -- single-
+stream only, alternated per step). Trainable: LoRA (r=8, alpha=16,
+dropout=0.05) + control-token delta (models/m4_control.py), 9,235,456 params
+total. Frozen and UNCHANGED from their post-joint-training state
+(checkpoints/m4_joint/best.pt): M2 predictor, M3 connector, whisper-medium,
+M4b projector, and the LLM's own base weights.
+
+Data: 50/50 mix per step of (a) data/m4_pseudo_timeline.py (VGGSound,
+M3-only conditioning, speak=caption/silence=<silence>) and (b)
+data/m4_easycom_turntaking.py (EasyCom, M4b-only conditioning, speak=
+transcript/silence=<silence>, using REAL audio gaps between utterances,
+not synthetic). Session split matches m4b's (train=[1-9], test=[10,11,12]).
+
+── Result 1: silence-rate gate -- FAILED ───────────────────────────────────
+n=150/source, held out:
+  VGGSound:  gt_silence_rate=0.813  silence_recall=0.000  speak_recall=1.000
+  EasyCom:   gt_silence_rate=0.520  silence_recall=0.000  speak_recall=1.000
+Model always predicts "speak," never <silence>, on both sources. Verified
+not a scoring artifact: P(<silence>) on real silence-labeled examples
+directly inspected at ~0.0004 (barely above ~0.0000066 uniform-chance
+floor), against a flat, unconverged distribution (top candidate only 1.35%
+probability) -- not a confident wrong answer, genuinely undertrained on
+this specific behavior. Hypothesis: 2-token silence targets vs many-token
+speak targets give asymmetric gradient volume; 2000 steps / lr=1e-4 wasn't
+enough to overcome the pretrained instruct-tuned prior toward always
+producing fluent text.
+
+── Result 2: mandatory falsifier regression (vs checkpoints/m4_joint) ──────
+Full numbers + running history: checkpoints/falsifier_tracking.md.
+  M3 standalone:  F1 0.430/0.270/0.249 -> 0.377/0.294/0.262 (F1 normal
+    -12.3% relative vs joint stage, -20.0% CUMULATIVE vs original frozen-
+    LLM baseline). cos 0.714 -> 0.651 (-8.8% vs joint, -10.1% cumulative).
+    Gap (normal-swapped) narrowed from 0.160 (post-joint) to 0.083 (post-
+    LoRA) -- still positive/discriminating but less than half the original
+    0.203 baseline gap.
+  M4b standalone: cos_normal 0.419 -> 0.455 (+8.6% vs joint stage -- LoRA
+    partially RECOVERED M4b's joint-training cost). -12.0% cumulative vs
+    original baseline. swapped_vs_donor == cos_normal preserved exactly
+    throughout (swap-control mechanism intact).
+
+── Verdict ──────────────────────────────────────────────────────────────────
+Two failures, either alone sufficient to stop before Phase 1b:
+  1. The core question this run existed to answer (can LoRA teach control-
+     token emission?) is answered NO with this configuration.
+  2. M3 grounding has now degraded a cumulative ~20% (F1) / ~10% (cos)
+     across two stages -- exactly the compounding-drift pattern the
+     standing rule was built to catch, even though neither stage alone
+     looked catastrophic.
+Do not build the duplex loop on this checkpoint. Needs a fix (more steps,
+reweighted loss favoring rare/short targets, smaller LoRA rank to reduce
+grounding cost, or a curriculum that isolates silence-learning first) before
+re-attempting Phase 1a.

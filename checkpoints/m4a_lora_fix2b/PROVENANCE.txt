@@ -1,0 +1,45 @@
+PHASE 1a — FIX 2b, FOR-THE-RECORD RUN (attention-only LoRA, r=4)
+Frozen: 2026-07-24
+Source: checkpoints/m4a_lora_fix2b/last.pt (step 8000). best.pt (step 4600,
+  test_loss=2.618).
+
+STATUS: superseded by the decision-head pivot (checkpoints/m4_decision_head).
+This run was executed for the record only, per explicit instruction ("one
+run only, do not iterate further on it") -- not part of an ongoing LoRA
+iteration.
+
+── Config ────────────────────────────────────────────────────────────────
+lora_r=4, target_modules=attn_only (q_proj/k_proj/v_proj/o_proj only, FFN
+dropped), silence_weight=6.0, max_steps=8000 -- otherwise identical to
+Fix 2a.
+
+── Result: silence-rate ─────────────────────────────────────────────────
+Flat zero across all 40 checkpoints, same as every other LoRA configuration
+tried. Irrelevant to this run's purpose (grounding-floor check only) but
+recorded for completeness -- the decision-head pivot was already the
+approved direction by the time this ran; the silence-emission question is
+not what this run was testing.
+
+── Result: mandatory falsifier regression ──────────────────────────────────
+Full numbers: checkpoints/falsifier_tracking.md.
+  M3 standalone:  F1 0.318/0.236/0.268, cos=0.615. Gap (normal-swapped)
+    = 0.082 -- actually WORSE than Fix 2a's full-target r=4 result (0.108),
+    and about the same as the very first Phase 1a run (0.083). Still fails
+    the 0.12 hard floor.
+  M4b standalone: cos_normal=0.652 -- the best M4b number recorded across
+    every single stage in this project's history (baseline 0.517, post-
+    joint 0.419, Phase-1a 0.455, Fix1 0.519, Fix2a 0.594, Fix2b 0.652).
+    swapped_vs_donor=0.652 exactly matches cos_normal (swap-control intact).
+
+── Verdict ──────────────────────────────────────────────────────────────
+Dropping FFN targets did NOT reliably improve M3's grounding drift over
+Fix 2a (r=4, full targets) -- if anything slightly worse. Confirms M3's
+sensitivity to ANY LoRA-induced LLM drift isn't cleanly localized to the
+FFN pathway. M4b, by contrast, keeps improving with less LoRA capacity --
+consistent with the asymmetric pattern seen throughout (M3 is the more
+fragile connector under LLM perturbation).
+
+This result does not change the LoRA recommendation (DROP IT): the reason
+LoRA was introduced -- control-token emission -- no longer exists in the
+LLM, so no amount of rank/target-module tuning is worth pursuing further.
+See checkpoints/m4_decision_head/PROVENANCE.txt for the replacement.

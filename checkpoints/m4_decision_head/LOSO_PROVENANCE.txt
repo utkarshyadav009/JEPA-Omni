@@ -1,0 +1,91 @@
+M4 DECISION HEAD — LEAVE-ONE-SPEAKER-OUT (LOSO) EVALUATION
+Built: 2026-07-25
+Source: scripts/m4_loso_eval.py, checkpoints/m4_decision_head/loso_results.json
+
+── The flagged limitation ──────────────────────────────────────────────────
+The M4c headline (0.988 session-level turn-taking F1, PROVENANCE in
+checkpoints/falsifier_tracking.md) holds out whole RECORDINGS (sessions
+10/11/12), not whole VOICES -- checked directly, the 5 speaker IDs with
+usable close-mic audio in the held-out sessions ({3,4,5,6,7}) are the
+EXACT SAME 5 IDs appearing in the train sessions. "Held-out session" does
+not mean "held-out speaker."
+
+── Feasibility ─────────────────────────────────────────────────────────────
+EasyCom has 7 distinct participants total across 12 sessions, but only 5
+have their OWN Close_Microphone_Audio file (data/m4_speech_dataset.py's
+long-standing constraint -- the AR-glasses wearer per session has no
+separate close-mic recording). LOSO is therefore feasible and meaningful
+over exactly these 5 speakers: {3,4,5,6,7}, with real, substantially
+unequal per-speaker data volume:
+
+  speaker 3:  942 ticks (11.9%), sessions {2,4,11}
+  speaker 4: 2828 ticks (35.8%), sessions {1,3,4,5,6,7,8,9,10,12}
+  speaker 5:  493 ticks ( 6.2%), sessions {2,11}
+  speaker 6: 2973 ticks (37.6%), sessions {1,3,4,5,6,7,8,9,10,12}
+  speaker 7:  665 ticks ( 8.4%), sessions {2,4,11}
+
+Speakers 4 and 6 are the two dominant participants appearing in 10/12
+sessions each; speakers 3/5/7 appear only in the 3-session subset
+{2,4,11}. Total across all 5 = 7,901 ticks, matching the full EasyCom
+turn-taking pool exactly.
+
+── Method ───────────────────────────────────────────────────────────────
+5-fold LOSO: for each speaker, train a FRESH SpeakSilenceHead (same
+architecture/recipe as the original head -- BCE + pos_weight, 60 epochs,
+AdamW lr=1e-3) on VGGSound (unchanged every fold, no speaker concept) +
+the OTHER 4 speakers' EasyCom ticks (irrespective of session), then
+evaluate on the held-out speaker's ticks, across ALL sessions they appear
+in. Feature re-extraction was NOT needed: build_ticks() is deterministic
+(glob-sorted), so the already-cached Whisper features
+(checkpoints/m4_decision_head/features_cache.pt) were realigned with
+per-tick participant IDs parsed from each tick's audio_path -- verified by
+asserting the realigned tensor count matches len(build_ticks()) output
+exactly before running any fold.
+
+── Result: HONEST, and better than the flagged concern suggested ──────────
+
+| speaker held out | n | gt_speak_rate | speak_recall | silence_recall | accuracy |
+|---|---|---|---|---|---|
+| 3 | 942  | 0.559 | 0.992 | 0.995 | 0.994 |
+| 4 | 2828 | 0.561 | 0.986 | 0.988 | 0.987 |
+| 5 | 493  | 0.574 | 0.965 | 0.971 | 0.968 |
+| 6 | 2973 | 0.570 | 0.992 | 0.985 | 0.989 |
+| 7 | 665  | 0.588 | 0.992 | 0.996 | 0.994 |
+
+**LOSO macro-average (5 folds, genuinely unseen voice each fold):
+speak_recall=0.986, silence_recall=0.987, accuracy=0.986**
+(micro-average accuracy, weighted by fold size: 0.988)
+
+**vs. the session-split headline (known voices, held-out recordings):
+speak_recall=0.994, silence_recall=0.976, accuracy=0.986**
+
+The LOSO accuracy is statistically indistinguishable from the session-split
+number (0.986 vs 0.986); silence_recall is actually slightly HIGHER under
+LOSO (0.987 vs 0.976) while speak_recall is slightly lower (0.986 vs
+0.994) -- a small, plausible tradeoff, not a collapse. VGGSound mechanism-
+check numbers (unaffected by any EasyCom speaker change, included as a
+per-fold training-stability sanity check) stay flat across all 5 folds
+(accuracy 0.892-0.896), confirming the small EasyCom fold-to-fold changes
+aren't an artifact of unstable training.
+
+── Interpretation ──────────────────────────────────────────────────────────
+This is a genuinely reassuring result, not the confirmation-of-a-problem
+the flagged limitation might have predicted. Plausible reason: the
+decision head's speech-activity feature is a MEAN-POOLED Whisper hidden
+state -- Whisper is trained for transcription/semantic content, and
+mean-pooling further discards most speaker-identity detail (pitch, timbre)
+in favor of "what was said" / "was anything said." Turn-taking (is there
+speech-activity right now) is largely a SPEAKER-AGNOSTIC acoustic-presence
+signal in this feature space, unlike, say, the shift-trigger task
+(models/m4_shift_trigger.py) which explicitly leans on whatever
+speaker-identity signal survives mean-pooling and only reaches modest
+AUC=0.614 for that reason.
+
+HONEST REMAINING CAVEAT: this LOSO result does NOT fully retire the
+external-validity concern. All 5 speakers were recorded in the SAME small
+set of rooms/setups/sessions (same dataset, same acoustic environment,
+same recording hardware) -- this tests generalization across 5 voices
+within one acoustic domain, not generalization to a genuinely new
+room/microphone/accent/language. That broader claim would need a second,
+independent recording setup, which EasyCom alone cannot supervise. Flagged
+as the next-level limitation, not glossed over.

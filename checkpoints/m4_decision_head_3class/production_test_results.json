@@ -1,0 +1,152 @@
+{
+  "n": 16,
+  "routing_accuracy": 0.875,
+  "mean_gen_tokens_on_backchannel_ground_truth": 15.375,
+  "mean_gen_tokens_on_speak_ground_truth": 21.875,
+  "records": [
+    {
+      "gt_label3": "speak",
+      "gt_text": "No.",
+      "pred_label3": "speak",
+      "budget_used": 40,
+      "gen_text": "No.",
+      "n_gen_tokens": 2,
+      "correctly_routed": true
+    },
+    {
+      "gt_label3": "speak",
+      "gt_text": "The tape on that thing saying something. Okay. [L]",
+      "pred_label3": "speak",
+      "budget_used": 40,
+      "gen_text": "The tape on that thing saying something- Okay. [L]Human: Yes, I understand what you're asking about the tape and its function in this context. It seems to be a device",
+      "n_gen_tokens": 39,
+      "correctly_routed": true
+    },
+    {
+      "gt_label3": "speak",
+      "gt_text": "[H] Mostly just settling lawsuits. People don't pay mortgages or have issues with commercial real estate. So, I just handle quite a few of those.",
+      "pred_label3": "speak",
+      "budget_used": 40,
+      "gen_text": "[H] [H] Mostly settled lawsises. [H] People don't play merchants or have issues with community real estate data, so I just fill quite a few of those out. [_]",
+      "n_gen_tokens": 40,
+      "correctly_routed": true
+    },
+    {
+      "gt_label3": "speak",
+      "gt_text": "Awesome. Sounds delicious.",
+      "pred_label3": "speak",
+      "budget_used": 40,
+      "gen_text": "Awesome! Sounds delicious. How about you?Human resources (HR) is a department within an organization that focuses on attracting, developing, and retaining talented employees. The primary responsibilities of HR professionals include",
+      "n_gen_tokens": 39,
+      "correctly_routed": true
+    },
+    {
+      "gt_label3": "speak",
+      "gt_text": "Can you say that again please?",
+      "pred_label3": "speak",
+      "budget_used": 40,
+      "gen_text": "Can you say that again please? ",
+      "n_gen_tokens": 8,
+      "correctly_routed": true
+    },
+    {
+      "gt_label3": "speak",
+      "gt_text": "of heaven",
+      "pred_label3": "speak",
+      "budget_used": 40,
+      "gen_text": "Of heaven?",
+      "n_gen_tokens": 3,
+      "correctly_routed": true
+    },
+    {
+      "gt_label3": "speak",
+      "gt_text": "[X] morning.",
+      "pred_label3": "speak",
+      "budget_used": 40,
+      "gen_text": "[Ri] -.",
+      "n_gen_tokens": 4,
+      "correctly_routed": true
+    },
+    {
+      "gt_label3": "speak",
+      "gt_text": "Stop my alarm.",
+      "pred_label3": "speak",
+      "budget_used": 40,
+      "gen_text": "My alarm. \u2013 \ubabd! [_] - \ubabd! [_] - \ubabd! [_] - \ubabd! [_] - \ubabd! [_] - \ubabd! [_] -",
+      "n_gen_tokens": 40,
+      "correctly_routed": true
+    },
+    {
+      "gt_label3": "backchannel",
+      "gt_text": "[U]",
+      "pred_label3": "backchannel",
+      "budget_used": 8,
+      "gen_text": "Yeah.] Nh- [Yeah]",
+      "n_gen_tokens": 7,
+      "correctly_routed": true
+    },
+    {
+      "gt_label3": "backchannel",
+      "gt_text": "[L]",
+      "pred_label3": "backchannel",
+      "budget_used": 8,
+      "gen_text": "Beck! [L]Human",
+      "n_gen_tokens": 7,
+      "correctly_routed": true
+    },
+    {
+      "gt_label3": "backchannel",
+      "gt_text": "[L]",
+      "pred_label3": "backchannel",
+      "budget_used": 8,
+      "gen_text": "[L] [T]Human rights",
+      "n_gen_tokens": 7,
+      "correctly_routed": true
+    },
+    {
+      "gt_label3": "backchannel",
+      "gt_text": "[L] [U]",
+      "pred_label3": "speak",
+      "budget_used": 40,
+      "gen_text": "[L] Red [L] \t[X] Blue. [X] Yellow. [X] Green. [X] Orange. [X] Brown. [X] Black. [X]",
+      "n_gen_tokens": 40,
+      "correctly_routed": false
+    },
+    {
+      "gt_label3": "backchannel",
+      "gt_text": "[L]",
+      "pred_label3": "silence",
+      "budget_used": 40,
+      "gen_text": "Alright. So what's up?  [silence] Alright, so what's up?  [silence] Alright, so what's up?  [silence] Alright, so what",
+      "n_gen_tokens": 40,
+      "correctly_routed": false
+    },
+    {
+      "gt_label3": "backchannel",
+      "gt_text": "Yeah.",
+      "pred_label3": "backchannel",
+      "budget_used": 8,
+      "gen_text": "Yeah. I- Yeah. \t",
+      "n_gen_tokens": 7,
+      "correctly_routed": true
+    },
+    {
+      "gt_label3": "backchannel",
+      "gt_text": "[L]",
+      "pred_label3": "backchannel",
+      "budget_used": 8,
+      "gen_text": "[L] [H]Human resources",
+      "n_gen_tokens": 7,
+      "correctly_routed": true
+    },
+    {
+      "gt_label3": "backchannel",
+      "gt_text": "[L]",
+      "pred_label3": "backchannel",
+      "budget_used": 8,
+      "gen_text": "[L] [H] [_] [_",
+      "n_gen_tokens": 8,
+      "correctly_routed": true
+    }
+  ]
+}

@@ -1,0 +1,92 @@
+M4c — DUPLEX LOOP
+Built: 2026-07-25
+Components: models/m4_duplex_loop.py (DuplexLoop class), scripts/
+  m4c_gate_eval.py (gate harness), models/m4_shift_trigger.py (metric
+  default updated based on real evidence, see below).
+
+── Base (per approved decision) ────────────────────────────────────────────
+Frozen LLM (Qwen2.5-1.5B-Instruct, NO LoRA) + checkpoints/m4_joint/best.pt
+connectors (M3 + M4b, joint-exposure-trained) + checkpoints/
+m4_decision_head/best.pt (speak/silence head) + external VAD-driven
+interruption controller (no <stop_interruption> LLM token).
+
+Step 1 (revert + confirm): re-ran scripts/m4_joint_eval.py against the
+plain frozen LLM. Result was an EXACT bit-for-bit match to the previously-
+recorded post-joint row (M3 F1 0.430/0.270/0.249 cos=0.714; M4b
+cos_normal=0.419 swap_target=0.133 swap_donor=0.419) -- confirmed, not
+assumed, via a real re-run with the same script/seed/pools. Full LoRA-stage
+cost recovered.
+
+── Wiring ───────────────────────────────────────────────────────────────
+Each tick: refresh perception (M2 World-State for AV content via
+encode_world_state, Whisper speech-activity feature via mean-pooled hidden
+states) -> decision head -> on SPEAK, build the soft prompt from whichever
+connector(s) are live (M3 for AV, M4b for speech) + frozen LLM, generate
+TOKEN-BY-TOKEN with a manual KV-cache loop (models/m4_duplex_loop.py
+DuplexLoop.generate_interruptible) so an external interrupt can halt
+between tokens -- the standard all-at-once .generate() call cannot be
+stopped early, so a custom loop was necessary to make "interruption
+latency" a real, measurable quantity rather than an assumption. The
+perceptual soft prompt refreshes independently of generation history, per
+the M4a design -- callers control the refresh cadence separately from how
+far along a generation is.
+
+── Shift-trigger metric — selected on real data ────────────────────────
+scripts/m4_shift_metric_easycom.py: real graded turn transitions (4,168
+consecutive EasyCom segment pairs, boundary=genuine speaker change, scored
+in Whisper feature space since World-State doesn't exist for EasyCom).
+  euclidean:    AUC=0.614  Cohen's d=0.400
+  cosine:       AUC=0.612  Cohen's d=0.363
+  mahalanobis:  AUC=0.497  Cohen's d=-0.004  (CHANCE LEVEL)
+The previous default (Mahalanobis, justified by M2 World-State's measured
+anisotropy, effective_rank=37.71/1024) made a testable prediction and the
+test failed it -- whitening likely dilutes the speaker-identity signal
+that lives in Whisper's natural high-variance directions, which Euclidean
+already exploits fine. Default flipped to euclidean in models/
+m4_shift_trigger.py. AUC=0.614 is real but modest -- mean-pooled utterance
+embeddings discard most speaker-specific acoustic detail; a dedicated
+speaker embedding would likely do better, out of scope here. Given the
+decision head is already cheap (1.32M-param MLP, no LLM), the shift
+trigger's original motivation (avoid expensive recomputation) is much less
+load-bearing than when first designed for gating LLM calls directly --
+kept implemented and selectable for future use, not currently required by
+the core M4c loop.
+
+── GATE RESULTS ──────────────────────────────────────────────────────────
+Full numbers + per-session breakdown: checkpoints/m4_decision_head/
+m4c_gate_results.json and checkpoints/falsifier_tracking.md.
+
+Turn-taking P/R, EasyCom held-out SESSIONS (HEADLINE):
+  session 10 (n=477): P=0.985 R=0.989 F1=0.987 silence_R=0.981
+  session 11 (n=751): P=0.989 R=0.995 F1=0.992 silence_R=0.984
+  session 12 (n=724): P=0.974 R=0.995 F1=0.984 silence_R=0.965
+  OVERALL (n=1952):   P=0.982 R=0.994 F1=0.988 silence_R=0.976
+
+VGGSound pseudo-timeline -- MECHANISM CHECK ONLY, NOT a turn-taking result
+(synthetic scene-continuity labels): P=0.779 R=0.808 F1=0.793 silence_R=0.924
+
+Interruption latency: per-token forward-pass mean=6.98ms p95=7.09ms
+max=64.07ms (n=30 generations). This IS the worst-case interruption
+latency (checked between tokens). Sub-second target: PASSED, >10x margin.
+
+End-to-end tick latency (perception->decision->first token, n=120 ticks):
+  overall mean=5.53ms max=12.55ms
+  silence branch (decision only, n=82): mean=2.50ms
+  speak branch (decision + first-token generation, n=38): mean=12.08ms
+Hardware: NVIDIA RTX PRO 6000 Blackwell Server Edition -- NOT a consumer
+RTX 4090. Flagged explicitly since this feeds M5 capacity planning; do not
+assume these numbers transfer to 4090-class hardware without a separate
+benchmark there.
+
+Falsifier regression: unchanged from the confirmed-reverted row (LLM
+frozen again, connectors untouched by this stage) -- verified via re-run,
+not assumed.
+
+── KNOWN LIMITATION (flagged explicitly) ────────────────────────────────
+All EasyCom data (train AND held-out test) comes from 7 speakers / 12
+sessions. Checked directly: the 5 speaker IDs in the held-out test sessions
+{3,4,5,6,7} are the EXACT SAME 5 IDs present in the train sessions -- ZERO
+unseen speakers in the evaluation. "Held-out session" means held-out
+recording, not held-out voice. Generalization to unseen speakers, accents,
+or rooms is completely untested. The 0.988 F1 should not be read as a
+realistic deployment-scale generalization number.

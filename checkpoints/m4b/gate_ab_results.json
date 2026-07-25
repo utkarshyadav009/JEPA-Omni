@@ -1,0 +1,76 @@
+{
+  "n": 200,
+  "a_wer_normal": 0.8179615343427677,
+  "a_f1_normal": 0.33219562593242463,
+  "a_cos_normal": 0.5135537438467145,
+  "b_cos_swapped_vs_target": 0.13554431817261503,
+  "b_cos_swapped_vs_donor": 0.5135537438467145,
+  "b_f1_swapped_vs_target": 0.031960078216642845,
+  "b_f1_swapped_vs_donor": 0.33219562593242463,
+  "prior_f1_mode": 0.08615588578088577,
+  "mode_text": "[L]",
+  "mode_n_in_train": 177,
+  "prior_f1_random_train": 0.024105622284956652,
+  "side_by_side": [
+    {
+      "ground_truth": "And don't read the numbers?",
+      "normal": "Andand\u043d\u0438 and read the don't read the buttons?",
+      "swapped_from_text": "That helps. [L] That helps a lot. That helps a lot.",
+      "swapped": "That's a little bit. [L] That's a lot of that one] That's a lot."
+    },
+    {
+      "ground_truth": "Is anybody colorblind here? Oh. Okay. Oh I'm no- I- I- At least I- I don't think I am.",
+      "normal": "Is anyone color blind? Oh, okay. Okay. I- I don't think that I am.",
+      "swapped_from_text": "And don't read the numbers?",
+      "swapped": "Andand\u043d\u0438 and read the don't read the buttons?"
+    },
+    {
+      "ground_truth": "Doesn't necessarily have to be hard, right? I mean, we could just be having a-",
+      "normal": "Does it? It's hard, right? I mean. You could just be for- you can't do bad, right? I mean. You could just be for the first one, right? I'm just being for-",
+      "swapped_from_text": "Is anybody colorblind here? Oh. Okay. Oh I'm no- I- I- At least I- I don't think I am.",
+      "swapped": "Is anyone color blind? Oh, okay. Okay. I- I don't think that I am."
+    },
+    {
+      "ground_truth": "[L]",
+      "normal": "[Luin]",
+      "swapped_from_text": "Doesn't necessarily have to be hard, right? I mean, we could just be having a-",
+      "swapped": "Does it? It's hard, right? I mean. You could just be for- you can't do bad, right? I mean. You could just be for the first one, right? I'm just being for-"
+    },
+    {
+      "ground_truth": "White and what?",
+      "normal": "White white White.",
+      "swapped_from_text": "[L]",
+      "swapped": "[Luin]"
+    },
+    {
+      "ground_truth": "[H] Okay. Yeah, I can deal with that.",
+      "normal": "[H] Okay",
+      "swapped_from_text": "White and what?",
+      "swapped": "White white White."
+    },
+    {
+      "ground_truth": "Turn alarm volume up.",
+      "normal": "Turn off alarm volume up.",
+      "swapped_from_text": "[H] Okay. Yeah, I can deal with that.",
+      "swapped": "[H] Okay"
+    },
+    {
+      "ground_truth": "That helps. [L] That helps a lot. That helps a lot.",
+      "normal": "That's a little bit. [L] That's a lot of that one] That's a lot.",
+      "swapped_from_text": "Turn alarm volume up.",
+      "swapped": "Turn off alarm volume up."
+    },
+    {
+      "ground_truth": "Yeah.",
+      "normal": "Yeah.",
+      "swapped_from_text": "You-",
+      "swapped": "Yeah]]I'm sorry."
+    },
+    {
+      "ground_truth": "What is the distance between New Mexico and Canada?",
+      "normal": "What is the difference between New Mexico and Nevada?",
+      "swapped_from_text": "Yeah.",
+      "swapped": "Yeah."
+    }
+  ]
+}

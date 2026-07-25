@@ -1,0 +1,8 @@
+Source: checkpoints/m2_fusion_bridge/step5000.pt
+Run: m2_fusion_bridge (STEP 2, cross-attention auxiliary fusion bridge)
+Reason kept: peak full-1545-gallery avg R@1 = 34.95% at step 5000
+  (ambient->vision R@1=35.28%(approx)/vision->ambient R@1 -- see logs/m2_fusion_bridge.log step 5000 eval block)
+  beats corrected 192-neg/step6000/full-gallery baseline (~26-27%) by +8pt.
+Config: negatives=192x192, temp=0.05, lam_sigreg=0.03, lam_fusion=1.0, fusion_layers=2,
+  51k VGGSound cache, source-token invariance=0.00e+00 (fusion isolated from retrieval head).
+Copied and verified (sha256 match) on 2026-07-16.

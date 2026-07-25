@@ -1,0 +1,124 @@
+{
+  "swap_control": {
+    "n": 200,
+    "f1_normal": 0.4820892190313888,
+    "f1_swapped": 0.26673976957440537,
+    "f1_zeroed": 0.15245721416258484
+  },
+  "prior_baselines": {
+    "most_common_caption": "The audio contains birds chirping in the background.",
+    "most_common_n_in_train": 1052,
+    "f1_most_common": 0.2621513999351178,
+    "f1_random_train": 0.29113454248200343
+  },
+  "side_by_side": [
+    {
+      "clip_id": "OZYy9dr0kGU_000023",
+      "ground_truth": "The audio contains sounds of chopping wood with a knife.",
+      "normal": "The audio contains sounds of metal clinking together in a kitchen setting.",
+      "swapped_from": "YTfbske47gQ_000354",
+      "swapped": "The sound is of someone chewing loudly with their mouth open. It sounds like they're eating something crunchy or hard."
+    },
+    {
+      "clip_id": "aP0nFHftn9A_000070",
+      "ground_truth": "The sound is of plastic being crinkled or crushed. It has a high pitched quality with a rhythmic pattern. The source is likely someone handling packaging material.",
+      "normal": "The sound is of paper being crumpled up. It has a soft, quiet quality with some rhythmic movement as it moves from one shape to another. The source could be someone folding or tearing something into pieces.",
+      "swapped_from": "OZYy9dr0kGU_000023",
+      "swapped": "The audio contains sounds of metal clinking together in a kitchen setting."
+    },
+    {
+      "clip_id": "96FT-jZp4pM_000015",
+      "ground_truth": "The audio contains a series of sounds that resemble an animal scratching or scraping against something hard. It is likely produced by a rodent moving around in a cage.",
+      "normal": "The sound is of something being tapped or struck repeatedly. It could be a keyboard, mouse pad, or similar electronic device.",
+      "swapped_from": "aP0nFHftn9A_000070",
+      "swapped": "The sound is of paper being crumpled up. It has a soft, quiet quality with some rhythmic movement as it moves from one shape to another. The source could be someone folding or tearing something into pieces."
+    },
+    {
+      "clip_id": "sEEP6BHe7ko_000180",
+      "ground_truth": "The audio contains music playing in the background of a woman speaking.",
+      "normal": "The audio contains a woman speaking in an excited manner.",
+      "swapped_from": "96FT-jZp4pM_000015",
+      "swapped": "The sound is of something being tapped or struck repeatedly. It could be a keyboard, mouse pad, or similar electronic device."
+    },
+    {
+      "clip_id": "ezayBI_xOVk_000030",
+      "ground_truth": "The audio contains an electric guitar being played with distortion applied. The chord is E major.",
+      "normal": "The sound is an electric guitar playing a simple melody with distortion. It has a gritty, distorted quality typical of rock or blues music.",
+      "swapped_from": "sEEP6BHe7ko_000180",
+      "swapped": "The audio contains a woman speaking in an excited manner."
+    },
+    {
+      "clip_id": "gl9j63Ln1y4_000144",
+      "ground_truth": "The audio contains crunching sounds with some light rustling in between. It is likely from someone eating crispy food or munching on something crunchy.",
+      "normal": "The audio contains crunching sounds followed by a mouthful of food. The source is likely someone eating something crunchy or crispy.",
+      "swapped_from": "ezayBI_xOVk_000030",
+      "swapped": "The sound is an electric guitar playing a simple melody with distortion. It has a gritty, distorted quality typical of rock or blues music."
+    },
+    {
+      "clip_id": "sVF7Q_IwoWY_000330",
+      "ground_truth": "The audio contains the sounds of an engine revving up and down as well as male speech. The source is likely from a car or motorcycle.",
+      "normal": "The sound is of an engine revving up and down with music playing in the background. It comes from a car accelerating quickly.",
+      "swapped_from": "gl9j63Ln1y4_000144",
+      "swapped": "The audio contains crunching sounds followed by a mouthful of food. The source is likely someone eating something crunchy or crispy."
+    },
+    {
+      "clip_id": "YTfbske47gQ_000354",
+      "ground_truth": "The sound is that of someone chewing food loudly with their mouth open. It has a rhythmic quality due to the consistent pattern of crunching noises. The source is clearly audible in the background throughout the entire duration of the audio.",
+      "normal": "The sound is of someone chewing loudly with their mouth open. It sounds like they're eating something crunchy or hard.",
+      "swapped_from": "sVF7Q_IwoWY_000330",
+      "swapped": "The sound is of an engine revving up and down with music playing in the background. It comes from a car accelerating quickly."
+    },
+    {
+      "clip_id": "0E6KS8B6DMc_000540",
+      "ground_truth": "The audio contains a drum beat with a snare drum, bass drum, hi-hat, ride cymbal, and crash cymbal. The tempo is moderate. It sounds like it could be from a drum kit in a recording studio or practice room.",
+      "normal": "The audio contains a drum beat with snare drums and cymbals being hit in sequence. The music is rhythmic and energetic, typical of drumming or percussion playing.",
+      "swapped_from": "6teOyKIr-B8_000140",
+      "swapped": "The audio contains a series of clicking sounds with some background noise in the background. The source is likely someone using an electronic device or tool that makes these types of noises when it's being used."
+    },
+    {
+      "clip_id": "rPGgxEE2hjk_000118",
+      "ground_truth": "The audio contains a woman speaking with birds chirping in the background.",
+      "normal": "The audio contains birds chirping in the background with some people talking.",
+      "swapped_from": "0E6KS8B6DMc_000540",
+      "swapped": "The audio contains a drum beat with snare drums and cymbals being hit in sequence. The music is rhythmic and energetic, typical of drumming or percussion playing."
+    }
+  ],
+  "caption_noise_check": [
+    {
+      "clip_id": "hTAWbHXCJ2A_000060",
+      "vggsound_label": "people finger snapping",
+      "gpt_sound_acoustic": "The music is in an R&B style with a male vocalist singing in English.",
+      "review_hits": []
+    },
+    {
+      "clip_id": "ywS3pG7yQfg_000161",
+      "vggsound_label": "tap dancing",
+      "gpt_sound_acoustic": "The audio contains music with clapping sounds in between.",
+      "review_hits": []
+    },
+    {
+      "clip_id": "RyAJMDDxNBQ_000070",
+      "vggsound_label": "cap gun shooting",
+      "gpt_sound_acoustic": "The audio contains the sounds of gunshots and a man speaking. The gunshots are rapid fire.",
+      "review_hits": []
+    },
+    {
+      "clip_id": "6wEyfLFSmmI_000080",
+      "vggsound_label": "mouse clicking",
+      "gpt_sound_acoustic": "The audio contains clicking sounds that are rhythmic in nature. The source is likely a computer mouse or keyboard.",
+      "review_hits": []
+    },
+    {
+      "clip_id": "XkyKliH1X3c_000025",
+      "vggsound_label": "snake rattling",
+      "gpt_sound_acoustic": "The sound is of something rattling in the wind. It is likely produced by a snake.",
+      "review_hits": []
+    },
+    {
+      "clip_id": "AVYuega54og_000188",
+      "vggsound_label": "foghorn",
+      "gpt_sound_acoustic": "The audio contains a horn being blown in the distance.",
+      "review_hits": []
+    }
+  ]
+}

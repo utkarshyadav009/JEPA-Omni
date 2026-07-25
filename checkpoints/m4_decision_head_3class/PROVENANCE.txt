@@ -1,0 +1,156 @@
+M4 BACKCHANNEL HANDLING — 3-CLASS DECISION HEAD (SPEAK / SILENCE / BACKCHANNEL)
+Built: 2026-07-25
+Source: checkpoints/m4_decision_head_3class/best.pt
+Depends on (unmodified): checkpoints/m4_joint/best.pt (M3 connector + M4b
+  projector, frozen), Qwen2.5-1.5B-Instruct (frozen, no LoRA).
+
+── The problem ─────────────────────────────────────────────────────────────
+The M4c binary decision head (checkpoints/m4_decision_head) treats ANY
+detected speech-activity as SPEAK, which triggers a halt in the duplex
+loop's interruption controller. A user backchannel ("mm-hmm", "yeah",
+"right") is real speech, so the old head would halt the robot's generation
+every time the user acknowledged it mid-turn — the highest-value social gap
+identified for a live demo, and cheap to fix (extend an existing head, not
+build a new subsystem).
+
+── Step 1: mine EasyCom transcripts for backchannel tokens ─────────────────
+data/m4_easycom_turntaking.py: BACKCHANNEL_WORDS lexicon (20 tokens: yeah,
+yep, yup, uh-huh, mm-hmm, mhm, okay, ok, right, alright, gotcha, cool, wow,
+oh, ah, huh, sure, yea, kay, mmhmm) + is_backchannel(text) — strips
+disfluency markers ([L]/[H]/[X]/[T]/[U]/[C]) and punctuation; a bare
+disfluency marker with nothing else (e.g. "[L]" alone) counts as
+backchannel; otherwise a segment is backchannel only if ALL remaining words
+(<=2) are in the lexicon. Deliberately conservative: "Yeah, I think..." is
+NOT a backchannel (real content follows the acknowledgment), it stays
+"speak". Spot-checked: correctly excludes "Yes.", "Awesome.", "So", "Wait."
+correctly includes "Yeah.", "Okay.", "[L]", "Kay.".
+
+Mined on the full 4,482-segment pool: 899 (20.1%) backchannel.
+Split by session (train/test, same session split as all other M4 EasyCom
+work): train label3 = {speak: 2688, silence: 2579, backchannel: 682},
+test label3 = {speak: 895, silence: 840, backchannel: 217}.
+
+── Step 2: extend the decision head to 3-class ─────────────────────────────
+models/m4_decision_head.py: ThreeClassHead — same MLP shape as
+SpeakSilenceHead (LayerNorm -> Linear(2048,512) -> GELU -> Dropout ->
+Linear(512,512) -> GELU -> Dropout -> Linear(512,3)), 3-way softmax output
+instead of binary sigmoid. Same input contract: [World-State (M2, real for
+VGGSound / zero for EasyCom); speech-activity feature (mean-pooled frozen
+Whisper hidden, real for EasyCom / zero for VGGSound)]. LABEL_TO_IDX =
+{silence: 0, speak: 1, backchannel: 2}. VGGSound examples stay 2-of-3-class
+(never backchannel) — standard cross-entropy handles this with no masking,
+the model just never receives a backchannel gradient from those examples.
+
+train_decision_head_3class.py: reuses the CACHED VGGSound World-State
+features unchanged (checkpoints/m4_decision_head/features_cache.pt — no
+backchannel concept in VGGSound, re-extraction would be wasteful),
+re-extracts EasyCom features with the new label3 field. Class-weighted
+cross-entropy (class_weight = counts.sum()/(3*counts), i.e.
+[0.492, 1.125, 12.68] — backchannel is the rare class by construction).
+80 epochs, AdamW lr=1e-3, batch=256. The LLM and connectors are NOT
+touched by any of this.
+
+── Gate results — PASSED, all 3 classes clearly non-zero ──────────────────
+checkpoints/m4_decision_head_3class/gate_results.json, held-out test
+(n=4000 VGGSound ticks / 1000 clips, n=1952 EasyCom ticks):
+
+| source | class | n | recall |
+|---|---|---|---|
+| VGGSound (mechanism check, no backchannel concept) | silence | 3000 | 0.922 |
+| VGGSound | speak | 1000 | 0.801 |
+| EasyCom (headline) | silence | 840 | **0.980** |
+| EasyCom | speak | 895 | **0.962** |
+| EasyCom | backchannel | 217 | **0.871** |
+
+accuracy: VGGSound=0.892, EasyCom=0.960. All three EasyCom classes clearly
+non-zero — meets the gate ("3-class recalls all clearly non-zero on
+held-out sessions"). Backchannel recall (0.871) is the lowest of the three,
+expected given it's the rarest class (682/25,949 ≈ 2.6% of combined
+training data) and the most ambiguous linguistically (single-word
+utterances that could plausibly be either a full turn or an acknowledgment
+depending on prosody/context this text-derived label can't see).
+
+── Swap-control — PASSED ───────────────────────────────────────────────────
+scripts/m4_decision_head_3class_swap_control.py,
+checkpoints/m4_decision_head_3class/swap_control_results.json, n=4000
+VGGSound test ticks, World-State swapped in from a different (rolled)
+example:
+
+| | accuracy |
+|---|---|
+| normal (own World-State vs own label) | 0.892 |
+| swapped vs TARGET's label (want ~chance) | 0.492 |
+| swapped vs DONOR's label (want ≈ normal) | **0.892** (exact match) |
+
+40.2% of decisions changed when the World-State was swapped — same pattern
+as the 2-class head's swap-control and every other swap-control in this
+project: the head reads its actual input, it doesn't memorize a fixed prior.
+
+── DETECTION side: false-halt rate on backchannel segments ────────────────
+scripts/m4_backchannel_detection_test.py,
+checkpoints/m4_decision_head_3class/backchannel_detection_results.json,
+n=217 EasyCom held-out backchannel ticks + n=895 real-speak ticks (same
+cached features, both heads applied to the identical inputs for a fair
+comparison):
+
+| policy | false-halt rate on BACKCHANNEL (want low) | true-halt rate on real SPEAK (want high) |
+|---|---|---|
+| OLD (2-class: any speech -> halt) | **0.972** | 0.999 |
+| NEW (3-class: only SPEAK halts) | **0.101** | 0.962 |
+
+This is the headline result: false-halt rate on backchannel segments drops
+from 97.2% to 10.1% (a ~10x reduction) — under the old policy, the robot
+would have halted generation on almost every single user "yeah"/"mm-hmm".
+Honest cost: true-halt rate on genuine user speech drops slightly, 0.999
+-> 0.962 (3.7pp), i.e. the new head very occasionally misses a real
+interruption (misclassifies it as backchannel/silence) that the old,
+cruder policy would have always caught. This tradeoff is a direct
+consequence of backchannel recall being 0.871 rather than 1.0 — a small,
+measured, reported cost, not glossed over.
+
+── PRODUCTION side: emitting a short backchannel ──────────────────────────
+scripts/m4_backchannel_production_test.py,
+checkpoints/m4_decision_head_3class/production_test_results.json, n=16
+(8 real-speak + 8 real-backchannel EasyCom test ticks, seed=7).
+
+Mechanism: the frozen LLM + M4b projector generation pipeline is NOT
+modified or retrained (consistent with dropping LoRA in M4c — the LLM
+stays exactly as falsifier-verified). Instead the 3-class decision GATES
+the generation budget: SPEAK -> max_new_tokens=40 (matches m4c_gate_eval's
+existing default), BACKCHANNEL -> max_new_tokens=8. This reuses the exact
+soft-prompt + generation path already falsifier-verified in M4c and adds
+zero new trained capability or risk to the LLM/connectors.
+
+Result: routing accuracy (3-class head correctly identifies backchannel
+vs. not on this small sample) = 0.875 (14/16), consistent with the
+gate-level 0.871 backchannel recall. Mean generated length: 15.4 tokens on
+backchannel-ground-truth ticks vs. 21.9 tokens on real-speak-ground-truth
+ticks — genuinely shorter, though the gap is smaller than the raw 8-vs-40
+budget split because (a) 2/8 backchannel ticks were misrouted to the
+40-token budget, and (b) several real-speak ticks legitimately terminate
+early via EOS regardless of budget.
+
+HONEST LIMITATION, not glossed over: generated text QUALITY on the
+budget-capped backchannel examples is poor — e.g. "[L] [H] [_] [_",
+"Beck! [L]Human", "Yeah. I- Yeah." — these are token-budget-truncated
+continuations of a transcript-like soft prompt, not a genuinely-modeled
+backchannel dialogue act. The M4b projector was trained for transcription/
+semantic grounding (see falsifier_tracking.md), not open-ended response
+generation, so "production" here demonstrates the ROUTING mechanism works
+(short output correctly triggered on backchannel-classified input) but
+does NOT demonstrate fluent backchannel *language* — a canned/templated
+short-response fallback (e.g. a small fixed set of "Mm-hmm."/"Right."/
+"Got it." strings, bypassing the LLM entirely on BACKCHANNEL decisions)
+would likely produce more usable output for a live demo than the current
+budget-capped LLM continuation. Not implemented here — flagged as a
+cheap, obvious follow-up rather than silently deferred.
+
+── Falsifier regression ────────────────────────────────────────────────────
+No M3/M4b connector or LLM weights touched by any of this work (only a new
+head trained on cached/re-extracted features, and generation-budget gating
+added at the call site) — no re-run needed per the standing rule's actual
+trigger condition (stages that touch the M3 connector or M4b projector).
+Confirmed by inspection: models/m4_decision_head.py's ThreeClassHead is a
+new class alongside the untouched SpeakSilenceHead; train_decision_head_3class.py
+loads m4_joint/best.pt nowhere; scripts/m4_backchannel_production_test.py
+loads the same m4_joint/best.pt checkpoint used by every other M4c script.

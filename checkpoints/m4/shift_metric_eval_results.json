@@ -1,0 +1,35 @@
+{
+  "effective_rank_large_n": 35.19594192504883,
+  "cov_pool_n": 3000,
+  "pca_K": 50,
+  "pca_explained_var": 0.9510080164981085,
+  "n_boundary_pairs": 897,
+  "n_within_pairs": 3588,
+  "metrics": {
+    "euclidean": {
+      "roc_auc": 0.9999524613818638,
+      "cohens_d": 8.153726464400584,
+      "boundary_mean": 43.683572103613066,
+      "boundary_std": 3.816571211553856,
+      "within_mean": 8.47721599479317,
+      "within_std": 4.764284635984495
+    },
+    "cosine": {
+      "roc_auc": 0.9999450043437247,
+      "cohens_d": 7.634816035753521,
+      "boundary_mean": 0.9963772540256368,
+      "boundary_std": 0.1629841941581222,
+      "within_mean": 0.049556966551237945,
+      "within_std": 0.06452939394256035
+    },
+    "mahalanobis": {
+      "roc_auc": 0.9999446936338022,
+      "cohens_d": 7.515752905032088,
+      "boundary_mean": 10.075601888579234,
+      "boundary_std": 1.0429639978339869,
+      "within_mean": 2.0143456419317785,
+      "within_std": 1.10069783650625
+    }
+  },
+  "recommended_metric": "euclidean"
+}

@@ -1,0 +1,7 @@
+{
+  "n": 4000,
+  "acc_normal_vs_own_label": 0.8920000195503235,
+  "acc_swapped_vs_target_label": 0.492000013589859,
+  "acc_swapped_vs_donor_label": 0.8920000195503235,
+  "fraction_decision_changed_under_swap": 0.40150001645088196
+}

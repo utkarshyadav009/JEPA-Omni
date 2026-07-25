@@ -1,0 +1,15 @@
+{
+  "n_clips": 1545,
+  "eval_list": "data/cavmae_eval_subset.txt",
+  "audio_to_visual": {
+    "R@1": 12.23,
+    "R@5": 28.22,
+    "R@10": 36.5
+  },
+  "visual_to_audio": {
+    "R@1": 14.24,
+    "R@5": 27.64,
+    "R@10": 36.83
+  },
+  "ckpt": "/home/utkarsh/models/cav-mae/audio_model.25.pth"
+}

@@ -1,0 +1,123 @@
+M4 INTERRUPTION POLICY — POST-HALT STATE MACHINE (RESUME / RE-PLAN / ABANDON)
+Built: 2026-07-25
+Components: models/m4_interruption_policy.py (InterruptionPolicy),
+  models/m4_duplex_loop.py (GenerationResult.resume_state,
+  generate_interruptible(capture_state=...), resume_interrupted()),
+  scripts/m4_interruption_mining.py.
+
+── The question ─────────────────────────────────────────────────────────
+After a halt (VAD/decision-head-driven interruption), what should the
+duplex loop do? Three options were defined, matching how humans actually
+handle being interrupted: RESUME the same thought, RE-PLAN a different
+response because context changed, or ABANDON and let the other party keep
+the floor.
+
+── Step 1: what does EasyCom actually support supervising? ────────────────
+scripts/m4_interruption_mining.py mines REAL overlapping-speech events
+directly from EasyCom transcripts (timing only, no audio needed): for
+participant P's segment [s,e], any DIFFERENT participant Q whose segment
+starts strictly inside [s,e] is a genuine interruption of P. Backchannel-
+only overlaps (per data/m4_easycom_turntaking.py's is_backchannel, e.g.
+"Awesome.", "[L]") are EXCLUDED from this count — those are a separate,
+already-solved mechanism (the 3-class decision head), and conflating them
+would double-count the same phenomenon under two different subsystems.
+
+Outcome, looked up in the same 60s chunk: no further P segment within
+RESUME_WINDOW_SEC=10s after Q ends -> ABANDON (pure timing, ground truth,
+no proxy). A further P segment exists -> word-overlap (Jaccard) similarity
+between P's interrupted text and P's next segment's text: >=0.3 -> RESUME
+(genuinely continued/repeated), else -> RE-PLAN (new content). STATED
+CAVEAT: EasyCom has no ground-truth "same-utterance-continued" intent
+label — the RESUME/RE-PLAN split is a text-similarity PROXY, not verified
+supervision. The ABANDON-vs-continues split is on firmer ground (pure
+timing).
+
+Mined on all 12 sessions (data characterization, not train/test split —
+this is not a trained classifier), 1,796 genuine non-backchannel
+interruption events (496 additional overlaps were backchannel-only and
+excluded):
+
+  RESUME       85  ( 4.7%)   median interrupter duration = 1.40s
+  RE-PLAN    1098  (61.1%)   median interrupter duration = 1.90s
+  ABANDON     613  (34.1%)   median interrupter duration = 2.15s
+
+Real, honest finding: RESUME is the rare exception (real conversation
+mostly either abandons the interrupted thread or moves on to something
+new), and interrupter duration is a genuine but WEAK monotonic signal for
+abandonment (1.40 -> 1.90 -> 2.15s — small, noisy gap, not a clean cutoff).
+
+── Step 2: state machine design, grounded in the mined evidence ───────────
+models/m4_interruption_policy.py: InterruptionPolicy.resolve(feat_at_halt,
+feat_at_resolve, interruption_duration_sec) -> InterruptionOutcome, called
+ONCE per resolved interruption (when the interrupting speech itself ends).
+
+Two signals, both reused from already-validated real-data components
+rather than invented for this task:
+  1. Context shift: models/m4_shift_trigger.py's EUCLIDEAN metric (already
+     selected on real EasyCom data for the adjacent turn-boundary-
+     detection task, ROC-AUC=0.614, Cohen's d=0.400,
+     scripts/m4_shift_metric_easycom.py). shift_tau=18.65 is the midpoint
+     of that study's measured within-speaker mean (17.65) and
+     boundary/speaker-change mean (19.66) — read off an already-verified
+     real histogram, not chosen blind.
+  2. Interruption duration: abandon_duration_sec=2.0, informed by this
+     module's own mined medians above (soft co-requirement for ABANDON
+     only, combined with high shift — never triggers ABANDON alone, since
+     the duration signal alone is too weak).
+
+Logic: shift>=tau AND duration>=2.0s -> ABANDON. shift<tau -> RESUME.
+Otherwise -> RE-PLAN (the default/fallback, matching the real 61.1% prior
+— when the two signals don't clearly indicate resume-worthy similarity or
+abandon-worthy duration+shift, re-planning is the right default because
+it's what real interruptions resolve to most often).
+
+HONEST LIMITATION: this is a grounded HEURISTIC, not a trained classifier
+— no model was fit to the mined RESUME/RE-PLAN/ABANDON labels (the set is
+small, skewed 4.7/61.1/34.1%, and the RESUME/RE-PLAN split itself is a
+text-similarity proxy, not verified intent). Thresholds are read off real
+measured distributions rather than invented, which is the most defensible
+position available without genuinely-paired ground truth, but it is not
+the same claim as "this policy was validated against held-out labeled
+interruption outcomes."
+
+Smoke test (python -m models.m4_interruption_policy): confirms all 3
+transitions are reachable and fire on the intended synthetic
+low-shift/high-shift x short/long-duration combinations. PASSED.
+
+── Step 3: RESUME actually works — KV-cache continuity verified ───────────
+models/m4_duplex_loop.py: generate_interruptible(..., capture_state=True)
+now unconditionally commits the in-flight token (the one whose forward
+pass already completed when the halt fires — this is the same token the
+existing interruption-latency bound already accounts for) and, when
+interrupted, saves {past_key_values, inputs_embeds, attn} as
+GenerationResult.resume_state. resume_interrupted(halted, max_new_tokens)
+continues the SAME KV-cache from exactly that point — no forward passes
+already paid for are redone.
+
+Verified directly, not assumed: ran an uninterrupted 20-token greedy
+generation ("The capital of France is" -> " Paris. The capital of France
+is also the capital of which country?\nA) Germany\nB)"), then a matched
+run halted at step 5 and resumed for 15 more tokens. Result: the resumed
+generation's token-id sequence has the halted run's tokens as an EXACT
+prefix, and the full resumed text is BYTE-IDENTICAL to what the
+uninterrupted run of the same total length produces (both end
+"...B) Italy" at 21 tokens) — deterministic greedy decoding confirms the
+halt/resume boundary introduces zero drift, same discipline as the M4c
+LoRA-reversion determinism check.
+
+── What's NOT built here ───────────────────────────────────────────────────
+RE-PLAN's "build a brand-new soft prompt and generate from scratch" reuses
+existing, already-verified M3/M4b + generate_interruptible machinery
+directly (no new code needed — it's just calling the normal SPEAK path
+again). ABANDON's "return to IDLE, let the next tick decide" is the duplex
+loop's existing default behavior when decide() returns SILENCE — also no
+new code needed. Neither required a dedicated implementation beyond the
+resolve() call itself; the only genuinely new mechanism was RESUME (which
+needed the KV-cache capture/continuation machinery above, since HF's
+.generate() and the original generate_interruptible had no way to survive
+a halt and continue). Live-audio end-to-end integration (wiring resolve()
+into an actual running tick loop against streaming input) was not built —
+this stays at the verified-mechanism level (mined evidence + a working,
+tested resume primitive + a smoke-tested decision function), matching the
+scope of "define and implement the state machine" rather than a full
+live-demo integration.

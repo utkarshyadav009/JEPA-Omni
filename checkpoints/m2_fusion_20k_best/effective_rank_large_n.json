@@ -1,0 +1,8 @@
+{
+  "ckpt": "checkpoints/m2_fusion_20k_best/step19000_peak.pt",
+  "step": 18999,
+  "n": 5000,
+  "d_model": 1024,
+  "effective_rank": 37.70677947998047,
+  "effective_rank_over_d_model": 0.036823026835918427
+}

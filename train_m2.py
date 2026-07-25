@@ -101,6 +101,7 @@ def sample_cross_modal_mask(
     rng: Optional[random.Random] = None,
     mask_mode: str = "windowed",
     mask_frac: Optional[float] = None,
+    step: Optional[int] = None,
 ) -> Dict[str, Tensor]:
     """Sample a cross-modal mask: hide one modality.
 
@@ -121,6 +122,17 @@ def sample_cross_modal_mask(
                     (defeats position-prior shortcuts) while the large masked
                     block still defeats within-modality interpolation.
                     Requires `mask_frac` to be set.
+      'asym_curriculum' — same per-token windowing as 'high_frac' (requires
+                    `mask_frac`, e.g. 0.9), but WHICH modality gets masked is
+                    a deterministic function of `step` (alternating strictly
+                    by parity: modalities sorted, step % 2 picks the modality
+                    to mask) instead of rng.choice. Masking 'vision' forces
+                    reliance on ambient ("audio-heavy" phase); masking
+                    'ambient' forces reliance on vision ("vision-heavy"
+                    phase). Strict parity guarantees exactly balanced exposure
+                    to both phases across training, rather than relying on
+                    i.i.d. randomness that can streak short-run.
+                    Requires `step` and `mask_frac` to be set.
 
     Returns Dict[str, (B, T_m) bool] where True = MASKED (to predict).
     """
@@ -128,8 +140,13 @@ def sample_cross_modal_mask(
     B          = next(iter(tbins.values())).shape[0]
     modalities = list(tbins.keys())
 
-    # Randomly choose which modality to mask this step
-    masked_mod = rng.choice(modalities)
+    if mask_mode == "asym_curriculum":
+        assert step is not None, "asym_curriculum mode requires step"
+        modalities_sorted = sorted(modalities)
+        masked_mod = modalities_sorted[step % len(modalities_sorted)]
+    else:
+        # Randomly choose which modality to mask this step
+        masked_mod = rng.choice(modalities)
 
     mask: Dict[str, Tensor] = {}
     for m in modalities:
@@ -141,8 +158,8 @@ def sample_cross_modal_mask(
             if mask_mode == "whole":
                 # Mask every token of this modality
                 mask[m] = torch.ones_like(bins, dtype=torch.bool)
-            elif mask_mode == "high_frac":
-                assert mask_frac is not None, "high_frac mode requires mask_frac"
+            elif mask_mode in ("high_frac", "asym_curriculum"):
+                assert mask_frac is not None, f"{mask_mode} mode requires mask_frac"
                 m_tensor = torch.zeros_like(bins, dtype=torch.bool)
                 for b in range(B):
                     T      = bins.shape[1]
@@ -196,6 +213,28 @@ def build_scheduler(
         prog = min(1.0, max(0.0, prog))
         return 0.5 * (1.0 + math.cos(math.pi * prog))
     return torch.optim.lr_scheduler.LambdaLR(opt, lr_lambda)
+
+
+# ── Memory safety cap ────────────────────────────────────────────────────────
+# Ambient (audio) token count varies per batch (collate pads to that batch's
+# own max T; VGGSound clips cluster near ~998 tokens but a rare batch can
+# draw an outlier up to ~1150+). Self-attention cost is O(T^2), so a 15%
+# longer T can cost noticeably more memory -- observed as multi-GB step-to-
+# step swings (not a leak) once the base footprint is already near the GPU
+# ceiling. MAX_AMBIENT_T bounds the worst case; at 1024 it only truncates
+# the rare outlier tail (p99.9 ~= 1000 tokens on the full 199k-clip cache),
+# so it has no material effect on what the model sees for the vast majority
+# of clips. This is a memory-engineering cap, independent of negatives/temp/
+# lam_sigreg/lam_fusion -- it does not touch the isolated experimental variable.
+MAX_AMBIENT_T = 1024
+
+
+def _cap_ambient_len(feats: Dict[str, Tensor], tbins: Dict[str, Tensor],
+                      max_t: int = MAX_AMBIENT_T) -> None:
+    """In-place: truncate the 'ambient' entries to at most max_t tokens."""
+    if "ambient" in feats and feats["ambient"].shape[1] > max_t:
+        feats["ambient"] = feats["ambient"][:, :max_t]
+        tbins["ambient"] = tbins["ambient"][:, :max_t]
 
 
 # ── Dataset / DataLoader ────────────────────────────────────────────────────
@@ -287,15 +326,112 @@ def pool_and_project(
     ambient_proj: nn.Module,
     feats: Dict[str, Tensor],
     tbins: Dict[str, Tensor],
+    tokens: Optional[Dict[str, Tensor]] = None,
 ) -> Tuple[Tensor, Tensor]:
     """Mean-pool the leak-fixed per-modality source tokens, project into the
     shared contrastive space, L2-normalise. This head is SEPARATE from and
     normalised unlike the world-state head (which stays un-normalised for
-    SIGReg, per the dual-head design)."""
-    src_by_mod = predictor.encode_source_tokens(feats, tbins)
+    SIGReg, per the dual-head design).
+
+    tokens: pass a precomputed encode_source_tokens(feats, tbins) result to
+    skip recomputing it (e.g. when another branch this same step, like
+    CrossAttnFusionBridge, already needs the identical call -- avoids a
+    redundant extra pair of backbone forward passes)."""
+    src_by_mod = tokens if tokens is not None else predictor.encode_source_tokens(feats, tbins)
     z_v = F.normalize(vision_proj(src_by_mod["vision"].mean(1)).float(), dim=-1)
     z_a = F.normalize(ambient_proj(src_by_mod["ambient"].mean(1)).float(), dim=-1)
     return z_v, z_a
+
+
+class CrossAttnFusionLayer(nn.Module):
+    """One bidirectional co-attention block: vision and ambient tokens each
+    attend to the OTHER modality's tokens (in parallel, both reading the
+    pre-layer state -- not sequentially, to keep the block symmetric), then
+    each side runs its own FFN. Mirrors the co-attention design used by
+    CAV-MAE's joint fusion encoder / ViLBERT-style cross-modal blocks."""
+
+    def __init__(self, d_model: int, n_heads: int):
+        super().__init__()
+        self.v2a = nn.MultiheadAttention(d_model, n_heads, batch_first=True)
+        self.a2v = nn.MultiheadAttention(d_model, n_heads, batch_first=True)
+        self.norm_v1 = nn.LayerNorm(d_model)
+        self.norm_a1 = nn.LayerNorm(d_model)
+        self.ffn_v = nn.Sequential(
+            nn.Linear(d_model, d_model * 4), nn.GELU(), nn.Linear(d_model * 4, d_model))
+        self.ffn_a = nn.Sequential(
+            nn.Linear(d_model, d_model * 4), nn.GELU(), nn.Linear(d_model * 4, d_model))
+        self.norm_v2 = nn.LayerNorm(d_model)
+        self.norm_a2 = nn.LayerNorm(d_model)
+
+    def forward(self, v: Tensor, a: Tensor) -> Tuple[Tensor, Tensor]:
+        v_in, a_in = v, a
+        v2, _ = self.v2a(v_in, a_in, a_in, need_weights=False)
+        a2, _ = self.a2v(a_in, v_in, v_in, need_weights=False)
+        v = self.norm_v1(v_in + v2)
+        a = self.norm_a1(a_in + a2)
+        v = self.norm_v2(v + self.ffn_v(v))
+        a = self.norm_a2(a + self.ffn_a(a))
+        return v, a
+
+
+class CrossAttnFusionBridge(nn.Module):
+    """AUXILIARY-ONLY fusion branch (STEP 2). Takes the leak-fixed per-modality
+    source tokens from encode_source_tokens (each modality's OWN masked-pass
+    tokens -- see check_source_token_invariance), runs a few bidirectional
+    cross-attention layers letting vision and ambient tokens attend to each
+    other for a GIVEN pairing, pools each side, and scores whether the pairing
+    is real via a small matching head. Trained with a real-pair vs shuffled-
+    pair BCE loss.
+
+    This NEVER feeds the normalised contrastive retrieval head
+    (pool_and_project stays untouched, byte-for-byte) -- full-gallery R@1
+    stays a validly independently-embedded number. Gradients reach the shared
+    predictor trunk only through this auxiliary loss, which is the (indirect)
+    mechanism by which fusion could improve the trunk's representations that
+    the retrieval head also reads from.
+    """
+
+    def __init__(self, d_model: int, n_layers: int = 2, n_heads: int = 8):
+        super().__init__()
+        self.layers = nn.ModuleList(
+            [CrossAttnFusionLayer(d_model, n_heads) for _ in range(n_layers)])
+        self.pool_query = nn.Parameter(torch.randn(1, 1, d_model) * 0.02)
+        self.match_head = nn.Linear(d_model * 2, 1)
+
+    def _pool(self, x: Tensor) -> Tensor:
+        q = self.pool_query.expand(x.shape[0], 1, -1)
+        attn = torch.softmax((q @ x.transpose(1, 2)) / (x.shape[-1] ** 0.5), dim=-1)
+        return (attn @ x).squeeze(1)
+
+    def match_logit(self, v_tokens: Tensor, a_tokens: Tensor) -> Tensor:
+        v, a = v_tokens, a_tokens
+        for layer in self.layers:
+            v, a = layer(v, a)
+        pooled_v, pooled_a = self._pool(v), self._pool(a)
+        return self.match_head(torch.cat([pooled_v, pooled_a], dim=-1)).squeeze(-1)
+
+
+def fusion_matching_loss(
+    fusion_bridge: CrossAttnFusionBridge, v_tokens: Tensor, a_tokens: Tensor,
+) -> Tuple[Tensor, float]:
+    """Real-pair vs shuffled-pair BCE. Positive: (v_i, a_i). Negative:
+    (v_i, a_perm(i)) for a derangement perm (perm(i) != i for all i, so every
+    negative is a genuine mismatch, not an accidental self-pair). Returns
+    (loss, accuracy) for logging."""
+    B = v_tokens.shape[0]
+    device = v_tokens.device
+    if B < 2:
+        # can't form a derangement with 1 sample; skip (no-op, 0 grad contribution)
+        return v_tokens.sum() * 0.0, 0.0
+    perm = (torch.arange(B, device=device) + 1 + torch.randint(0, max(1, B - 1), (1,), device=device)) % B
+    pos_logit = fusion_bridge.match_logit(v_tokens, a_tokens)
+    neg_logit = fusion_bridge.match_logit(v_tokens, a_tokens[perm])
+    logits = torch.cat([pos_logit, neg_logit], dim=0)
+    labels = torch.cat([torch.ones(B, device=device), torch.zeros(B, device=device)], dim=0)
+    loss = F.binary_cross_entropy_with_logits(logits, labels)
+    with torch.no_grad():
+        acc = ((logits > 0).float() == labels).float().mean().item()
+    return loss, acc
 
 
 def gathered_info_nce(
@@ -515,6 +651,7 @@ def save_checkpoint(
     pooled_heads: Optional[PooledXModalHeads] = None,
     vision_proj: Optional[nn.Module] = None,
     ambient_proj: Optional[nn.Module] = None,
+    fusion_bridge: Optional[nn.Module] = None,
 ) -> None:
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     payload = {
@@ -528,6 +665,7 @@ def save_checkpoint(
     if pooled_heads  is not None: payload["pooled_heads"]  = pooled_heads.state_dict()
     if vision_proj   is not None: payload["vision_proj"]   = vision_proj.state_dict()
     if ambient_proj  is not None: payload["ambient_proj"]  = ambient_proj.state_dict()
+    if fusion_bridge is not None: payload["fusion_bridge"] = fusion_bridge.state_dict()
     torch.save(payload, path)
 
 
@@ -551,7 +689,9 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
           contrast_temp: float = 0.05,
           batch_size_override: Optional[int] = None,
           tag_ckpts: bool = False,
-          gradcache_micro_steps: int = 1) -> None:
+          gradcache_micro_steps: int = 1,
+          lam_fusion: float = 0.0,
+          fusion_layers: int = 2) -> None:
     device = setup_distributed()
     rank   = get_rank()
     torch.manual_seed(int(cfg_get(cfg, "seed", default=0)) + rank)
@@ -620,6 +760,22 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
             print(f"[train_m2] contrastive proj heads params={n_cp:,} "
                   f"dim={contrast_dim} temp={contrast_temp}", flush=True)
 
+    # ── Cross-attention fusion bridge (STEP 2, AUXILIARY ONLY) ────────
+    # See CrossAttnFusionBridge docstring: never feeds the retrieval head
+    # above, only trains via fusion_matching_loss added into total_loss.
+    fusion_bridge: Optional[CrossAttnFusionBridge] = None
+    if lam_fusion > 0.0:
+        d_model = int(cfg_get(cfg, "model.d_model", default=1024))
+        fusion_bridge = CrossAttnFusionBridge(
+            d_model=d_model, n_layers=fusion_layers,
+            n_heads=int(cfg_get(cfg, "model.heads", default=8)),
+        ).to(device)
+        if is_main_process():
+            n_fb = sum(p.numel() for p in fusion_bridge.parameters())
+            print(f"[train_m2] CrossAttnFusionBridge params={n_fb:,} "
+                  f"layers={fusion_layers} lam_fusion={lam_fusion} "
+                  f"(AUXILIARY ONLY -- does not feed the retrieval head)", flush=True)
+
     # ── optimiser / scheduler ─────────────────────────────────────────
     optimizer    = build_optimizer(predictor, cfg)
     if pooled_heads is not None:
@@ -638,6 +794,16 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
         optimizer.add_param_group({
             "params": list(vision_proj.parameters()) + list(ambient_proj.parameters()),
             "weight_decay": wd,
+        })
+    if fusion_bridge is not None:
+        wd = float(cfg_get(cfg, "optim.weight_decay", default=0.05))
+        optimizer.add_param_group({
+            "params": [p for p in fusion_bridge.parameters() if p.ndim > 1],
+            "weight_decay": wd,
+        })
+        optimizer.add_param_group({
+            "params": [p for p in fusion_bridge.parameters() if p.ndim <= 1],
+            "weight_decay": 0.0,
         })
     total_steps  = max_steps or int(cfg_get(cfg, "optim.total_steps", default=10000))
     warmup_steps = int(cfg_get(cfg, "optim.warmup_steps", default=500))
@@ -662,6 +828,8 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
         if vision_proj is not None and "vision_proj" in ckpt:
             vision_proj.load_state_dict(ckpt["vision_proj"], strict=False)
             ambient_proj.load_state_dict(ckpt["ambient_proj"], strict=False)
+        if fusion_bridge is not None and "fusion_bridge" in ckpt:
+            fusion_bridge.load_state_dict(ckpt["fusion_bridge"], strict=False)
         if "optimizer" in ckpt:
             optimizer.load_state_dict(ckpt["optimizer"])
         if "scheduler" in ckpt:
@@ -690,7 +858,7 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
         # All manually-synchronised modules must begin from the SAME state.
         # sync_grads() only averages updates; it cannot correct different
         # random initialisations of the contrastive/pooled heads.
-        for module in (predictor, pooled_heads, vision_proj, ambient_proj):
+        for module in (predictor, pooled_heads, vision_proj, ambient_proj, fusion_bridge):
             if module is not None:
                 for t in module.state_dict().values():
                     dist.broadcast(t, src=0)
@@ -797,6 +965,7 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
             _probe_batch = next(iter(loader))
             _feats0 = {k: v.to(device) for k, v in _probe_batch["feats"].items()}
             _tbins0 = {k: v.to(device) for k, v in _probe_batch["tbins"].items()}
+            _cap_ambient_len(_feats0, _tbins0)
             _micro_b = next(iter(_feats0.values())).shape[0]
             if gradcache_micro_steps > 1:
                 print(f"[train_m2] GradCache: micro_batch={_micro_b} x "
@@ -823,6 +992,7 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
 
         feats = {k: v.to(device) for k, v in batch["feats"].items()}
         tbins = {k: v.to(device) for k, v in batch["tbins"].items()}
+        _cap_ambient_len(feats, tbins)
 
         # GradCache: pull the REST of this step's microbatches now (feats/
         # tbins above stays the "primary" microbatch -- used for pred_loss/
@@ -834,14 +1004,15 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
             gc_micro_batches.append((feats, tbins))
             for _ in range(gradcache_micro_steps - 1):
                 _b = next(batches)
-                gc_micro_batches.append((
-                    {k: v.to(device) for k, v in _b["feats"].items()},
-                    {k: v.to(device) for k, v in _b["tbins"].items()},
-                ))
+                _f = {k: v.to(device) for k, v in _b["feats"].items()}
+                _t = {k: v.to(device) for k, v in _b["tbins"].items()}
+                _cap_ambient_len(_f, _t)
+                gc_micro_batches.append((_f, _t))
 
         # Sample cross-modal mask
         mask = sample_cross_modal_mask(tbins, mask_min, mask_max, rng=rng,
-                                       mask_mode=mask_mode, mask_frac=mask_frac)
+                                       mask_mode=mask_mode, mask_frac=mask_frac,
+                                       step=step)
         mask = {k: v.to(device) for k, v in mask.items()}
 
         with torch.autocast(device_type=device.type, dtype=torch.bfloat16,
@@ -877,6 +1048,44 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
                 pl = pooled_heads.combined_loss(src_by_mod, feats)
                 total_loss = total_loss + lam_pooled * pl
                 pooled_loss_val = float(pl.detach())
+
+            # ── shared source tokens for fusion + plain-path retrieval ──
+            # One encode_source_tokens() call (2 masked backbone passes) here
+            # instead of two separate ones -- fusion and pool_and_project both
+            # consume the SAME leak-fixed tokens below. Not built under
+            # GradCache (that path caches/replays its own microbatches).
+            use_gradcache = lam_contrastive > 0.0 and gradcache_micro_steps > 1
+            need_shared_tokens = (fusion_bridge is not None and lam_fusion > 0.0) or \
+                                  (lam_contrastive > 0.0 and not use_gradcache)
+            shared_src_tokens: Optional[Dict[str, Tensor]] = None
+            if need_shared_tokens:
+                shared_src_tokens = raw.encode_source_tokens(feats, tbins)
+
+            # ── cross-attention fusion bridge (STEP 2, AUXILIARY ONLY) ──
+            # See CrossAttnFusionBridge docstring: real-pair vs shuffled-pair
+            # matching loss on the leak-fixed source tokens. Gradients reach
+            # the shared trunk through THIS loss only -- pool_and_project's
+            # retrieval embeddings above/below are never touched by
+            # fusion_bridge, so full-gallery R@1 stays validly comparable.
+            # Subsampled to a fixed FUSION_BATCH independent of the
+            # contrastive batch size -- this auxiliary branch does not
+            # participate in the InfoNCE negatives count at all, so bounding
+            # its own memory footprint doesn't touch the 192-negative
+            # isolation this run is testing.
+            fusion_loss_val = 0.0
+            fusion_acc = 0.0
+            if fusion_bridge is not None and lam_fusion > 0.0:
+                FUSION_BATCH = 8
+                B_full = shared_src_tokens["vision"].shape[0]
+                fb = min(FUSION_BATCH, B_full)
+                f_loss, f_acc = fusion_matching_loss(
+                    fusion_bridge,
+                    shared_src_tokens["vision"][:fb],
+                    shared_src_tokens["ambient"][:fb],
+                )
+                total_loss = total_loss + lam_fusion * f_loss
+                fusion_loss_val = float(f_loss.detach())
+                fusion_acc = f_acc
 
             # ── instance-discrimination hinge (temporal-shuffle as a TRAINING
             # signal, not just an eval control): for a p_neg fraction of the
@@ -918,10 +1127,10 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
             contrastive_loss_val = 0.0
             contrastive_acc = 0.0
             global_negatives = 0
-            use_gradcache = lam_contrastive > 0.0 and gradcache_micro_steps > 1
             if lam_contrastive > 0.0 and not use_gradcache:
                 assert amp_enabled, "week run requires bf16 autocast active for the contrastive path"
-                z_v, z_a = pool_and_project(raw, vision_proj, ambient_proj, feats, tbins)
+                z_v, z_a = pool_and_project(raw, vision_proj, ambient_proj, feats, tbins,
+                                            tokens=shared_src_tokens)
                 c_loss, c_metrics = gathered_info_nce(z_v, z_a, temperature=contrast_temp)
                 total_loss = total_loss + lam_contrastive * c_loss
                 contrastive_loss_val = float(c_loss.detach())
@@ -967,6 +1176,8 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
             sync_grads(ambient_proj)
         if pooled_heads is not None:
             sync_grads(pooled_heads)
+        if fusion_bridge is not None:
+            sync_grads(fusion_bridge)
 
         if grad_clip > 0:
             params_to_clip = list(predictor.parameters())
@@ -1019,6 +1230,9 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
             ]
             if pooled_heads is not None:
                 log_parts.append(f"pooled={pooled_loss_val:.4f}")
+            if fusion_bridge is not None:
+                log_parts.append(f"fusion={fusion_loss_val:.4f}")
+                log_parts.append(f"fusion_acc={fusion_acc:.3f}")
             if p_neg > 0.0:
                 log_parts.append(f"mismatch={mismatch_loss_val:.4f}")
                 log_parts.append(f"hinge={hinge_val:.4f}")
@@ -1039,6 +1253,7 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
                     predictor, step, best_loss,
                     pooled_heads=pooled_heads,
                     vision_proj=vision_proj, ambient_proj=ambient_proj,
+                    fusion_bridge=fusion_bridge,
                 )
 
         # ── STEP-3 / contrastive retrieval eval ─────────────────────────
@@ -1094,6 +1309,7 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
                 loss_ema=loss_ema,
                 pooled_heads=pooled_heads,
                 vision_proj=vision_proj, ambient_proj=ambient_proj,
+                fusion_bridge=fusion_bridge,
             )
             if tag_ckpts:
                 save_checkpoint(
@@ -1102,6 +1318,7 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
                     loss_ema=loss_ema,
                     pooled_heads=pooled_heads,
                     vision_proj=vision_proj, ambient_proj=ambient_proj,
+                    fusion_bridge=fusion_bridge,
                 )
 
     # ── final checkpoint ──────────────────────────────────────────────
@@ -1113,6 +1330,7 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
             loss_ema=loss_ema,
             pooled_heads=pooled_heads,
             vision_proj=vision_proj, ambient_proj=ambient_proj,
+            fusion_bridge=fusion_bridge,
         )
         print(
             f"[train_m2] done. best_loss={best_loss:.4f} "
@@ -1132,8 +1350,9 @@ def main() -> None:
     parser.add_argument("--limit",     type=int, default=None,
                         help="Limit dataset to N clips.")
     parser.add_argument("--mask-mode", default=None,
-                        choices=["windowed", "whole", "high_frac"],
-                        help="Masking mode: windowed (default), whole, or high_frac.")
+                        choices=["windowed", "whole", "high_frac", "asym_curriculum"],
+                        help="Masking mode: windowed (default), whole, high_frac, or "
+                             "asym_curriculum.")
     parser.add_argument("--mask-frac", type=float, default=None,
                         help="Fixed contiguous mask fraction for --mask-mode high_frac "
                              "(e.g. 0.75/0.85/0.95). Required when mask-mode=high_frac.")
@@ -1180,12 +1399,26 @@ def main() -> None:
                              "hinge stay at --batch-size). 1 (default) = off, unchanged behavior. "
                              "Effective per-rank contrastive batch = batch_size * this; effective "
                              "gathered negatives = that * world_size.")
+    parser.add_argument("--cache-dir", default=None,
+                        help="Override data.av_cache_dir from the config (in-memory only, "
+                             "does not touch the config file) -- e.g. to point at a RAID-backed "
+                             "copy of the feature cache instead of /dev/shm.")
+    parser.add_argument("--lam-fusion", type=float, default=0.0,
+                        help="STEP 2: weight for the CrossAttnFusionBridge auxiliary real-pair "
+                             "vs shuffled-pair matching loss. 0.0 (default) = off. This branch "
+                             "NEVER feeds the contrastive retrieval head -- it only trains the "
+                             "shared predictor trunk via this loss.")
+    parser.add_argument("--fusion-layers", type=int, default=2,
+                        help="Number of bidirectional cross-attention layers in the "
+                             "CrossAttnFusionBridge (only used when --lam-fusion > 0).")
     args = parser.parse_args()
 
-    if args.mask_mode == "high_frac" and args.mask_frac is None:
-        parser.error("--mask-mode high_frac requires --mask-frac")
+    if args.mask_mode in ("high_frac", "asym_curriculum") and args.mask_frac is None:
+        parser.error(f"--mask-mode {args.mask_mode} requires --mask-frac")
 
     cfg = load_config(args.config)
+    if args.cache_dir is not None:
+        cfg.setdefault("data", AttrDict())["av_cache_dir"] = args.cache_dir
     train(cfg, max_steps=args.max_steps, limit=args.limit,
           mask_mode=args.mask_mode, mask_frac=args.mask_frac,
           ckpt_dir_override=args.ckpt_dir,
@@ -1196,7 +1429,8 @@ def main() -> None:
           lam_pred=args.lam_pred, lam_contrastive=args.lam_contrastive,
           contrast_dim=args.contrast_dim, contrast_temp=args.contrast_temp,
           batch_size_override=args.batch_size, tag_ckpts=args.tag_ckpts,
-          gradcache_micro_steps=args.gradcache_micro_steps)
+          gradcache_micro_steps=args.gradcache_micro_steps,
+          lam_fusion=args.lam_fusion, fusion_layers=args.fusion_layers)
 
 
 if __name__ == "__main__":

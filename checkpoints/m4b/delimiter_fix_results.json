@@ -1,0 +1,56 @@
+{
+  "n": 100,
+  "f1_normal": 0.005478057889822596,
+  "f1_swapped": 0.003740740740740741,
+  "f1_zeroed": 0.15395592196534594,
+  "side_by_side": [
+    {
+      "clip_id": "JBTEFp-SiAA_000171",
+      "ground_truth": "The audio contains rhythmic drumming with some metallic clanging sounds. It is likely from a percussion ensemble or band performance.",
+      "generated": "",
+      "f1": 0.0
+    },
+    {
+      "clip_id": "3LvZUtupOCs_000030",
+      "ground_truth": "The audio contains dogs howling in unison with each other at different pitches. The source is likely a pack of dogs.",
+      "generated": "",
+      "f1": 0.0
+    },
+    {
+      "clip_id": "aec791kXVms_000011",
+      "ground_truth": "The audio contains sounds of pigs oinking, water splashing, and dogs barking.",
+      "generated": "",
+      "f1": 0.0
+    },
+    {
+      "clip_id": "Le9QaCTQFQ4_000150",
+      "ground_truth": "The audio contains a fart noise followed by laughter. The source is likely someone making a joke or telling a funny story.",
+      "generated": "",
+      "f1": 0.0
+    },
+    {
+      "clip_id": "WFJ96PH4rvo_000020",
+      "ground_truth": "The sound is of a dog howling.",
+      "generated": "",
+      "f1": 0.0
+    },
+    {
+      "clip_id": "5-SzNKBcPWs_000030",
+      "ground_truth": "The audio contains dog panting and barking sounds.",
+      "generated": "",
+      "f1": 0.0
+    },
+    {
+      "clip_id": "UVPgh1SYQ9M_000456",
+      "ground_truth": "The audio contains the sound of an aircraft engine running smoothly in the distance with intermittent wind noise. The source is likely an airplane flying overhead or nearby.",
+      "generated": "",
+      "f1": 0.0
+    },
+    {
+      "clip_id": "bXTlmnjGx0Y_000049",
+      "ground_truth": "The audio contains birds chirping in the background with an engine starting up and idling.",
+      "generated": "",
+      "f1": 0.0
+    }
+  ]
+}

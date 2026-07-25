@@ -1,0 +1,24 @@
+{
+  "gpt_action_detailed": {
+    "n": 200,
+    "cos_normal": 0.5994554162025452,
+    "cos_swapped": 0.16870465874671936,
+    "cos_mode_baseline": 0.14296263456344604,
+    "cos_random_train_baseline": 0.15978115797042847,
+    "semantic_gap_normal_minus_swapped": 0.4307507574558258,
+    "f1_normal": 0.30213209401818264,
+    "f1_swapped": 0.17346932470754517,
+    "f1_gap_normal_minus_swapped": 0.12866276931063747
+  },
+  "gpt_summary_detailed": {
+    "n": 200,
+    "cos_normal": 0.6663379669189453,
+    "cos_swapped": 0.3153449296951294,
+    "cos_mode_baseline": 0.28519266843795776,
+    "cos_random_train_baseline": 0.32344505190849304,
+    "semantic_gap_normal_minus_swapped": 0.3509930372238159,
+    "f1_normal": 0.2806680459960173,
+    "f1_swapped": 0.1920298200964813,
+    "f1_gap_normal_minus_swapped": 0.08863822589953599
+  }
+}

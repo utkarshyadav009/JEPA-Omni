@@ -1,0 +1,12 @@
+{
+  "n_backchannel": 217,
+  "n_real_speak": 895,
+  "false_halt_rate_on_backchannel": {
+    "old_binary": 0.9723502397537231,
+    "new_3class": 0.10138248652219772
+  },
+  "true_halt_rate_on_real_speak": {
+    "old_binary": 0.9988826513290405,
+    "new_3class": 0.9620111584663391
+  }
+}
