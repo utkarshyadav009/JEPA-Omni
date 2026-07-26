@@ -106,6 +106,29 @@ class DuplexLoop:
         return IDX_TO_LABEL[idx], {IDX_TO_LABEL[i]: probs[i].item() for i in range(probs.shape[0])}
 
     @torch.no_grad()
+    def decide3_speechonly(self, speech_feat: torch.Tensor) -> Tuple[str, Dict[str, float]]:
+        """A1 deployment decision (2026-07-26): the World-State-consuming
+        ThreeClassHead's WS input was shown (six-condition falsifier,
+        checkpoints/m4_decision_head_3class_bothpresent/A1_PROVENANCE.txt)
+        to function as a presence/scale slot, not an information channel --
+        a constant dataset-mean vector matched or beat the real, correctly
+        -paired World-State. Condition (g), a head with the WS branch
+        removed entirely (train_decision_head_3class_speechonly.py), scored
+        95.00% vs the WS-consuming head's 93.67% (not significantly
+        different, numerically better). This method takes NO world_state
+        argument at all -- self.decision_head must be a
+        SpeechOnlyThreeClassHead instance loaded from
+        checkpoints/m4_decision_head_3class_speechonly/best.pt. Vision is
+        NOT removed from the system by this -- it still feeds generation
+        via M3 (see models/m5_streaming_loop.py); only turn-taking stops
+        depending on it."""
+        from models.m4_decision_head import IDX_TO_LABEL
+        logits = self.decision_head(speech_feat)
+        probs = torch.softmax(logits, dim=-1)[0]
+        idx = int(probs.argmax().item())
+        return IDX_TO_LABEL[idx], {IDX_TO_LABEL[i]: probs[i].item() for i in range(probs.shape[0])}
+
+    @torch.no_grad()
     def generate_interruptible(
         self,
         soft_prompt: torch.Tensor,           # (1, T, H)

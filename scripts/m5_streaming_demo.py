@@ -139,7 +139,20 @@ def main() -> None:
     tick_wall_latencies = []
     n_ticks = int(args.duration_sec / cfg.tick_interval_sec)
 
-    print(f"[m5-stream] running {n_ticks} ticks ({args.duration_sec:.0f}s simulated) ...", flush=True)
+    # Clock-mismatch fix (2026-07-26 review): vision now refreshes on its
+    # own thread using REAL wall-clock time (time.time()), while this loop
+    # used to free-run through ticks as fast as CPU/GPU allowed, advancing
+    # t_sim far ahead of real elapsed time. Decision: pace the harness to
+    # REAL time -- this is the behaviorally-correct choice because the
+    # actual deployment target is a live camera/mic feed on the Jetson,
+    # where ticks are inherently real-time-paced (frames/audio arrive at
+    # real cadence, there is no "faster than real time" mode on-device).
+    # An offline harness that free-runs would show staleness relative to
+    # t_sim that has no relationship to the real vision-thread cadence.
+    real_t_start = time.time()
+    stream.start_vision_refresh_thread(hz=0.3)
+    print(f"[m5-stream] running {n_ticks} ticks ({args.duration_sec:.0f}s simulated, "
+          f"paced to real wall-clock) ...", flush=True)
     for tick_i in range(n_ticks):
         stream.ingest_video_frame(make_dummy_frame())
         chunk = full_audio[audio_pos: audio_pos + samples_per_tick]
@@ -165,18 +178,28 @@ def main() -> None:
         wall_ms = (time.perf_counter() - t0) * 1000.0
         tick_wall_latencies.append(wall_ms)
         t_sim += cfg.tick_interval_sec
+        # sleep off whatever's left of this tick's real-time budget so
+        # t_sim tracks real elapsed time (see clock-mismatch note above)
+        real_elapsed = time.time() - real_t_start
+        sleep_left = t_sim - real_elapsed
+        if sleep_left > 0:
+            time.sleep(sleep_left)
 
         if (tick_i + 1) % 40 == 0 or log.action == "speak":
             print(f"[m5-stream] tick {tick_i+1}/{n_ticks} t={t_sim:.2f}s action={log.action:12s} "
                   f"vision_refreshed={log.vision_refreshed}  wall={wall_ms:.1f}ms  "
                   f"latencies={log.latencies_ms}", flush=True)
 
+    stream.stop_vision_refresh_thread()
+
     action_counts = {}
     for log in stream.logs:
         action_counts[log.action] = action_counts.get(log.action, 0) + 1
 
-    vitl_lats = [l.latencies_ms["vitl_forward_ms"] for l in stream.logs if "vitl_forward_ms" in l.latencies_ms]
-    fusion_lats = [l.latencies_ms["fusion_predictor_ms"] for l in stream.logs if "fusion_predictor_ms" in l.latencies_ms]
+    # vision timing now comes from stream.vision_logs (its own thread), not
+    # stream.logs' latencies_ms -- tick() no longer carries it (2026-07-26)
+    vitl_lats = [l["vitl_forward_ms"] for l in stream.vision_logs]
+    fusion_lats = [l["fusion_predictor_ms"] for l in stream.vision_logs]
     vision_refresh_lats = [a + b for a, b in zip(vitl_lats, fusion_lats)]
     speech_lats = [l.latencies_ms["speech_activity_ms"] for l in stream.logs if "speech_activity_ms" in l.latencies_ms]
     decision_lats = [l.latencies_ms["decision_ms"] for l in stream.logs if "decision_ms" in l.latencies_ms]

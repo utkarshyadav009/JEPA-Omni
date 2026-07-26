@@ -61,6 +61,7 @@ from models.sigreg import sigreg
 
 # ── other imports ────────────────────────────────────────────────────────────
 from data.av_cached_dataset import AVCachedDataset, av_collate_fn, validate_av_manifest
+from data.source_disjoint_batch_sampler import SourceDisjointBatchSampler
 from models.pooled_head import PooledXModalHeads, pooled_retrieval_eval
 from models.losses import info_nce
 from utils import AttrDict, cfg_get, get_local_rank, get_rank, get_world_size, \
@@ -247,6 +248,7 @@ def build_dataloader(
     num_workers_override: Optional[int] = None,
     distributed_sampler: bool = True,
     drop_last_override: Optional[bool] = None,
+    source_disjoint_batches: bool = False,
 ) -> Tuple[DataLoader, Optional[DistributedSampler]]:
     cache_dir    = str(cfg_get(cfg, "data.av_cache_dir",
                                default="/dev/shm/jepa_m2_cache"))
@@ -270,6 +272,28 @@ def build_dataloader(
     drop_last = (drop_last_override if drop_last_override is not None
                  else len(dataset) >= batch_size)
     sampler: Optional[DistributedSampler] = None
+
+    if source_disjoint_batches:
+        # item 4: mixed VGGSound/Ego4D/EasyCom corpora put multiple windows
+        # from the SAME source video in the candidate pool -- without this,
+        # two near-duplicate windows can land in one contrastive batch and
+        # become false negatives (see data/source_disjoint_batch_sampler.py).
+        # Not compatible with DistributedSampler (single-GPU/rank use only
+        # for now -- this project's B-deploy retrain runs single-GPU).
+        assert not (is_distributed() and distributed_sampler), \
+            "source_disjoint_batches has no distributed variant yet"
+        batch_sampler = SourceDisjointBatchSampler(
+            dataset.clip_ids, batch_size=batch_size, drop_last=drop_last)
+        loader = DataLoader(
+            dataset,
+            batch_sampler=batch_sampler,
+            num_workers=num_workers,
+            collate_fn=av_collate_fn,
+            pin_memory=torch.cuda.is_available(),
+            persistent_workers=num_workers > 0,
+        )
+        return loader, None
+
     if is_distributed() and distributed_sampler:
         sampler = DistributedSampler(dataset, shuffle=True, drop_last=drop_last)
 

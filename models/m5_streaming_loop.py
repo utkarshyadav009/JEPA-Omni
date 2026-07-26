@@ -43,6 +43,7 @@ minute rate, during which MicGate.is_playing=True gates the mic.
 """
 from __future__ import annotations
 
+import threading
 import time
 from dataclasses import dataclass, field
 from typing import Callable, Deque, Dict, List, Optional
@@ -62,7 +63,11 @@ TTS_WORDS_PER_MINUTE = 150.0   # standard speech-synthesis rate estimate
 class StreamingConfig:
     window_vision_sec: float = 10.0
     stride_vision_sec: float = 2.0
-    window_audio_sec: float = 2.0
+    window_audio_sec: float = 2.0      # Whisper/speech-activity window (decision path) -- unchanged
+    window_ambient_sec: float = 10.0   # NEW (2026-07-26): WavJEPA/M2-ambient window, matches
+                                        # window_vision_sec/CLIP_DURATION_S -- a SEPARATE buffer
+                                        # from window_audio_sec, different consumer (M2 fusion vs
+                                        # Whisper/decision head), do not repurpose one for the other
     tick_interval_sec: float = 0.25
     audio_sr: int = 16000
     video_fps: float = 6.4        # 64 frames / 10s -- matches CLIP_DURATION_S
@@ -123,6 +128,9 @@ class TickLog:
     action: str                    # "silence" | "speak" | "backchannel" | "gated" | "interrupted"
     vision_refreshed: bool
     latencies_ms: Dict[str, float] = field(default_factory=dict)
+    overlapped_vision_forward: bool = False   # item 4 root-cause instrumentation: was a vision/
+                                               # ambient encoder forward pass in flight (on the
+                                               # vision thread) at the moment this tick ran?
     decision_label: Optional[str] = None
     decision_probs: Optional[Dict[str, float]] = None
     generation_text: Optional[str] = None
@@ -135,15 +143,25 @@ class StreamingLoop:
 
     def __init__(self, duplex_loop: DuplexLoop, cfg: StreamingConfig,
                  interruption_policy: Optional[InterruptionPolicy] = None,
-                 vision_encoder=None, max_tdm_bins: int = 512):
+                 vision_encoder=None, max_tdm_bins: int = 512,
+                 ambient_base_encoder=None, ambient_nat_encoder=None):
         self.loop = duplex_loop
         self.cfg = cfg
         self.mic_gate = MicGate()
         self.interruption_policy = interruption_policy
         self.vision_encoder = vision_encoder   # models.vision_encoder.VisionEncoder -- REAL ViT-L, not dummy features
+        # NEW (2026-07-26, item 0 fix): WavJEPA-base/nat -- M2's actual audio
+        # encoders. Whisper (via compute_speech_activity) is a DIFFERENT
+        # pathway feeding the decision head's speech-activity feature, not
+        # World-State; these two were previously conflated (ambient was
+        # simply absent). None-able for back-compat with any caller not
+        # yet passing them (vision-only World-State, degraded but no crash).
+        self.ambient_base_encoder = ambient_base_encoder
+        self.ambient_nat_encoder = ambient_nat_encoder
         self.max_tdm_bins = max_tdm_bins
         self.video_buf = RollingVideoBuffer(cfg.window_vision_sec, cfg.video_fps)
-        self.audio_buf = RollingAudioBuffer(cfg.window_audio_sec, cfg.audio_sr)
+        self.audio_buf = RollingAudioBuffer(cfg.window_audio_sec, cfg.audio_sr)              # Whisper/decision path
+        self.ambient_buf = RollingAudioBuffer(cfg.window_ambient_sec, cfg.audio_sr)           # WavJEPA/World-State path -- separate buffer, separate consumer
         self._last_vision_refresh_t: Optional[float] = None
         self._cached_world_state: Optional[torch.Tensor] = None
         self._tts_playing_until: Optional[float] = None
@@ -151,43 +169,183 @@ class StreamingLoop:
         self._halted_soft_prompt = None
         self._halted_attn = None
         self.logs: List[TickLog] = []
+        # 2026-07-26: vision refresh moved off tick()'s critical path onto
+        # its own thread (decide3_speechonly() never receives World-State,
+        # so nothing in the decision path needs to wait on ViT-L). Vision
+        # is NOT removed from the system -- it still feeds generate_fn's
+        # M3-grounded soft prompt via get_cached_world_state().
+        self._ws_lock = threading.Lock()
+        self._vision_thread: Optional[threading.Thread] = None
+        self._vision_thread_stop = threading.Event()
+        self.vision_logs: List[Dict] = []   # (t, vitl_forward_ms, fusion_predictor_ms) -- the
+                                             # instrumentation tick()'s latencies dict used to carry
+        # item 4 (2026-07-26): set for the duration of a vision/ambient
+        # forward pass, regardless of which refresh-thread policy is
+        # active (strided or opportunistic) -- lets tick() record whether
+        # it landed during a forward pass, for the root-cause split
+        # (tick latency when overlapping vs not overlapping a refresh).
+        self._vision_busy = threading.Event()
 
     def ingest_video_frame(self, frame: torch.Tensor) -> None:
         self.video_buf.push(frame)
 
     def ingest_audio_chunk(self, chunk: np.ndarray) -> None:
-        self.audio_buf.push(chunk)
+        self.audio_buf.push(chunk)      # Whisper/decision-path window (unchanged, 2.0s default)
+        self.ambient_buf.push(chunk)    # NEW: WavJEPA/World-State window (10.0s default), same
+                                         # underlying mic stream, two independent rolling windows
 
-    def _maybe_refresh_vision(self, t: float) -> tuple:
-        """Returns (world_state, refreshed: bool, latencies: dict). Runs
-        the REAL V-JEPA2 ViT-L forward pass (self.vision_encoder.encode)
-        over the current rolling window, THEN the M2 fusion predictor's
-        encode_world_state on top of those real vision tokens -- both
-        stages timed separately so the latency breakdown distinguishes
-        "the vision encoder itself" from "the fusion predictor.\""""
-        need_refresh = (self._last_vision_refresh_t is None or
+    def start_vision_refresh_thread(self, hz: float = 0.3) -> None:
+        """Runs _maybe_refresh_vision on its own cadence, independent of
+        tick(). Fix (2026-07-26 review): sleep for (period - elapsed), not
+        a full period after the forward returns -- the naive version ran
+        at forward_time + period between refreshes (e.g. 2.43s + 3.33s =
+        5.76s = 0.17Hz on Jetson, not the requested 0.3Hz)."""
+        period = 1.0 / hz
+
+        def _loop():
+            while not self._vision_thread_stop.is_set():
+                t0 = time.perf_counter()
+                self._maybe_refresh_vision(time.time())
+                elapsed = time.perf_counter() - t0
+                self._vision_thread_stop.wait(max(0.0, period - elapsed))
+
+        self._vision_thread = threading.Thread(target=_loop, daemon=True)
+        self._vision_thread.start()
+
+    def start_vision_refresh_thread_opportunistic(self, staleness_deadline_sec: float = 15.0,
+                                                   poll_interval_sec: float = 0.25) -> None:
+        """Item 4 design: root-cause first (see JETSON_PHASE4_2_3_RESULTS.json
+        + the split-by-overlap analysis) showed the p95=786.5ms tail (even
+        WITH the priority CUDA stream) coincides with ticks that land during
+        a vision/ambient forward pass -- a 2.43-3.4s forward spans ~10-14
+        ticks at 0.25s. Fixed-cadence strided refresh (start_vision_refresh_
+        thread) is oblivious to what the decision path is doing; this
+        alternative policy instead PREFERS to refresh during a window that
+        is already gated for other reasons -- MicGate.is_playing (simulated
+        TTS playback; Day 1 measured 50/60 ticks gated during playback, i.e.
+        the robot is "looking while it talks" and a stale-vision tick costs
+        nothing extra since decide3_speechonly() doesn't run during gating
+        anyway). A hard staleness deadline forces a refresh even if the
+        robot never speaks for a long stretch, so vision cannot go silent
+        indefinitely.
+
+        This does NOT replace start_vision_refresh_thread() -- both are
+        real, selectable scheduling policies; which one is the deployed
+        default is a decision for after on-device p95 numbers exist for
+        both (NOT RUN yet, blocked on Jetson SSH access as of this write)."""
+        def _loop():
+            while not self._vision_thread_stop.is_set():
+                t = time.time()
+                stale_for = ((t - self._last_vision_refresh_t) if self._last_vision_refresh_t is not None
+                             else float("inf"))
+                opportunistic = self.mic_gate.is_playing
+                forced = stale_for >= staleness_deadline_sec
+                if (opportunistic or forced) and not self._vision_busy.is_set():
+                    self._maybe_refresh_vision(t, force=True)
+                self._vision_thread_stop.wait(poll_interval_sec)
+
+        self._vision_thread = threading.Thread(target=_loop, daemon=True)
+        self._vision_thread.start()
+
+    def stop_vision_refresh_thread(self, timeout: float = 5.0) -> None:
+        self._vision_thread_stop.set()
+        if self._vision_thread is not None:
+            self._vision_thread.join(timeout=timeout)
+
+    def get_cached_world_state(self) -> Optional[torch.Tensor]:
+        """Thread-safe read for generate_fn (M3 grounding). Returns None
+        during the startup window before the first refresh completes (one
+        forward-pass duration, ~2.4-2.5s on the Jetson per PHASE0_
+        PROVENANCE.txt) -- callers MUST check for None rather than assume a
+        vector is always available. Use get_cached_world_state_or_zero()
+        for the standard fallback."""
+        with self._ws_lock:
+            return self._cached_world_state
+
+    def get_cached_world_state_or_zero(self, ws_dim: int, device) -> torch.Tensor:
+        """Startup guard (2026-07-26 review): during the one-time window
+        before the first vision refresh completes, a "speak" decision must
+        not hand None to the M3 connector. Fallback matches this project's
+        existing missing-modality-as-zero convention (models/
+        m4_duplex_loop.py's decide()/decide3() already default a missing
+        WS or SF to a zero tensor) -- a real vision refresh always
+        supersedes this within one refresh cycle once the thread is
+        running; this only fires during the initial startup gap."""
+        ws = self.get_cached_world_state()
+        if ws is not None:
+            return ws
+        return torch.zeros(1, ws_dim, device=device)
+
+    def _maybe_refresh_vision(self, t: float, force: bool = False) -> tuple:
+        """Returns (world_state, refreshed: bool, latencies: dict).
+
+        force=True (item 4, opportunistic scheduling): bypass the internal
+        stride_vision_sec cadence check -- the caller (start_vision_refresh_
+        thread_opportunistic) has already decided this IS the right moment
+        to refresh (mic-gated TTS playback or the hard staleness deadline),
+        so re-applying the strided check here would just suppress refreshes
+        the opportunistic policy exists to trigger.
+
+        REWRITTEN 2026-07-26 to close the item-0 divergence (confirmed by
+        direct source reads: no spatial pooling, linspace-ramp tbins
+        instead of training's floor-formula staircase, and ambient/WavJEPA
+        absent entirely). Now calls models.world_state_builder.
+        build_world_state_features() -- the SAME construction verified
+        against the cached-feature reference in Phase 1.2 (mean cosine
+        0.9985, tbins exact match) and Phase 2.1 (M3 grounding falsifier:
+        0.477/0.276/0.144 vs the cached-feature 0.482/0.29/0.15).
+
+        REFRESH BOTH VISION AND AMBIENT TOGETHER, ALWAYS, from the SAME
+        timestamp -- congruency was trained on time-aligned pairs; if
+        ambient refreshed on its own (cheaper) cadence while vision stayed
+        strided, fresh-audio-with-stale-vision would just be a NEW
+        divergence replacing the one this rewrite closes. Do not split
+        their refresh cadence."""
+        need_refresh = force or (self._last_vision_refresh_t is None or
                          t - self._last_vision_refresh_t >= self.cfg.stride_vision_sec)
         window = self.video_buf.get_window()
-        if not need_refresh or window is None or self.vision_encoder is None:
+        ambient_window = self.ambient_buf.get_window()
+        if (not need_refresh or window is None or self.vision_encoder is None
+                or ambient_window is None or self.ambient_base_encoder is None
+                or self.ambient_nat_encoder is None):
             return self._cached_world_state, False, {}
 
-        t0 = time.perf_counter()
-        with torch.no_grad():
-            vision_feats = self.vision_encoder.encode(window.unsqueeze(0))   # REAL ViT-L 64f forward -> (1, N, 1024)
-        vitl_lat = (time.perf_counter() - t0) * 1000.0
+        from models.world_state_builder import build_world_state_features
+        device = next(iter(self.vision_encoder.model.parameters())).device if hasattr(self.vision_encoder, "model") else "cuda"
+        audio_tensor = torch.from_numpy(ambient_window).float()
+        true_dur = audio_tensor.shape[0] / self.cfg.audio_sr
 
-        n_tok = vision_feats.shape[1]
-        bin_idx = torch.linspace(0, self.max_tdm_bins - 1, n_tok, device=vision_feats.device).round().long()
-        feats = {"vision": vision_feats.float()}
-        tbins = {"vision": bin_idx.unsqueeze(0)}
+        self._vision_busy.set()
+        try:
+            t0 = time.perf_counter()
+            result = build_world_state_features(
+                window, audio_tensor, true_dur,
+                self.vision_encoder, self.ambient_base_encoder, self.ambient_nat_encoder,
+                self.max_tdm_bins, device,
+            )
+            # combined ViT-L + WavJEPA-base + WavJEPA-nat cost -- not separable
+            # into per-encoder numbers without threading extra timing plumbing
+            # through the shared builder (reported as one "encoders_ms" figure
+            # instead of the old vitl-only vitl_forward_ms)
+            encoders_lat = (time.perf_counter() - t0) * 1000.0
 
-        t0 = time.perf_counter()
-        ws = self.loop.compute_world_state(feats, tbins)
-        fusion_lat = (time.perf_counter() - t0) * 1000.0
+            t0b = time.perf_counter()
+            ws = self.loop.compute_world_state(result.feats, result.tbins)
+            fusion_lat = (time.perf_counter() - t0b) * 1000.0
+        finally:
+            self._vision_busy.clear()
 
-        self._cached_world_state = ws
-        self._last_vision_refresh_t = t
-        return ws, True, {"vitl_forward_ms": vitl_lat, "fusion_predictor_ms": fusion_lat}
+        with self._ws_lock:
+            self._cached_world_state = ws
+            self._last_vision_refresh_t = t
+        # Instrumentation fix (2026-07-26 review): this used to reach
+        # tick()'s latencies dict via the return value; now that vision
+        # refresh runs on its own thread, nobody reads this return value
+        # synchronously, so log it here instead -- vitl_forward_ms /
+        # fusion_predictor_ms would otherwise silently vanish from every
+        # results JSON, including the first real Jetson profiling run.
+        self.vision_logs.append({"t": t, "encoders_ms": encoders_lat, "fusion_predictor_ms": fusion_lat})
+        return ws, True, {"encoders_ms": encoders_lat, "fusion_predictor_ms": fusion_lat}
 
     def _estimate_tts_duration_sec(self, text: str) -> float:
         n_words = max(1, len(text.split()))
@@ -198,14 +356,18 @@ class StreamingLoop:
              generate_fn: Optional[Callable] = None) -> TickLog:
         """One tick. `generate_fn() -> GenerationResult` is caller-supplied
         so the streaming loop doesn't hardcode which connector(s) built the
-        soft prompt (M3/M4b/both).
+        soft prompt (M3/M4b/both). `generate_fn` should call
+        get_cached_world_state_or_zero() itself if it needs vision for M3
+        grounding -- this method no longer passes World-State through.
 
-        Vision refresh runs REGARDLESS of mic-gating -- gating exists to
-        stop the robot's own TTS output from re-entering the AUDIO
-        decision path (self-interruption); the camera doesn't "hear" the
-        robot's own voice, so there's no reason to also freeze World-State
-        updates during TTS playback. Only audio/decision/generation are
-        gated."""
+        Vision refresh (2026-07-26 review) runs on its OWN THREAD
+        (start_vision_refresh_thread()), independent of tick() entirely --
+        not "regardless of mic-gating" as before, but structurally absent
+        from this method. The decision path (decide3_speechonly) was shown
+        not to depend on World-State (A1_PROVENANCE.txt's six-condition
+        falsifier); vision still feeds generation via M3, just decoupled
+        from tick()'s cadence rather than refreshed inside it. Only audio/
+        decision/generation are gated by mic state, same as before."""
         latencies: Dict[str, float] = {}
 
         # TTS playback bookkeeping (simulated -- see module docstring)
@@ -213,11 +375,15 @@ class StreamingLoop:
             self.mic_gate.is_playing = False
             self._tts_playing_until = None
 
-        ws, refreshed, vision_lats = self._maybe_refresh_vision(t)
-        latencies.update(vision_lats)
+        refreshed = False   # vision refresh is no longer synchronous with tick(); see vision_logs
+        # item 4 root-cause instrumentation: sampled once, at tick entry --
+        # a forward pass in flight right now is what would contend with
+        # this tick's own GPU work.
+        overlapped = self._vision_busy.is_set()
 
         if not self.mic_gate.should_run_decision():
-            log = TickLog(t=t, action="gated", vision_refreshed=refreshed, latencies_ms=latencies)
+            log = TickLog(t=t, action="gated", vision_refreshed=refreshed, latencies_ms=latencies,
+                          overlapped_vision_forward=overlapped)
             self.logs.append(log)
             return log
 
@@ -228,11 +394,11 @@ class StreamingLoop:
             latencies["speech_activity_ms"] = (time.perf_counter() - t0) * 1000.0
 
         t0 = time.perf_counter()
-        label, probs = self.loop.decide3(ws, sf)
+        label, probs = self.loop.decide3_speechonly(sf)
         latencies["decision_ms"] = (time.perf_counter() - t0) * 1000.0
 
         log = TickLog(t=t, action=label, vision_refreshed=refreshed, latencies_ms=latencies,
-                       decision_label=label, decision_probs=probs)
+                       decision_label=label, decision_probs=probs, overlapped_vision_forward=overlapped)
 
         # currently-generating and a real interruption fires -> halt, run policy
         if self._halted_generation is None and label == "speak" and generate_fn is not None:

@@ -392,12 +392,610 @@ correctly declined to fabricate an ablation, but a full sweep was still
 needed to state the "misattributed" conclusion with confidence rather
 than as a guess.
 
+## D1/D2/D3 divergence falsifier — real paired AV, D1 confirmed real, D3 confirmed negligible (2026-07-25)
+
+Full detail: checkpoints/m5_streaming/DAY1_DIVERGENCE_FALSIFIER.txt.
+Discovered EasyCom's `Video_Compressed/` directory (real video, chunk-
+matched to Close_Microphone_Audio/Speech_Transcriptions, previously
+unused in this project) -- closes the "no genuinely-paired AV+speech
+data" gap flagged repeatedly earlier this session, at least for a
+first falsifier pass.
+
+n=45 real EasyCom test ticks (15/class), real decoded video -> real
+V-JEPA2 ViT-L -> real M2 World-State, real Whisper speech-feature, run
+through the unmodified 3-class decision head:
+
+| condition | accuracy | macro F1 | silence R | speak R | backchannel R |
+|---|---|---|---|---|---|
+| (a) both real, fresh | 0.822 | 0.823 | 0.800 | 1.000 | 0.667 |
+| (b) control (ws=0, matches training) | 0.889 | 0.886 | 1.000 | 1.000 | 0.667 |
+| (c) both real, 2.0s-stale | 0.822 | 0.823 | 0.800 | 1.000 | 0.667 |
+
+**D1 (train-inference modality mismatch) is real**: (a) vs (b) drops
+6.7pp, entirely on silence (3/15 misclassified vs 0/15 in the control) --
+speak and backchannel recall unchanged. Does not collapse toward chance
+(macro F1 0.823 vs ~0.33 floor), so does not trigger the pre-agreed
+retraining gate, but is a real, class-concentrated, non-noise cost.
+
+**D3 (2s staleness) shows ZERO additional cost beyond D1** — condition
+(c) is bit-for-bit identical to (a) on every metric including the full
+confusion matrix. Verified the fresh/stale World-States are genuinely
+different tensors first (mean abs diff 0.122, checked directly against
+the cached encodings) — this is a real null result, not a windowing bug.
+
+**Swap-control is the sharper diagnostic**: substituting a WRONG real
+World-State (from an unrelated tick) INCREASES accuracy vs. the true
+label (0.911 for a, 0.933 for c) relative to using the tick's own
+correct, time-matched World-State (0.822 both). Consistent with the head
+having learned "when speech-feat is real, ~ignore World-State" as an
+artifact of the exactly-one-modality-zeroed training regime — not
+reading vision content meaningfully once audio is present, for either
+the correct or a stale vision signal.
+
+Scoped conclusion: silence-class decisions in the streaming loop carry a
+real, measured, non-collapsed error cost from D1; D3 is not an
+additional concern at the tested 2.0s point. n=45 is a first pass, not a
+large-sample number — flagged for scaling up before a retraining
+decision.
+
+## M5 arithmetic blocker — stride vs. Jetson ViT-L latency (2026-07-25)
+
+No new runs; reconciling two already-measured numbers. `StreamingConfig.
+stride_vision_sec=2.0` (models/m5_streaming_loop.py) vs. Jetson V-JEPA2
+ViT-L isolated forward = 2.43s (checkpoints/m5_jetson/PHASE0_PROVENANCE.txt),
+re-confirmed 2.45s (phase0_run5.log) — **already int8 weight-only
+quantized in both measurements** (confirmed by source-order read of
+scripts/jetson_phase0_memory.py). The synchronous-refresh architecture
+as coded cannot keep up: one refresh costs more than the interval meant
+to trigger the next one, a compounding (not one-time) lag.
+
+Minimum feasible stride (ViT-L cost alone, Jetson): >=2.43-2.45s;
+recommend >=3.0s for margin (M2 predictor's Jetson-isolated cost not yet
+measured separately). Three levers costed in
+checkpoints/m5_streaming/DAY1_DIVERGENCE_FALSIFIER.txt: (i) raise stride
+to ~3.0s — Part 1's falsifier suggests near-zero quality cost at 2.0s of
+staleness but this is an extrapolation, a 3.0s-stale falsifier run is
+the honest next step, not assumed; (ii) async vision refresh off the
+tick loop — moderate effort, doesn't reduce ViT-L latency but stops it
+blocking decision/interruption/generation; (iii) int8/TensorRT — **int8
+weight-only is already reflected in the 2.43s figure and did not close
+the gap** (weight-only quantization saves memory, not FLOPs); the
+untried option is a full TensorRT INT8-activation engine, a multi-day
+effort with no guarantee of closing a ~29x Blackwell-vs-Jetson compute
+gap (83.6ms mean, mercury bf16, vs 2430-2450ms Jetson int8-weight-only,
+same ViT-L forward).
+
 ## Next row due
 
-Whatever M4d/production work comes next — genuinely-paired EasyCom Phase 2
-data, Ego4D LAM proactive-attention integration, or a broader recording
-setup to test generalization beyond EasyCom's single acoustic domain. Also
-outstanding: the fresh-vs-stale World-State falsifier flagged above, and
-resolving where the disputed 16-frame/fp16/3.6s/1.16s figures actually
-came from (a different session, a different project, or a
-misremembering) before M5 Day-2/Day-3 work resumes.
+Scale the D1/D2/D3 falsifier past n=45; run the 3.0s-stale point to
+confirm lever (i) before committing to a new stride default; decide
+whether to implement async vision refresh (lever ii) before or after
+Day-2/Day-3 resume. Genuinely-paired EasyCom Phase 2 data now has a real
+video source (Video_Compressed) not previously used — worth folding into
+future decision-head retraining if D1's silence-class cost needs fixing
+beyond "flagged."
+
+## 2026-07-25 — Track B pre-flight: V-JEPA 2.1 ViT-B ruled out, ViT-L ruled out for Jetson, A1 split verified safe
+
+**Clean head-to-head (no contention, n=20, warmed up)** —
+checkpoints/vjepa21_shelved/HEAD_TO_HEAD_LATENCY.json:
+- Current V-JEPA2 ViT-L (256px, bf16): 48.0ms, 931.8MB peak activation.
+- V-JEPA 2.1 ViT-B (384px): 64.1ms, 1155.6MB. Slower than current despite 3.5x fewer params (384² token penalty).
+- V-JEPA 2.1 ViT-L (384px): 174.6ms, 2561.2MB. 3.64x slower / 2.75x more activation than current, on Blackwell.
+ViT-B dropped per instruction (contradicted nothing -- confirmed the smoke test).
+
+**Jetson 2.1 ViT-L real test (decisive)** —
+checkpoints/vjepa21_shelved/B_2B_JETSON_VITL_DECISIVE.txt:
+37.98s isolated forward (int8, 384px/64f) vs current ViT-L's 2.43-2.45s = 15.6x slower,
+far worse than the Blackwell ratio predicts. Memory was NOT the blocker (comparable
+tegrastats/torch-alloc to current). **DECISION: 2.1 ViT-L is dissertation-only.
+Jetson/demo track stays on current V-JEPA2 ViT-L, permanently, confirmed 2026-07-25.**
+Track B (2.1 ViT-L for M2 fusion bridge, server-side only) unaffected by this -- never
+touches the Jetson.
+
+**A1 split-safety audit** — data/m4_easycom_turntaking.py:88, TEST_SESSIONS={10,11,12}
+held out as WHOLE sessions (data/m4_speech_dataset.py:36). Session-disjoint, not random
+tick-level -- no leakage risk from the 10s-window/0.25s-tick adjacency concern. Confirmed
+safe, no re-split needed.
+
+**A1 swap-control fix** — scripts/m5_falsifier_bothpresent.py's original `torch.roll`
+swap mixed sessions freely (cross-session/scene-ID, not grounding). Replaced with
+`make_within_session_perm()` (real grounding number, gates PASS) and
+`make_cross_session_perm()` (reported for contrast only, never gates).
+
+**Disk pre-flight (2a)** — checkpoints/vjepa21_shelved/PREFLIGHT_2A_DISK.txt: real
+per-clip footprint confirmed 37.75MB (measured from actual encoder output, not hand
+arithmetic) x 199,176 clips = 7.35TB, fits nowhere. Even the proposed ~100k-clip cut
+(3.775TB) doesn't fit on /dev/shm (750GB free, docs claim ~1TiB -- discrepancy flagged)
+but does fit on /mnt/Raid-Storage-2 (5.2TB free). Recommended: 100k-clip cut cached on
+RAID disk, flagging unmeasured RAID read-throughput-during-training as a follow-up check.
+
+Next row due: A1 both-present retrain + falsifier once train extraction (~4hr,
+running in background) completes; B1 parallelized-decode re-measurement (2c); Ego4D
+extractable-window count + AV-relevance filter + two-stage gate (item 4).
+
+## 2026-07-25 (cont.) — Speaker-overlap check + decisive compute-side finding for B-deploy/B-ablation
+
+**A1 speaker overlap (photographic check, Participant_Photos/)**: participant ID slots are
+NOT a clean global identity map. ID=1 is the SAME physical person (identical photo) across
+Session_1, Session_5 (train) AND Session_10, Session_11 (test) -- almost certainly a fixed
+device-wearer role present in every session. ID=3 differs between Session_2 (train, woman)
+and Session_11 (test, man) -- guest slots vary per session. ID=2 is an anonymized silhouette
+placeholder in both a train and test session -- unverifiable either way. **Answer: partial
+overlap, not clean unseen-voice generalization** -- at least the recurring wearer is a known
+voice in both splits; guest voices appear mostly novel but this isn't exhaustively confirmed.
+
+**Throughput pre-flight (item 3) — I/O is fine, COMPUTE is the real blocker.**
+checkpoints/vjepa21_shelved/ITEM3_THROUGHPUT_PREFLIGHT.txt:
+- No historical step-time was ever logged (train_m2.py has no timing instrumentation) --
+  measured one live: 0.151s/step @ batch=32, current pooled 512-token cache, /dev/shm.
+- RAID (/mnt/Raid-Storage-2) matches tmpfs at small scale (page-cache artifact, machine has
+  1.5TiB RAM) but real O_DIRECT throughput (7.3-17.1 GB/s) comfortably covers even the
+  16.8MB/37.75MB-per-clip I/O demand (3.6-8.0 GB/s needed) -- disk is not the bottleneck.
+- **Decisive finding**: feeding UNPOOLED tokens (8192 for B-deploy, 18432 for B-ablation)
+  directly into AVJepaPredictor is a compute/memory blocker, not an I/O one. Measured
+  (bf16 autocast, batch=32, isolated from any I/O): current 512-token config = 211.8ms/step,
+  16.1GB peak. B-deploy (8192 tokens) = 1911.2ms/step (9.0x), 90.8GB peak (of 95GB GPU --
+  almost no margin). B-ablation (18432 tokens) = CUDA OOM outright, does not fit at batch=32.
+  Recommending (not yet implemented): cache full tokens on disk (keeps the 16.8/37.75MB math
+  valid) but pool down to 512 tokens at DATA-LOADING time before the predictor, keeping
+  step time/memory at the proven-affordable point. Needs sign-off -- changes
+  data/av_cached_dataset.py, which every M2/M3/M4 stage depends on.
+
+Fixed CLAUDE.md's stale "/dev/shm ~1TiB" claim (actual: 756GB tmpfs cap, 750GB free;
+separately, machine has 1.5TiB total RAM so non-tmpfs files still benefit from page cache).
+
+Next row due: sign-off on the pool-at-load-time fix (or an alternative) before any B-deploy/
+B-ablation extraction proceeds; A1 train-cache extraction continuing in background (~3.5hr
+remaining); Ego4D window count + AV-relevance filter (item 4) not yet started.
+
+## 2026-07-25 (cont. 2) — Item 1 verification: the unpooled-token crisis was a costing error, dissolved
+
+Verified scripts/extract_features_av.py directly (checkpoints/vjepa21_shelved/
+ITEM1_RECIPE_VERIFICATION.txt): pooling happens at EXTRACTION time (_spatial_pool,
+mean avg_pool2d 16x16->4x4 grid), producing (32,16,1024) bf16 = 512 vision tokens,
+matching the user's recipe exactly. data/av_cached_dataset.py does no pooling itself
+and was NOT touched. The persistent 199,007/199,176-clip VGGSound cache already
+exists at /mnt/Raid-Storage-2/utkarsh-data/feature_cache_vgg51k (764GB measured,
+not the ~209GB vision-only estimate -- real per-clip is ~3.94MB since ambient_base+
+ambient_nat are cached alongside vision in the same file, not separately). Corrected
+this byte count but it changes nothing directionally: 764GB fits RAID's 5.2TB free
+trivially. The 7.35TB crisis, 100k-clip cut, RAID-relocation risk, and predictor OOM
+from the prior two messages were all artifacts of costing UNPOOLED (8192/18432-token)
+features that no stage of this project has ever used for training -- they dissolve
+under the real, verified recipe. New B-ablation extraction (2.1 ViT-L) will follow
+the IDENTICAL pooling/shape/manifest convention, varying only encoder + source corpus.
+
+**Speaker-generalization wording, corrected per instruction**: held-out sessions
+10/11/12 give UNSEEN-SESSION, PARTIALLY-SEEN-SPEAKER generalization -- participant
+ID 1 (device wearer, confirmed via matching photo across Session_1/5/10/11) recurs
+across train and test. This is NOT unseen-voice generalization.
+
+Next row due: build the Ego4D AV-relevance filter (task #46) and report extractable
+10s-window count; A1 train extraction continuing (~2.6hr remaining as of this entry).
+
+## 2026-07-25 (cont. 3) — Items 2-5, 5b-d: Ego4D budget, independent filter, sampler fix, decode parallelization
+
+**Item 5c (answered first, informs item 2)**: cross-referenced Ego4D's own av_train.json/av_val.json
+annotation files (Ego4D AV benchmark: transcriptions, social_segments_talking/looking,
+missing_voice_segments) against on-disk clip_uids. 439/572 "clips" (300s pre-cut) files exactly match
+annotated AV-benchmark clip_uids -- clips is (mostly) the annotated subset. Also discovered: 420/1236
+"video_540ss" files (34%) have NO AUDIO TRACK AT ALL (video-only egocentric recordings) -- confirmed
+via ffprobe -select_streams a. Usable (audio-having) pool: 1,388 of 1,808 files, 149,941 windows
+(down from the unfiltered 218k). This was unknown until checked directly.
+
+**Item 2 (corpus budget)**: per-file cap=50 for the SCORING CANDIDATE pool (sparse, evenly-spaced,
+no consecutive windows -- min windows/file=29<50, so full 1,388/1,388 file coverage guaranteed in the
+candidate pool) -> 57,822 candidates. Final extraction target: top-N=42,000 by score (within the
+40-50k range), giving the ranker real selection pressure (~27% cut) while the candidate pool already
+guarantees per-file representation.
+
+**Item 3 (independent AV-relevance filter)**: scripts/ego4d_av_relevance_filter.py. Three signals,
+NONE derived from M2: (1) Silero VAD (torch.hub) -- wearer-speech-dominance fraction, want LOW; (2)
+MIT/ast-finetuned-audioset-10-10-0.4593 (AST, 527-class AudioSet tagger) -- confidence of the best
+NON-speech, NON-noise-like event class, want HIGH; (3) energy-dynamics coefficient-of-variation of
+short-time RMS, want HIGH (discrete events have onsets; constant hum/handling noise is flat).
+score = top_nonspeech_event_prob * (1 - vad_speech_frac) * energy_cov_norm. Running in background
+(~57,822 candidates, ~0.12s/candidate, ETA ~2hr as of this entry) -- will report retention rate +
+20/20 spot-check once complete.
+
+**Item 4 (sampler fix, implemented)**: data/source_disjoint_batch_sampler.py --
+SourceDisjointBatchSampler, greedy per-epoch batch construction that guarantees no two same-source
+(same Ego4D source video / same EasyCom session-chunk) windows land in one batch. Wired into
+train_m2.py's build_dataloader() via a new source_disjoint_batches=True flag (default off, VGGSound-
+only training unaffected). Verified on a synthetic 860-clip mix (500 VGGSound-unique + 20 Ego4D
+sources x15 windows + 10 EasyCom chunks x6 windows): 0 same-source collisions across 12 batches of
+64, 768/860 (89.3%) indices used, 92 tail leftovers dropped (logged) rather than forming a colliding
+batch. Naming convention fixed for future extraction: "ego4d_{source_id}_w{idx:04d}" /
+"easycom_s{session}_{chunk}_w{idx:04d}" (VGGSound IDs unchanged).
+
+**Item 5a**: reported previously -- configs/m2.yaml's audio_mode=mean average BOTH ambient_base and
+ambient_nat; dropping either changes the trained signal, not a free win. No cost reduction available.
+
+**Item 5b (decode parallelization)**: scripts/ego4d_decode_parallel_bench.py, real Ego4D video_540ss
+files (long-form, the harder case). Plain mp.Pool() (fork) HUNG -- torchcodec's internal ffmpeg/
+thread-pool state is not fork-safe (child inherits copied-but-now-orphaned locks, deadlocks on first
+decode). Fixed with mp.get_context("spawn"). Measured: serial 1.69 windows/sec (n=80) -> parallel
+(16 workers) only 2.03 windows/sec (1.20x) -> parallel (4 workers) 2.86 windows/sec (1.69x). MORE
+workers gave WORSE speedup than fewer -- classic nested-parallelism oversubscription (ffmpeg/libvpx's
+own internal multi-threaded VP9 decode competing across 16 processes). Best measured config: 4
+workers, ~1.7x. Did not chase further tuning (e.g. capping per-worker internal thread count) given
+time -- flagging as a further-available optimization, not implemented.
+
+**Item 5d**: fixed the backwards "torch.save overhead" framing in ITEM1_RECIPE_VERIFICATION.txt -- a
+file smaller than its component sum means a component figure was nominal (approximate), not that
+save added overhead (a file can't be smaller than its contents plus positive overhead).
+
+Next row due: Ego4D filter scoring completion (retention rate, 20/20 spot-check); build the frozen
+EasyCom eval (462-window gallery, sessions 10-12) and score checkpoints/m2_fusion_20k_best on it
+(the required baseline before any retrain); A1 train extraction completion (~40min remaining as of
+this entry).
+
+## 2026-07-26 — A1 complete (PASS=False, precise finding) + Ego4D filter spot-check
+
+**A1 falsifier, n=300, checkpoints/m4_decision_head_3class_bothpresent/A1_PROVENANCE.txt**:
+(a) real fresh WS+SF: acc=93.67% macro_F1=93.63%. (b) WS zeroed: acc=80.67% (speak recall
+crashes 92%->47%). (c-within, the gate) WS swapped within-session: acc=92.33%. (c-cross,
+contrast only): acc=93.33%. Bootstrap: acc(a)-acc(b)=+13.0pp CI[+8.67,+17.33] EXCLUDES ZERO;
+acc(a)-acc(c_within)=+1.33pp CI[-0.33,+3.33] does NOT exclude zero. **PASS=FALSE** (both gaps
+required). Honest read: retraining fixed the "ignores World-State entirely" problem (D1) --
+real vs zero WS is a huge, bootstrap-confirmed difference now, a real behavioral change from
+the old head (which showed near-identical fresh-vs-2s-stale behavior). But the head still
+cannot reliably distinguish a CORRECTLY paired World-State from a WRONG one (same-session or
+cross-session swap), which is what the PASS criterion actually demands. Not rounded up or down
+-- solved one problem, did not solve the more specific one. Plausible mechanism flagged (World-
+State's ~38/1024 effective rank may be dominated by coarse session/scene-stable directions
+rather than fine-grained per-moment content) but not verified further.
+
+**Ego4D AV-relevance filter, retention + spot-check**:
+checkpoints/vjepa21_shelved/ego4d_av_filter_scores.json: 42,000/57,822 kept (72.6% retention),
+1,362/1,388 candidate files still represented (98.1% file coverage retained). Manual spot-check
+(20 kept/20 dropped, random seed=42): KEPT segments are dominated by concrete, describable
+non-speech events with near-zero VAD speech fraction -- "Dishes, pots, and pans" (x3), "Chopping
+(food)" (0.81 conf), "Cupboard open or close" (0.62), "Cutlery, silverware", "Scissors", "Sink
+(filling or washing)", "Walk, footsteps", "Keys jangling" (x2), "Typing". DROPPED segments are
+dominated by "Conversation"/"Narration, monologue"/"Snicker" at high VAD speech fraction
+(0.51-0.99) or very low top-event confidence (<=0.04, i.e. no describable event at all).
+Visually confirmed 2 kept examples by decoding real frames: "Chopping (food)" shows a person
+actively cutting a cucumber with a knife on a cutting board (exact visible-cause match);
+"Cupboard open or close" shows hands engaged with a cabinet/door area (consistent, dim frame).
+Filter behaves as designed.
+
+Next row due: build the frozen EasyCom eval (462-window gallery, sessions 10-12) and score
+checkpoints/m2_fusion_20k_best on it (required baseline before any B-deploy retrain); then
+proceed to actual Ego4D+EasyCom feature extraction (same pooling/recipe) and the M2 retrain.
+
+## 2026-07-26 (cont.) — Methodology: matched-random controls, and a named dissertation contrast
+
+**(a) Standing methodology rule, applies to every falsifier in this project going forward:**
+zeroing a feature is an OFF-MANIFOLD perturbation, not a content ablation. A model can collapse
+on a zeroed input purely because the input is out-of-distribution in norm/scale, independent of
+whether it reads real content when given something on-manifold. Confirmed concretely in A1: real
+WS beat zeroed WS by +13pp (bootstrap-significant), but a random vector matched to the real WS's
+per-dimension mean/std, and even the single fixed dataset-mean vector, both matched or slightly
+beat the real, correctly-paired WS (94.33% and 94.67% vs 93.67%) -- acc(b)-acc(matched-random)
+= -13.67pp, CI excludes zero: the effect was specifically about being off-manifold, not about
+missing content. Rule: always pair a zeroed-input ablation with a matched-statistics random
+control before attributing a gap to "the model uses this input's content."
+
+**(b) Named dissertation contrast, on the SAME World-State representation:** M3 grounding
+falsifier (word-overlap F1): normal 0.482 vs swapped 0.29 -- a large, real gap, PASSES. M4
+decision head (this A1 falsifier): real 93.67% vs within-session-swapped 92.33% -- no
+significant gap, FAILS. Same 1024-d World-State vector, same effective-rank profile
+(~38/1024, checkpoints/m2_fusion_20k_best/PROVENANCE.txt), two different downstream tasks with
+opposite outcomes on "does swapping the World-State change the answer." This is not a defect in
+either falsifier -- it is a genuine result about which tasks actually read World-State content
+vs which tasks can be solved from coarser signals (here: speech features alone, or an on-
+manifold-vs-not check). Recording as a dissertation-relevant finding, not chasing further this
+session (the effective-rank/coarse-direction mechanism hypothesis is named future work, not
+investigated).
+
+## 2026-07-26 (cont. 2) — A1 CLOSED: condition (g) speech-only head, M3 contrast note
+
+**A1 is closed.** Condition (g) -- SpeechOnlyThreeClassHead (train_decision_head_3class_speechonly.py,
+World-State input branch removed entirely, not zeroed -- the parameter doesn't exist): accuracy=95.00%,
+macro_F1=94.98% (recall silence=99%/speak=94%/backchannel=92%), the best of all seven conditions.
+acc(a)-acc(g) = -1.33pp, CI[-3.00%, 0.00%], does not exclude zero. The full seven-condition table
+(a=93.67, b=80.67, c-within=92.33, c-cross=93.33, e=94.33, f=94.67, g=95.00) is now final for this
+decision head. Deployment recommendation: ship the speech-only head; do not build a real-time
+dependency on a World-State input that structurally cannot be shown to carry information for this
+task. Diff for models/m5_streaming_loop.py drafted, not yet applied (see chat).
+
+**M3 contrast clarification (correction to the earlier entry, this session's note)**: M3's grounding
+result is UNAFFECTED by the new zeroing-methodology rule. Its load-bearing comparison is normal 0.482
+vs SWAPPED 0.29 (a different real example's content, on-manifold) -- not the zeroed 0.15 number, which
+only corroborates and was never the primary evidence. Recorded as a dissertation result: same
+World-State representation, large swap-sensitivity on the captioning/grounding task, no swap-
+sensitivity on the turn-taking task -- task-specific, not representation-specific. Do not re-litigate
+M3 based on the zeroing-artifact finding; M3 never relied on a zeroed baseline as its main evidence.
+
+Next row due: apply the streaming-loop diff (pending your go-ahead); Ego4D category-exclusion
+backfill scoring (~10k additional candidates, in progress) to hold the 42k budget after excluding
+acoustic-environment + wearer-produced tags and capping Music; then the frozen EasyCom eval.
+
+## 2026-07-26 (cont. 3) — DISSERTATION RESULT: turn-taking is speech-only
+
+Seven conditions, n=300 (100/class), session-disjoint (sessions 1-9 train / 10-12 gallery):
+a=93.67%, b(zeroed)=80.67%, c-within=92.33%, c-cross=93.33%, e(random matched-stats)=94.33%,
+f(dataset-mean)=94.67%, g(no WS input at all)=95.00%. Everything except zeroed lands in a tight
+93-95% band; zeroed alone is the outlier at 80.67%. A constant vector carrying zero per-example
+information (f) and no vector at all (g) both match or beat the real, correctly-paired World-State
+(a). **The deployed decision head takes no World-State input.** Vision's real contribution to this
+system is in GENERATION (M3-grounded soft prompt, swap-falsifier-verified: normal 0.482 vs swapped
+0.29, a real and large gap), not in turn control. RollingVideoBuffer/_maybe_refresh_vision are not
+dead code -- they feed generation, decoupled onto their own ~0.3Hz thread now that the decision path
+no longer needs them synchronously.
+
+**Caveat, stated plainly**: this eval is class-balanced (100/class) while deployment-time traffic is
+imbalanced (real EasyCom test-session distribution: speak=895/silence=840/backchannel=217, i.e.
+backchannel is ~11% of natural traffic, not 33%). Backchannel recall (86-94% across conditions) is
+therefore flattered relative to what a natural-distribution eval would show -- macro-averaging over
+a 33/33/33 split is not the same claim as "the deployed system gets 92%+ of natural backchannels
+right." Flagging for any future report that cites this number without the class-balance caveat.
+
+## 2026-07-26 (cont. 4) — Diff applied with fixes, drift curve, Ego4D confidence floor
+
+**Applied to models/ (approved)**: models/m4_duplex_loop.py gets decide3_speechonly() (no
+world_state arg at all). models/m5_streaming_loop.py: vision refresh moved to
+start_vision_refresh_thread() (own thread, elapsed-corrected sleep -- the naive version waited a
+full period AFTER the forward, giving 0.17Hz not 0.3Hz on Jetson; fixed to sleep(period-elapsed)),
+tick() calls decide3_speechonly(sf) only, vision instrumentation preserved via self.vision_logs
+(was about to silently vanish from every results JSON). get_cached_world_state_or_zero() added as
+the explicit startup-guard fallback (zero vector, matching this project's existing missing-
+modality convention) for the ~2.4s window before the first refresh completes. scripts/
+m5_streaming_demo.py paced to real wall-clock (was free-running, which would have made vision
+staleness measurements meaningless against t_sim) and wired to start/stop the vision thread.
+
+**World-State drift curve, n=30, real continuous Ego4D footage (video_540ss)**:
+lag=0s cos_sim=1.0000 (sanity), lag=2s cos_sim=0.9703 (abs_diff=0.1366), lag=4s cos_sim=0.9492
+(abs_diff=0.1787), lag=6s cos_sim=0.9356 (abs_diff=0.2003). Monotonic, modest decline (~1.5pp
+cosine sim per 2s) -- consistent with the earlier EasyCom 2s-lag finding (0.122 mean abs diff).
+Not escalating to a full M3 grounding eval given this magnitude, per the "only escalate if drift is
+substantial" instruction -- but noting the max observed staleness (5.58s, between lag 4s and 6s
+curve points) corresponds to real, nonzero drift, just not dramatic.
+
+**Ego4D confidence floor (item 8a)**: floor=0.10 on top_event_prob (justified by the original
+20/20 spot-check: dropped examples uniformly had top_event_prob<=0.04, kept examples mostly >=0.05).
+Applied floor + category exclusions (acoustic-env, wearer-produced) + proportional caps
+(music 2.5%, conversation 2%, narration 2%, computed off the floor-passing pool, not a fixed
+target): **23,797 final kept, file coverage 1,326/1,388 usable files** (62 files lost all windows
+entirely -- natural consequence of the floor, not a bug). Fresh 10-window spot-check from the
+LAST 500 ranks of this set showed two distinct marginal patterns: (a) genuine faint real events
+(Mechanisms 0.17, Boiling 0.14, Air conditioning 0.11, all vad_speech=0.00) -- acceptable if weak
+data; (b) Conversation/Narration/Zipper/Squish/Animal tags with vad_speech>=0.84 riding a
+technically-passing top_event_prob because "Conversation"/"Narration, monologue" were never in the
+base SPEECH_IDX exclusion mask (only capped after scoring, not excluded from top-event selection
+during scoring) -- these are effectively speech mislabeled as a describable event. Flagging as a
+scoring-formula refinement opportunity (add Conversation/Narration to the exclusion mask used
+during scoring, not just the post-hoc cap) -- not applied without further instruction.
+
+**File-coverage gap (item 8b), root-caused precisely**: of the full 1,808-file corpus, exactly
+420 files (all from video_540ss) have literally no audio stream (confirmed via ffprobe
+-select_streams a on all 1,808 files: 0 duration-fetch failures, 0 no audio+zero-window overlaps,
+420 no-audio, 0 too-short). Not a decode failure or scoring drop -- these files are silent
+recordings and cannot become AV-congruency training examples regardless of any processing fix.
+Not recoverable without a different (unavailable) paired-audio source. The remaining usable pool
+is 1,388/1,808 (76.8%), and within that, 1,326/1,388 have >=1 window surviving the confidence
+floor (95.5% of the usable pool).
+
+## 2026-07-26 (cont. 5) — Item 6: real Jetson contention invalidates the mercury latency claim
+
+checkpoints/vjepa21_shelved/ITEM6_JETSON_THREAD_VERIFY.txt. Real V-JEPA2 ViT-L + M2 predictor +
+Whisper (int8) on the actual Jetson: tick wall-time p95=2868.91ms, mean=1200.06ms -- NOT the
+~2.1ms the mercury duck-typed (sleep-based) harness showed. Vision and decision share ONE Jetson
+GPU; separate Python threads don't give separate GPU execution resources, so tick()'s Whisper
+forward gets real multi-second delays whenever it lands concurrently with a ViT-L forward, despite
+never touching World-State. Corroborated by refresh count (43 refreshes in a nominal 30s run where
+~9 were expected at 0.3Hz -- real wall-clock ballooned to ~143s because tick() itself couldn't
+keep its 0.25s budget, so the "sleep off the remainder" pacing had nothing left to sleep).
+decide3_speechonly's architectural independence from World-State is unaffected and still correct;
+what's newly clear is that architectural independence != latency independence on shared single-
+GPU hardware. Not chasing a fix this pass -- reporting the number.
+
+## 2026-07-26 (overnight autonomous run) — Item 0 CLOSED, Jetson latency levers found real
+
+**Phase 1 (World-State construction fix)**: models/world_state_builder.py built (imports real
+training functions, doesn't reimplement), wired into models/m5_streaming_loop.py's
+_maybe_refresh_vision (vision pooling + staircase tbins + real WavJEPA-base/nat ambient, refreshed
+together always). Gate test (20 real VGGSound clips, fresh decode vs cache): mean cosine=0.9985,
+min=0.9932, tbins exact match=True -- PASS. Real finding en route: training's own _vision_ts()
+uses the ASSUMED CLIP_DURATION_S=10.0, not the true per-clip duration (inconsistent with
+_ts_to_tdm_bins's later use of the real saved duration) -- replicated this inconsistency
+deliberately since "replicate exactly" was the instruction.
+
+**Phase 2.1 (M3 grounding falsifier, streaming construction, n=50 real clips): CLOSES ITEM 0.**
+normal=0.477 (ref 0.482), swapped=0.276 (ref 0.29), zeroed=0.144 (ref 0.15). The streaming-
+constructed World-State reproduces the cached-feature grounding gap -- the demo now genuinely
+exercises AV congruency, not a vision-only degenerate construction.
+
+**Phase 4 (Jetson, corrected construction)**: full stack (ViT-L+WavJEPA-base+WavJEPA-nat+M2+
+Whisper+decision head, all int8) peaks at 4569MiB/7620MiB -- 3051MiB headroom, comfortably fits
+(previous "644MiB headroom" was measured on a stack without either WavJEPA model). At
+stride=window=10.0s: tick p95=1220.3ms, duty cycle ~37-41% (down from 73% at the old ~3.33s
+stride/single-encoder construction). Priority CUDA stream for the decision path: tick p95 drops to
+786.5ms (-35.6%), max drops from 2302ms to 856ms (-62.8%) -- mean tick time unchanged (~372ms),
+confirming this is specifically a tail-latency fix, not a throughput one.
+
+**Ego4D (Phase 3.1)**: vad_speech_frac>=0.84 added to the BASE scoring exclusion mask (not just a
+post-hoc cap on Conversation/Narration). Final: 23,303 kept (was 23,797 without this exclusion),
+file coverage 1,296/1,388.
+
+**Environment note**: installing torchaudio on Jetson for the CPU-VAD fix (Phase 3.3) broke
+transformers' own imports machine-wide (ABI-mismatched wheel, both silero_vad and transformers/
+audio_utils.py do an unconditional `import torchaudio`). Fixed with a sys.modules stub in every
+Jetson script written after this was discovered -- a workaround, not a real fix, flagged for
+follow-up.
+
+Next row due: A1 re-run (v2 extraction was mid-run at report time) and the frozen EasyCom eval's
+actual R@1/5/10 baseline number (encoding was mid-run at report time) -- both required before the
+M2 retrain proceeds. Full detail: checkpoints/OVERNIGHT_REPORT.md.
+
+## 2026-07-26 (morning) — Overnight jobs completed: A1 PASS flips, EasyCom baseline root-caused
+
+**A1 re-run (item 2.2), corrected construction, n=300**: PASS flips False (v1) -> **True (v2)**.
+acc(a)-acc(c_within) = +2.0pp, CI[+0.33,+4.0], excludes zero (v1: +1.33pp, CI[-0.33,+3.33], did
+NOT exclude zero). But acc(a) is still statistically tied with acc(e_random_matched) and
+acc(f_dataset_mean) (both ~-0.33pp, not significant) -- the head shows a real, marginal,
+newly-significant sensitivity to WRONG-vs-correct same-session WS under the fixed construction,
+but still does not clearly beat matched-random-noise or a constant vector. Report both facts, not
+one. (g) speech-only = 95.00% in both v1 and v2, identical as predicted (invariant to the WS fix
+by construction) -- deployment recommendation (ship the speech-only head) unchanged.
+
+**EasyCom frozen eval baseline (item 3.2)**: m2_fusion_20k_best scores near-chance (R@1~0%,
+shuffle-sanity gap 0.0071) on the real EasyCom gallery. VERIFIED not a construction bug: EasyCom
+FPS confirmed exactly 20.0 via direct ffprobe check; cached embeddings show high within-modality
+clustering (vision 0.805, ambient 0.870 mean pairwise cosine) consistent with contrastive
+representation collapse on an out-of-domain input, not degenerate/wrong feature construction. This
+is the real, required baseline before any M2 retrain decision.
+
+Full detail: checkpoints/OVERNIGHT_REPORT.md (all phases now DONE, nothing left NOT RUN).
+
+## 2026-07-26 (diagnostic follow-up) — EasyCom "collapse" checked against a real baseline; A1 wording corrected
+
+**Diagnostic 1a (retraction check)**: ran the identical pool_and_project metric on the 1545-clip
+VGGSound gallery with the same m2_fusion_20k_best checkpoint
+(checkpoints/vjepa21_shelved/VGGSOUND_COLLAPSE_CHECK_1545.json). Result: within-modality mean
+pairwise cosine vision=0.0308, ambient=0.0289, shuffle-sanity gap=0.6604 -- nothing like EasyCom's
+0.805/0.870 clustering and 0.0071 gap. **Not retracting "representation collapse"**: the same
+checkpoint behaves completely differently on its own training-distribution gallery, so EasyCom's
+clustering is diagnostic of something specific to that domain, not an artifact of the metric or
+the model's general behavior.
+
+**Diagnostic 1b**: scored the same 462 frozen EasyCom windows with the identical AST tagger + 0.10
+confidence floor used for the Ego4D filter (checkpoints/vjepa21_shelved/EASYCOM_EVENT_COMPOSITION.json).
+Only 19/462 (4.11%) windows have ANY non-speech acoustic event above the 0.10 floor; mean
+speech-probability across all windows = 0.839. EasyCom is almost pure speech content. This
+confirms the hypothesis: the ambient/WavJEPA path has almost nothing non-speech to distinguish
+windows by on this corpus -- the near-chance retrieval score is partly the correct answer to a
+near-unsolvable task on this domain, not purely a model deficiency.
+
+**Combined, corrected interpretation**: both effects are real and compound. The embeddings do
+collapse into a narrow region on EasyCom relative to how this checkpoint behaves on VGGSound (1a
+-- a genuine out-of-domain generalization gap), AND EasyCom's audio is so speech-dominated (1b)
+that vision<->ambient congruency retrieval is a poorly-posed task on this corpus regardless of
+model quality. Neither finding cancels the other; both belong in the writeup.
+
+**Diagnostic 1c**: confirmed by direct code inspection of scripts/m5_falsifier_bothpresent_v2.py
+-- conditions (e) and (f)'s per-dim mean/std ARE computed from train_bothpresent_v2_cache.pt (the
+corrected-construction cache), not carried over from v1. No recompute needed.
+
+**A1 write-up, corrected wording (replaces the informal framing above)**: Turn-taking is
+speech-driven. The deployed head takes no World-State input (95.00%). A marginal real-vs-swapped
+gap appears at n=300 (+2.0pp, CI [+0.33,+4.0]) but does not survive controls: a matched-random
+vector and a constant dataset-mean vector are both statistically indistinguishable from the real
+World-State, so the gap cannot reflect per-example vision content. Both experiment versions are
+reported. This is NOT presented as a PASS.
+
+**M2 gate replaced (item 2), EasyCom retired as a training source too**: the earlier plan (line
+~666 above, "Ego4D+EasyCom feature extraction ... and the M2 retrain") is SUPERSEDED. Per 1b's
+finding (EasyCom is ~84% speech-dominant, only 4.11% of windows have any non-speech acoustic event
+above the Ego4D 0.10 floor), EasyCom is exactly the kind of speech-dominant data the Ego4D
+AV-relevance filter was built to exclude -- including it in M2's training mix would work against
+the vision<->ambient congruency objective, not support it. **EasyCom is dropped from M2's training
+mix entirely.** It remains the turn-taking corpus only (A1/M4 decision-head data), a role unrelated
+to M2's contrastive congruency objective. The new required M2 gate is the frozen, source-file-
+disjoint Ego4D held-out gallery (checkpoints/vjepa21_shelved/EGO4D_HELDOUT_GALLERY_FILEDISJOINT.json,
+n=1542, see below for the baseline score) -- this replaces the EasyCom retrieval eval, which is
+retired as a gate for the reason above (wrong domain for a congruency metric, not a wiring bug).
+
+**New M2 gate baseline, scored (item 2b)**: checkpoints/vjepa21_shelved/EGO4D_HELDOUT_BASELINE.json
+(n=1542, clips_seen assertion passed). `m2_fusion_20k_best`: vision->ambient R@1=0.71%/R@5=3.18%/
+R@10=4.93%, ambient->vision R@1=0.91%/R@5=3.76%/R@10=6.23%. Chance R@1 at n=1542 is ~0.065%, so
+this is roughly 10x chance -- real but modest signal, clearly not collapsed the way EasyCom was:
+shuffle-sanity gap=0.0399 (vs EasyCom's 0.0071, vs VGGSound's 0.6604) and within-modality cosine
+0.623/0.531 (vs EasyCom's 0.805/0.870, vs VGGSound's 0.031/0.029) -- sits between the two, as
+expected for genuinely out-of-domain-but-not-degenerate egocentric video. **This is the required
+baseline any M2 retrain on VGGSound+filtered-Ego4D must beat.**
+
+Full detail: checkpoints/OVERNIGHT_REPORT.md.
+
+## 2026-07-26 (item 4 diagnostic) — Jetson "644 -> 3051MiB" headroom claim RETRACTED (measurement-scope mismatch, not a real gain)
+
+Per your explicit ask to confirm this wasn't a scope artifact: it was. Re-read
+checkpoints/m5_jetson/PHASE0_CLARIFICATION_PROVENANCE.txt's own steady-state table directly --
+the 644MiB figure's stack DID include WavJEPA-base AND WavJEPA-nat (stages "+ WavJEPA-base int8" /
+"+ WavJEPA-nat int8", both loaded before ViT-L even runs). scripts/jetson_phase4_full_stack_
+memory.py's docstring claim that the 644MiB stack had "NEITHER WavJEPA model" is wrong and has
+been corrected in the script + checkpoints/OVERNIGHT_REPORT.md.
+
+The REAL difference: scripts/jetson_phase4_full_stack_memory.py never imports or loads Qwen2.5-
+1.5B at all -- no LLM, no generation pass. The old 644MiB figure's peak (6976MiB) was measured
+DURING a real 60-token generation with Qwen2.5-1.5B resident (~1310MiB alone per the old table:
+4551-3241) plus its KV-cache growth. The new 4569MiB peak is real for the stack it actually
+measured, but that stack is missing the single largest remaining component. "3051MiB headroom" is
+not evidence the vision-pooling fix (8192->512 tokens) freed ~2.4GB -- it's two different stacks.
+**A correct like-for-like re-measurement (same components as PHASE0_CLARIFICATION including
+Qwen2.5-1.5B + a real generation pass, with the corrected pooled vision) has NOT been run** --
+blocked on Jetson SSH re-auth as of this entry, marked NOT RUN.
+
+**Item 4 (root-cause + opportunistic refresh) — RUN, Jetson access restored**:
+models/m5_streaming_loop.py extended with `overlapped_vision_forward` per-tick instrumentation (a
+`_vision_busy` threading.Event set for the duration of any vision/ambient forward pass, sampled at
+tick entry) and a new `start_vision_refresh_thread_opportunistic()` policy (prefers refreshing
+during MicGate.is_playing/TTS-gated windows, hard staleness-deadline fallback). Measured on real
+Jetson hardware with real EasyCom test-audio driving genuine decide3_speechonly() decisions
+(scripts/jetson_phase4_4_rootcause_opportunistic.py, n=240 ticks/policy, 60s real-time each,
+priority CUDA stream ON for both so only the refresh-scheduling policy varies). Results:
+`~/jetson_phase4_4_results.json` (fetched to
+checkpoints/vjepa21_shelved/JETSON_PHASE4_4_RESULTS.json).
+
+**4a root cause: CONFIRMED, decisively.** Under the strided (existing) policy, ticks that overlap
+a vision forward pass are far slower than ticks that don't: p95=845.2ms (n=54, 22.5% of ticks)
+vs p95=284.7ms (n=186) for non-overlapping ticks -- nearly 3x. The tail IS specifically vision-
+forward contention, confirmed directly rather than inferred.
+
+**4b opportunistic policy: mechanism works exactly as designed, but does NOT move the headline
+p95 in this measurement -- reporting both facts, not just the flattering one.** The opportunistic
+policy dramatically increased how often refreshes land during already-gated ticks (overlap rate
+22.5% -> 81.7%, since real "speak" decisions now drive real mic-gating and refreshes are timed to
+land there) and cut the cost of an overlapping tick by more than half when it does land (p95
+845.2ms -> 348.0ms). But overall all-tick p95 barely moved: 346.2ms (strided) vs 343.1ms
+(opportunistic) -- essentially unchanged. Explanation, not spin: with real EasyCom audio driving
+real decisions, 195/240 (81%) of ticks in BOTH runs were already "gated" (near-free returns,
+~0.2ms) regardless of refresh policy -- the p95 percentile in a mostly-gated tick stream is
+governed by that mix either way, so a cheaper-when-it-happens overlap doesn't show up as a big
+aggregate win at the 95th percentile in this specific real-audio window.
+
+**Important caveat on comparability**: these 343-346ms figures are NOT directly comparable to the
+earlier-reported Phase 4.3 p95=786.5ms. That earlier measurement used a harness with
+`generate_fn=None` -- mic-gating was NEVER engaged (every tick ran the full decision path, 0%
+gated), a fundamentally different tick-composition regime from this one (81% gated, real audio-
+driven decisions). Do not read "343ms < 786.5ms" as "opportunistic refresh + real audio beat the
+old result" -- they measure different things. A true like-for-like re-run (same no-gating,
+continuous-decision harness as Phase 4.3, strided vs opportunistic policy) has NOT been done and
+would be needed to make that specific comparison honestly.
+
+Bottom line for item 4: root cause is real and confirmed. The opportunistic policy is a genuine,
+verified mechanism improvement (much higher overlap-with-cheap-ticks rate, much lower per-overlap
+cost) but is not shown to reduce end-to-end tail latency in a real-audio conversational setting
+where gating already dominates the tick mix -- worth keeping as an available policy, not yet
+justified as a required deployment change on this evidence alone.
+
+## 2026-07-26 (item 5) — A1 extended to n=651 balanced (217/class, backchannel ceiling): well-powered NULL
+
+checkpoints/m4_decision_head_3class_bothpresent_v2_n651/A1_FALSIFIER_RESULTS_N651.json. Same v2
+(corrected) construction, same trained head, extraction extended to use ALL 217 available
+backchannel windows in the test sessions plus 217 speak / 217 silence (seed=11, same sampling
+convention as v1/v2's n=300 run) -- n=651 vs n=300, roughly double the previous sample and using
+the actual ceiling for the rarest class.
+
+| condition | n=300 (v2) | n=651 (this run) |
+|---|---|---|
+| (a) real fresh WS | 94.00% | 94.16% |
+| (c-within) swapped, same session | 92.00% | 92.78% |
+| (c-cross) swapped, cross-session | 92.67% | 92.63% |
+| (e) random, matched stats | 94.33% | 93.55% |
+| (f) dataset-mean | 94.33% | 93.55% |
+
+**acc(a)-acc(c_within): +2.0pp CI[+0.33,+4.0] at n=300 (excluded zero, drove the PASS flip) ->
++1.38pp CI[0.0,+2.76] at n=651 (CI's lower bound lands exactly on zero -- does NOT exclude it).
+PASS = False at n=651.** This is the well-powered read: the n=300 real-vs-swapped gap was a
+borderline effect that does not hold up with more data. acc(a) remains statistically tied with
+(e) random-matched and (f) dataset-mean at n=651 too (both CIs include zero), consistent with n=300.
+acc(a)-acc(b) [zeroed] remains large and clearly significant at n=651 (+16.4pp, CI excludes zero)
+-- the one robust, reproduced finding across both sample sizes is that the head behaves very
+differently when World-State is entirely absent (zeroed) vs present in ANY form (real, swapped,
+random-matched, or constant-mean) -- but it cannot distinguish CORRECT from WRONG World-State once
+one is present, at either n. **Final read: not a PASS, at any sample size tested.** This does not
+change the deployment recommendation (ship the speech-only head, (g)=95.00%, invariant to
+World-State by construction) -- it removes the ambiguity from the earlier framing.
