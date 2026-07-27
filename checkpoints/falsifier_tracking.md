@@ -879,12 +879,60 @@ model quality. Neither finding cancels the other; both belong in the writeup.
 -- conditions (e) and (f)'s per-dim mean/std ARE computed from train_bothpresent_v2_cache.pt (the
 corrected-construction cache), not carried over from v1. No recompute needed.
 
-**A1 write-up, corrected wording (replaces the informal framing above)**: Turn-taking is
-speech-driven. The deployed head takes no World-State input (95.00%). A marginal real-vs-swapped
-gap appears at n=300 (+2.0pp, CI [+0.33,+4.0]) but does not survive controls: a matched-random
-vector and a constant dataset-mean vector are both statistically indistinguishable from the real
-World-State, so the gap cannot reflect per-example vision content. Both experiment versions are
-reported. This is NOT presented as a PASS.
+**A1 write-up, FINAL (2026-07-26, simplified to the n=651 result per direct instruction)**:
+Turn-taking is speech-driven. The deployed head takes no World-State input (95.00%). No
+real-vs-swapped gap survives at n=651 (CI [0.0, +2.76]); matched-random and constant dataset-mean
+vectors are both statistically indistinguishable from the real World-State. The n=300 result
+(+2.0pp, CI [+0.33,+4.0]) is reported as underpowered.
+Full detail: checkpoints/m4_decision_head_3class_bothpresent_v2_n651/A1_FALSIFIER_RESULTS_N651.json.
+
+## 2026-07-26 (item 3) — Latency locked in as code defaults, tuning stopped
+
+models/m5_streaming_loop.py: `StreamingConfig.stride_vision_sec` default changed 2.0 -> 10.0
+(matches window_vision_sec, the disclosed operating point). Added
+`use_priority_decision_stream: bool = True` -- the priority CUDA stream is now baked into
+`StreamingLoop.tick()` itself (a `torch.cuda.Stream(priority=-1)` created in `__init__`, the
+decision path's GPU work wrapped in it every tick) rather than something a caller had to opt into
+per-script. scripts/m5_streaming_demo.py's hardcoded `hz=0.3` (assumed the old 2.0s stride) fixed
+to `hz=1.0/cfg.stride_vision_sec`. Opportunistic refresh (`start_vision_refresh_thread_
+opportunistic`) remains available but is NOT wired as a default -- must be called explicitly.
+
+**Disclosed operating point (no further latency work)**: tick p95=786.5ms, mean=372.2ms
+(JETSON_PHASE4_2_3_RESULTS.json), duty cycle ~37-41% at stride=window=10.0s. VAD moved to CPU
+(54.57ms, JETSON_VAD_CPU_RESULTS.json) already decouples interruption latency from GPU contention
+-- the hard real-time constraint (the robot must be able to notice being talked over regardless of
+what the GPU is doing) is met. Stopping latency tuning here per instruction.
+
+**Final latency result (no further tuning): the conditional split, reported as a once-per-10s
+degradation, not a random tail.** From JETSON_PHASE4_4_RESULTS.json (strided policy, priority
+stream on): ticks overlapping a vision/ambient forward pass measure p95=845.2ms (22.5% of ticks,
+n=54/240 at 60s real-time) vs p95=284.7ms for non-overlapping ticks (77.5%, n=186/240). At
+stride=window=10.0s this is a PREDICTABLE, periodic cost: one ~845ms-tail tick roughly every 10
+seconds while the vision/ambient encoders run, not an unbounded or random tail. This is the
+disclosed final characterization of the system's latency behavior -- opportunistic refresh remains
+available (models/m5_streaming_loop.py's `start_vision_refresh_thread_opportunistic`) but is not
+wired as the default, per the earlier finding that it doesn't reduce this conditional split's
+headline cost in a real-audio-gated setting (see the item-4 entry above).
+
+## 2026-07-26 (item 4, resolved) — Like-for-like Jetson memory: VERIFIED FITS, 854MiB headroom
+
+checkpoints/vjepa21_shelved/JETSON_PHASE4_MEMORY_LIKEFORLIKE_WITHQWEN.json. Full stack: ViT-L +
+WavJEPA-base + WavJEPA-nat + M2 predictor + Whisper-medium + Qwen2.5-1.5B-Instruct + M3 connector
+(checkpoints/m4_joint/best.pt) + speech-only decision head, all int8 weight-only where the tooling
+allows. ONE real tick: corrected pooled World-State refresh (build_world_state_features, the
+512-token path) + M3-grounded soft prompt + a REAL 60-token greedy generation through Qwen
+(DuplexLoop.generate_interruptible, not cut short -- verified n_tokens_generated=60).
+
+**Peak: 6766MiB / 7620MiB usable. Headroom: 854MiB.** This is the number that resolves "does it fit
+on Jetson" for the corrected construction -- neither the earlier retracted 644MiB claim (that
+measurement's own stack composition was misdescribed) nor the retracted 3051MiB claim (missing
+Qwen entirely) were like-for-like; this one is. First attempt generated only 10 tokens (Qwen hit
+EOS early since the soft prompt was built from random dummy content with nothing real to ground
+on) -- re-ran with a thin tokenizer proxy forcing the full 60-token budget to avoid understating
+KV-cache growth. Result barely moved (850MiB -> 854MiB headroom), confirming the shortfall wasn't
+masking anything material -- KV-cache growth over 10 vs 60 tokens is small relative to the fixed
+model-weight footprint that dominates this stack. 854MiB is tight but real and positive -- fits,
+verified, not assumed.
 
 **M2 gate replaced (item 2), EasyCom retired as a training source too**: the earlier plan (line
 ~666 above, "Ego4D+EasyCom feature extraction ... and the M2 retrain") is SUPERSEDED. Per 1b's
@@ -999,3 +1047,201 @@ random-matched, or constant-mean) -- but it cannot distinguish CORRECT from WRON
 one is present, at either n. **Final read: not a PASS, at any sample size tested.** This does not
 change the deployment recommendation (ship the speech-only head, (g)=95.00%, invariant to
 World-State by construction) -- it removes the ambiguity from the earlier framing.
+
+## 2026-07-26 (gate fix + PRE-REGISTRATION) — Ego4D gate rescored sibling-excluded; thresholds locked BEFORE the retrain
+
+**Two flaws in the original Ego4D held-out gate, both real**: (a) baseline R@1=0.71% is so close to
+chance that "beat baseline" is a noise-clearable bar; (b) 1542 windows from only 81 source files
+(~19/file, one file has 48) means each query's distractor pool contained ~18 near-duplicate
+windows from the same continuous footage -- not like-for-like with VGGSound's 1545 gallery (1545
+DISTINCT videos).
+
+**Rescored with same-source-file windows excluded from each query's distractor pool** (no
+re-extraction -- embeddings already cached), scripts/phase_ego4d_heldout_rescore_siblingexcl.py ->
+checkpoints/vjepa21_shelved/EGO4D_HELDOUT_BASELINE_SIBLINGEXCL.json:
+- Sibling-excluded R@1: vision->ambient 0.84% (was 0.71% unfiltered), ambient->vision 1.04% (was
+  0.91%). **Barely moved** -- mean effective gallery size after exclusion is 1510.6/1542, so
+  contamination was NOT the main driver of the low score; the weak signal is real, not noise
+  hidden by near-duplicates.
+- File-level R@1 (lenient secondary metric, full pool including siblings -- credit for getting the
+  right FILE even with the wrong window): 7.2%/6.87%. Checked its chance baseline before treating
+  this as informative (one file has 48/1542 windows, so chance is NOT the naive 1/81=1.2%): actual
+  chance = 2.04-2.10%. So this is ~3.4x chance -- real but modest scene-identification signal,
+  more modest than the raw 7% number suggests on its own.
+- Within-modality cosine: 0.623 (vision) / 0.531 (ambient), shuffle-sanity gap 0.0399 -- both
+  essentially unchanged from the unfiltered baseline (as expected; these don't depend on sibling
+  exclusion).
+
+**PRE-REGISTERED THRESHOLDS for the M2 retrain (VGGSound-60k + Ego4D-21.7k), locked BEFORE seeing
+any retrain result**, referenced to this checkpoint's in-domain VGGSound behaviour (within-modality
+cosine 0.0308/0.0289, shuffle gap 0.6604, checkpoints/vjepa21_shelved/VGGSOUND_COLLAPSE_CHECK_1545.json):
+  - sibling-excluded Ego4D R@1 >= 10% (both directions) -- ~150x chance (0.065%) at n=1542, and
+    ~12x the current sibling-excluded baseline (0.84%/1.04%)
+  - Ego4D within-modality cosine <= 0.25 (both modalities) -- down from 0.623/0.531
+  - Ego4D shuffle-sanity gap >= 0.20 -- >=30% of the in-domain 0.6604 reference
+  - NO regression below 52% R@1 on the 1545 VGGSound gallery (the established M2 milestone gate)
+
+Assessment before running the retrain: sibling exclusion confirming the low baseline is REAL (not
+a contamination artifact) means these thresholds are appropriately stringent, not vacuous --
+clearing them requires genuine representation improvement, not noise clearance. Given Ego4D is
+only ~27% of the retrain mix, there is real risk of falling short of R@1>=10% specifically; that
+risk is accepted rather than lowering the bar after the fact. No objection raised to any threshold.
+
+## 2026-07-26 (gate REBUILT, item 1 resolved) — v1 gallery was ambiguity-bound; v2 is the authoritative baseline
+
+Diagnostic (scripts/phase_ego4d_gate_diagnostic.py -> EGO4D_GATE_DIAGNOSTIC.json) confirmed the v1
+gallery (1542 windows, only 81 files, mean 19/file, up to 48) was ambiguity-bound: file-level R@k
+was consistently 1.7-3.8x chance (real signal) while instance-level R@1 was stuck at 0.84%
+sibling-excluded, nowhere near the 10% pre-registered floor -- largely an artifact of each query
+competing against dozens of near-duplicate siblings. Also checked (2a): 0/1542 v1 windows hit the
+silent zero-audio fallback bug -- real code smell, but it did not corrupt v1's numbers. fps
+verified 30/1 across all 81 v1 files (2d) -- no issue there either.
+
+**Rebuilt (scripts/phase_ego4d_heldout_gallery_build_v2.py, seed=43): cap<=2 windows/file, 350
+files, 674 windows** (checkpoints/vjepa21_shelved/EGO4D_HELDOUT_GALLERY_FILEDISJOINT_V2.json).
+Train split correspondingly rebuilt to 17,140 windows / 946 files
+(EGO4D_TRAIN_SPLIT_FILEDISJOINT_V2.json) -- still a strict file-level partition, same guarantee as
+v1. Re-scored m2_fusion_20k_best fresh (scripts/phase_ego4d_heldout_gallery_score_v2.py, which also
+applies item 2c's fix: decode_audio() now raises on zero-length audio and the window is recorded as
+failed/excluded, never silently zeroed -- 0/674 windows hit this path here either).
+
+**checkpoints/vjepa21_shelved/EGO4D_HELDOUT_BASELINE_V2.json -- THE authoritative baseline, v1's
+number is superseded**:
+| metric | v1 (1542w/81f, ambiguity-bound) | v2 (674w/350f, rebuilt) | pre-registered threshold |
+|---|---|---|---|
+| sibling-excl. R@1 (v->a / a->v) | 0.84% / 1.04% | **2.82% / 1.78%** | >=10% |
+| file-level R@1 (v->a / a->v) | 7.2% / 6.87% (chance 1.9-2.1%) | 3.86% / 3.26% (chance 0.22%) | secondary, not gated |
+| within-modality cosine (vis/amb) | 0.623 / 0.531 | **0.559 / 0.512** | <=0.25 |
+| shuffle-sanity gap | 0.0399 | **0.0934** | >=0.20 |
+
+The rebuild moved every primary number in the right direction (instance-level R@1 roughly 2-3x
+higher, shuffle gap more than doubled, cosine down) -- confirming the ambiguity diagnosis was
+real, not wishful. But it is STILL far short of every pre-registered threshold (R@1 needs another
+~3.5-5.6x, shuffle gap needs to more than double again, cosine needs to drop by more than half).
+The thresholds are not being loosened to match -- this is the honest pre-retrain baseline the M2
+retrain must clear, referenced against EGO4D_HELDOUT_BASELINE_V2.json going forward, not the
+retired v1 file.
+
+## 2026-07-26 (mid-retrain) -- VGGSound-60k subsample premise questioned; data-scaling plan set
+
+**Retraction of an unverified assumption**: the 60k VGGSound subsample (item 2, this run) was
+justified by a claimed "documented saturation at 199k" -- checked and this is NOT actually
+documented anywhere in this repo (grepped logs/tracking docs, found nothing supporting it). The
+user's own firsthand recollection contradicts it directly: the original M2 training run started at
+~51k VGGSound clips and only reached ~R@1=30%, then jumped to 52% after scaling to the full ~199k
+corpus -- i.e. VGGSound scale itself was very plausibly the main driver of that 30%->52% jump, not
+something that saturates well below 199k.
+
+**Live tension this creates**: this run's 60k subsample was deliberately shrunk specifically to
+make Ego4D ~22% of the batch mix (fixing the earlier "Ego4D only 9.9%, too diluted" problem). If
+VGGSound scale is really what drives R@1 toward 52%, shrinking it back to 60k may cap this run
+well below 52% regardless of anything else being correct -- Ego4D-proportion and VGGSound-scale
+pull in opposite directions under a plain subsample-and-mix approach. Consistent with this: step
+5000's R@1 (~31-33%) already sits suspiciously close to the recalled ~51k-scale ceiling (~30%),
+though this is not yet conclusive (could still be early-training trajectory, not a plateau).
+
+**Decision (explicit, from the user): do NOT stop the current run.** Let it finish as the FIRST
+controlled datapoint in a deliberate data-scaling study, not a one-shot final answer. Then check
+whether adding more data -- especially egocentric (Ego4D) data -- actually moves the eval numbers,
+rather than assuming either "more VGGSound" or "more Ego4D" alone is the fix.
+
+**Longer-term data plan (if/when a from-scratch M2 retrain is warranted), stated by the user**:
+  - Pretrain on VGGSound + AudioSet-500k COMBINED (both already on disk: VGGSound persistent cache
+    ~199k clips, AudioSet-500k at /mnt/Raid-Storage-2/utkarsh-data/audioset_500k, 152GB, confirmed
+    present -- a 20k subset also exists at audioset_20k, 24GB).
+  - Use a LARGER corpus of Ego4D data than the current 23,303-window kept pool. Raw footage
+    headroom already confirmed on disk: 1,236 video_540ss files (461GB) + 572 clips files (27GB) =
+    1,808 total Ego4D files, of which the AV-relevance filter's own candidate pool
+    (ego4d_av_filter_scores.json) already scored 57,822 windows -- more than double the 23,303
+    currently kept. The per-file cap (50, previously reverted down from a rejected 70) and the
+    floor/exclusion thresholds are the actual limiting factors on Ego4D volume right now, not a
+    lack of raw footage -- there is real headroom to draw on before needing to download anything
+    new.
+  - Note for later stages, not M2: the M3 connector was trained on a custom rich-caption dataset
+    the user built via a Qwen-Omni model (action-labelling-style captions, richer than VGGSound's
+    basic category labels) -- relevant context if a future M2-scale change ever needs to be
+    threaded through to M3's training data too, not an M2 change itself.
+
+Full detail on the running datapoint once it converges: checkpoints/m2_retrain_vggsound60k_ego4d17k/.
+
+## 2026-07-27 -- M2 retrain (VGGSound-60k + Ego4D-17.1k) COMPLETE: first scaling-study datapoint
+
+20000 steps, 4-GPU DDP, batch=48/GPU (negatives=192x192, matching the original recipe's real
+all-gathered negative count -- see the rank-aware SourceDisjointBatchSampler fix below),
+lam_sigreg=0.03/lam_pred=0.0/lam_pooled=0.0/lam_contrastive=1.0/lam_fusion=1.0/fusion_layers=2,
+contrast_dim=256/temp=0.05 -- same recipe as the original m2_fusion_20k_best run in every respect
+except which data it saw. Checkpoints saved every 1000 steps (step1000.pt..step20000/last.pt) plus
+best.pt (lowest loss_ema) -- nothing overwritten silently, full history on disk in
+checkpoints/m2_retrain_vggsound60k_ego4d17k/.
+
+**Trajectory (VGGSound 1545-gallery R@1, vision->ambient / ambient->vision), read from the
+per-1000-step console log at the time (exact per-step JSON not separately saved -- only the
+final step-20000 numbers below come from the eval's own printed/parsed output, the intermediate
+figures here are transcribed from the live monitoring log and are directional, not to be treated
+as a re-derivable source of truth)**: rose steadily from ~15% at step 1000 to ~37-38% by step
+8000-9000, then held in a 36-38% band for roughly 5 consecutive evals (steps 6000-10000) despite
+train contrastive accuracy already at 100% by step 9000 -- the training objective itself had
+saturated on the 192-negative task while held-out ranking hadn't, a real plateau, not noise.
+Broke upward again as the LR annealed past step ~12000-13000, climbing to the low-40s by
+step 14000 and holding there through the end. **step20000 (FINAL, from the actual printed eval):
+vision->ambient R@1=42.27%, ambient->vision R@1=41.68%**, shuffle_sanity_gap=0.6049 (healthy,
+close to the in-domain VGGSound reference of 0.6604), matched_cos_sim=0.6166.
+
+**GATE RESULT, VGGSound side: FAILS the 52% no-regression floor by ~10pp (42.27% vs 52%).** Not
+softened -- this is the real number. Directly confirms the mid-run concern: shrinking VGGSound
+from ~199k to a 60k subsample (done specifically to give Ego4D a meaningful ~22% batch share)
+cost real ceiling. The plateau-then-partial-recovery shape (flat 36-38% for 5 evals, then climbing
+again as the LR annealed past step ~12000) suggests the model was fighting a genuine data/negative-
+diversity limit for a long stretch, not just needing more steps at this same configuration.
+
+**Retracted assumption, confirmed wrong**: item 2's original justification for the 60k subsample
+("documented saturation at 199k") had no actual documentation backing it in this repo and is now
+directly contradicted by this result plus the user's firsthand recollection (51k->~30% R@1,
+199k->52%). VGGSound scale is a real, load-bearing factor, not something that saturates well
+below the full corpus.
+
+**Ego4D-side gate result: DRAMATIC, real improvement across every metric.**
+checkpoints/vjepa21_shelved/EGO4D_HELDOUT_RETRAINED_RESULT.json vs the pre-retrain baseline
+(EGO4D_HELDOUT_BASELINE_V2.json), same 674-window frozen gallery, same m2_fusion architecture:
+
+| metric | pre-retrain baseline | retrained (this run) | pre-registered threshold | met? |
+|---|---|---|---|---|
+| sibling-excl. R@1 (v->a / a->v) | 2.82% / 1.78% | **18.40% / 18.40%** | >=10% | **PASS** |
+| shuffle-sanity gap | 0.0934 | **0.2453** | >=0.20 | **PASS** |
+| within-modality cosine (vis/amb) | 0.559 / 0.512 | **0.383 / 0.356** | <=0.25 | not quite (much closer) |
+| file-level R@1 (v->a / a->v) | 3.86% / 3.26% | **21.96% / 20.92%** | secondary, not gated | ~95-100x chance (0.22%) |
+
+Sibling-excluded R@1 improved ~6.5-10x. Shuffle-sanity gap more than doubled and now clears its
+pre-registered floor. Within-modality clustering dropped substantially (less collapsed) though
+not quite below the 0.25 target. **2 of 3 pre-registered Ego4D thresholds are met outright; the
+third (cosine) improved dramatically without fully clearing its bar.** This is unambiguous: the
+Ego4D data DID teach the model something real about egocentric AV correspondence that VGGSound-
+only training did not have.
+
+**Combined verdict, stated plainly, not averaged away**: this retrain is a genuine two-sided
+result. It clearly WORKS for Ego4D (2/3 thresholds passed outright, every metric dramatically
+better) and clearly REGRESSES on VGGSound (42.27% vs the 52% floor, ~10pp short). Both are real,
+both matter, and one does not cancel the other. The likely mechanism, consistent with the user's
+own recollection: VGGSound scale (cut from ~199k to 60k) is what the in-domain ceiling depends on,
+while Ego4D REPRESENTATION in the batch mix (raised from ~9.9% to ~22%) is what the egocentric
+generalization depends on -- this run traded one for the other rather than solving both, exactly
+the tension flagged mid-run. The follow-up scaling experiments (more VGGSound scale back, and/or
+more Ego4D data -- both have real headroom, see above) are what will show whether both can be
+had together, not this single datapoint.
+
+**Status: first datapoint in a deliberate scaling study, per explicit user instruction -- NOT a
+final verdict on whether Ego4D integration works.** The user's decision after seeing the mid-run
+trend: do not stop this run; treat it as the starting point, then check whether adding more data
+(VGGSound scale back up, and/or more Ego4D data -- real headroom already confirmed: 1,808 raw
+Ego4D files on disk, 57,822 already-scored candidate windows vs 23,303 currently kept) actually
+moves the eval numbers before concluding anything about whether this architecture/recipe can reach
+the 52% floor with Ego4D included.
+
+**Side fix made along the way, now permanent**: SourceDisjointBatchSampler (data/
+source_disjoint_batch_sampler.py) was single-GPU-only before this run -- attempting a naive
+torchrun would have silently given every rank the SAME batches (redundant, not complementary
+shards), corrupting the "192 distinct negatives" assumption. Fixed to be rank-aware (every rank
+computes the identical global batch list from the same seed+epoch, then slices round-robin by
+rank) -- unit-tested for no cross-rank batch duplication and no source collisions within any
+batch, then verified under a real 4-GPU torchrun smoke test before the full run. This is a
+real, permanent capability add, not a one-off hack for this run.
