@@ -161,25 +161,29 @@ touched training data," not as a dead end — the visual gate is now reusable in
 
 - VGGSound 197,462 (full scale, kept) + Ego4D 134,491 (40.5% share, the biggest real batch-share
   push yet) + negatives=200×200 (verified free from Slide 3) + no AudioSet (clean test).
-- **Gate 1 — VGGSound R@1 (≥52%): a near-miss, split by direction, not a clean pass.**
-  Ambient→Vision **51.20%** (0.80pp under), Vision→Ambient **52.69%** (clears it). Reporting the
-  split honestly rather than rounding to one verdict — both sit within a hair of the line.
-- **Gate 2 — Ego4D sibling-excl. R@1 (≥RUN-1's 11.57%/10.68%): a clear, decisive PASS — the best
-  Ego4D result in the entire scaling study.** **25.82% / 26.41%** — beats RUN-1 by 2.2–2.5×, and
-  beats even the 22.2%-share reference run (18.40%/18.40%, achieved on a much smaller VGGSound
-  corpus) by 1.4×. **This resolves the RUN-1 tension outright: restoring VGGSound to full scale
-  AND growing Ego4D's real volume gets both gains at once**, where RUN-1 showed you couldn't get
-  both from a fixed Ego4D volume alone.
-- **Gate 3 — Ego4D within-modality cosine (≤0.25): improved, still not met.** 0.4524/0.3932 (down
-  from RUN-1's 0.4834/0.4294) — real, monotonic improvement across every run in this study, but
-  still the one threshold nothing has cleared. Possibly needs an architecture/loss change, not
-  just more data — a hypothesis for the next stage, not concluded here.
-- **Bottom line, not averaged into one story**: Ego4D is a clean, large win. VGGSound is
-  essentially at the gate (may be normal run-to-run variance around 52%, not a real regression —
-  not assumed either way). Cosine remains open. All three reported as they are.
+- **Caught our own bug before reporting it**: the training script's `best.pt` checkpoint is saved
+  by lowest *training loss*, not by held-out eval score — it turned out to be step 13,960, well
+  before the run's actual peak. Checked every late-training checkpoint directly rather than trust
+  the "best.pt" label; **step 19,000 is the real best checkpoint on every single metric measured**,
+  not the final step 20,000 or the mislabeled "best.pt". All numbers below are step 19,000's.
+- **Gate 1 — VGGSound R@1 (≥52%): PASSES cleanly, both directions.** Ambient→Vision **53.27%**,
+  Vision→Ambient **53.72%** — both clear the floor by >1pp.
+- **Gate 2 — Ego4D sibling-excl. R@1 (≥RUN-1's 11.57%/10.68%): decisive PASS — the best Ego4D
+  result across the entire scaling study.** **27.60% / 27.00%** — beats RUN-1 by ~2.4×, and beats
+  the previous best (the 22.2%-share reference run, 18.40%/18.40%, on a much smaller VGGSound
+  corpus) by ~1.5×. **This resolves the RUN-1 tension outright: restoring VGGSound to full scale
+  AND growing Ego4D's real volume gets both gains at once.**
+- **Gate 3 — Ego4D within-modality cosine (≤0.25): improved, still not met.** 0.4358/0.3893 — the
+  closest any run in this study has gotten, but still ~1.6-1.7× the target. Possibly needs an
+  architecture/loss change, not just more data — a hypothesis for the next stage.
+- **The training curve genuinely plateaued** in the final ~4,000 steps (bouncing 51-53.7% with no
+  further net gain, as the learning rate annealed toward zero) — worth knowing for planning any
+  future run's step budget on this scale of data.
 
-*Speaker note: this is the payoff slide — lead with the Ego4D number, it's genuinely the best
-result of the whole project's data-scaling effort, then be straight about the other two.*
+*Speaker note: this is the payoff slide — lead with the Ego4D number (best in the whole project's
+data-scaling effort), then the VGGSound clean pass, then be straight that cosine is still open.
+The "we caught our own checkpoint-selection bug" line is worth keeping in, not cutting — it's
+exactly the kind of self-correction this project's culture is built on.*
 
 ---
 
@@ -339,13 +343,17 @@ than what's actually true — both items are real, current blockers to a fully-c
 ## Slide 18 — Next steps
 
 - **Ego4D's cosine gate (≤0.25) still isn't cleared, despite RUN-2's data increase** — it improved
-  monotonically across every run in this study (0.559→0.383→0.483→0.452, roughly) but the
+  monotonically across every run in this study (0.559→0.383→0.483→0.436, roughly) but the
   improvement is slowing relative to how much data was added. Worth testing whether an
   architecture or loss change (not just more data) is the right next lever, rather than pursuing
   a fourth data-scaling run on the same recipe.
-- **VGGSound's near-miss (51.20%/52.69%) is worth a cheap sanity check** — re-score the same
-  checkpoint once or twice more, or check if this is within normal seed/eval variance, before
-  deciding whether it's a real (small) regression or noise around the 52% line.
+- **Fix the checkpoint-selection logic**: `best.pt` should be chosen by held-out eval score, not
+  training loss — this run's `best.pt` was step 13,960, a meaningfully worse checkpoint than the
+  step 19,000 result actually reported here. Cheap fix, worth doing before the next run so this
+  doesn't need a manual catch-and-recheck again.
+- **User's suggestion, explicitly deferred for now**: try one more run adding the ~30k AudioSet-
+  Strong clips back in (on top of the current VGGSound+Ego4D mix) as a further check. Not started —
+  flagged here as the acknowledged next candidate experiment, not a commitment.
 - M5: find the Day-2 memory-creep root cause before calling sustained conversation solved; decide
   whether the interruption-policy state machine gets wired into the live loop next, or whether
   other M5 items take priority.

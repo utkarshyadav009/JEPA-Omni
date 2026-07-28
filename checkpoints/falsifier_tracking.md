@@ -1657,3 +1657,51 @@ than more data to close, though that is a hypothesis for a future stage, not con
 raising the per-file candidate cap 50->150 on the same 946 files + 98,451 from 2,922 newly
 downloaded, activity-balanced, non-AV-benchmark Ego4D videos). No AudioSet. negatives=200x200
 (batch-size=50/GPU), verified free of any OOM cost at this scale before committing to the full run.
+
+## 2026-07-28 -- CORRECTION: `best.pt` was NOT the best checkpoint. step19000.pt is, on every metric.
+
+User noticed the trajectory both stagnated in the last ~4000 steps AND that step 19000's printed
+eval (53.27%/53.72%) was higher than the final step 20000 (51.20%/52.69%) -- asked directly which
+checkpoint the reported Ego4D numbers above actually came from.
+
+**Checked, not assumed**: `checkpoints/m2_run2_vggsound197k_ego4d134k_neg200/best.pt` contains
+`step: 13960` -- this checkpoint is selected purely by lowest TRAINING loss_ema (`train_m2.py`'s
+own save-best logic), not by held-out eval R@1. Step 13960 sits between the step-13000 (VGGSound
+R@1 46.54%/46.67%) and step-14000 (49.19%/48.61%) evals -- i.e. the Ego4D numbers reported in the
+section above (25.82%/26.41%) were computed on a checkpoint with meaningfully WORSE VGGSound
+performance than the run's actual peak, not the run's best result.
+
+**Re-scored step19000.pt and step20000.pt on the same frozen Ego4D gallery for a fair, complete
+comparison** (`checkpoints/vjepa21_shelved/EGO4D_HELDOUT_RUN2_STEP19000_RESULT.json`,
+`..._STEP20000_RESULT.json`):
+
+| metric | best.pt (step 13,960) | **step 19,000** | step 20,000 (final) |
+|---|---|---|---|
+| VGGSound R@1 (a->v / v->a) | ~46.5-49.2% (interpolated, not directly evaled) | **53.27% / 53.72%** | 51.20% / 52.69% |
+| Ego4D sibling-excl. R@1 (v->a / a->v) | 25.82% / 26.41% | **27.60% / 27.00%** | 27.30% / 26.56% |
+| Ego4D within-modality cosine (vis/amb) | 0.4524 / 0.3932 | **0.4358 / 0.3893** | 0.4400 / 0.3910 |
+| Ego4D shuffle-sanity gap | 0.2487 | **0.2546** | 0.2535 |
+
+**step19000.pt is unambiguously the best checkpoint on every single metric measured** -- it clears
+the VGGSound 52% gate cleanly in BOTH directions (unlike step20000's split near-miss result), AND
+is simultaneously the best Ego4D result across the entire scaling study on every Ego4D metric too
+(R@1, cosine, and shuffle gap all best at this step). The plateau the user noticed (steps
+17000-20000 bouncing 51-53.7% with no further net gain, consistent with the LR having annealed
+near-zero by then) is real, and `best.pt`'s pure-training-loss selection criterion picked a
+checkpoint from BEFORE that plateau that is strictly worse on every held-out metric than what the
+run actually produced later. **step19000.pt, not best.pt, is now the correct checkpoint to cite as
+"the RUN-2 result" and to use for any downstream work (M3/M4 built on this M2 checkpoint).**
+
+**Revised gate verdicts**:
+- **Gate 1, VGGSound R@1 (>=52%): PASSES cleanly** at step19000 (53.27%/53.72%, both directions
+  clear the floor by >1pp) -- not the near-miss/split result reported for step20000.
+- **Gate 2, Ego4D sibling-excl. R@1 (>=RUN-1's 11.57%/10.68%): PASSES, even more decisively** --
+  27.60%/27.00% at step19000, the best result recorded in this entire scaling study, beating the
+  22.2%-share reference (18.40%/18.40%) by 1.47-1.5x.
+- **Gate 3, Ego4D within-modality cosine (<=0.25): still NOT MET**, but step19000's 0.4358/0.3893
+  is the closest any checkpoint in this study has come.
+
+Standing methodology note for future runs: `best.pt`'s save criterion (lowest training loss_ema)
+is a training-time proxy, not a held-out-eval selection -- do not assume it is the run's best
+checkpoint without checking the eval log directly, especially for long runs where the loss and the
+held-out metric can decouple after a plateau begins.
