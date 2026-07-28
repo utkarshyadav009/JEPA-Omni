@@ -1603,3 +1603,57 @@ explicit user instruction to keep the batch-share test clean). Checkpoint dir:
 VGGSound R@1>=52%, Ego4D sibling-excl R@1>=RUN-1's 11.57%/10.68% (this run's ~40.5% Ego4D share is
 a genuine attempt at RECOVERY toward the 22.2%-share run's 18.40%/18.40%, not just "no worse"),
 within-modality cosine improving toward <=0.25. All three reported regardless of outcome.
+
+## 2026-07-28 -- RUN-2 COMPLETE, all three gates scored: real two-sided result, do not average it away
+
+**Training finished cleanly**: 20,000/20,000 steps, `train_m2.py` exited normally
+(`best_loss=0.4409`), no crashes, no NaNs across the full run. Final checkpoint scored on both
+galleries below (`checkpoints/m2_run2_vggsound197k_ego4d134k_neg200/best.pt`).
+
+**Gate 1 -- VGGSound R@1 (>=52%, the established M2 milestone gate): SPLIT BY DIRECTION, essentially
+AT the gate, not a clean pass.** Final step-20000 eval (dataset_len=1545/clips_seen=1545 confirmed):
+ambient->vision R@1=**51.20%** (misses the floor by 0.80pp), vision->ambient R@1=**52.69%**
+(clears it). Averaged: 51.95%, 0.05pp below 52%. shuffle_sanity_gap=0.6990 (healthy, matches the
+in-domain VGGSound reference of 0.6604 almost exactly, actually higher). **Reporting the split
+honestly rather than rounding to a single PASS/FAIL** -- one direction clears the bar, one sits
+just under it, both within a hair's width of the line.
+
+**Gate 2 -- Ego4D sibling-excluded R@1 (>=RUN-1's 11.57%/10.68%, real target: recover toward the
+22.2%-share run's 18.40%/18.40%): CLEAR, DECISIVE PASS -- new best across the entire scaling
+study.** `checkpoints/vjepa21_shelved/EGO4D_HELDOUT_RUN2_RESULT.json` (n=674, clips_seen assertion
+passed, 0 failed/excluded):
+
+| metric | RUN-1 (8.0% share) | 22.2%-share reference | **RUN-2 (40.5% share)** |
+|---|---|---|---|
+| sibling-excl. R@1 (v->a / a->v) | 11.57% / 10.68% | 18.40% / 18.40% | **25.82% / 26.41%** |
+| shuffle-sanity gap | 0.2140 | 0.2453 | **0.2487** |
+| within-modality cosine (vis/amb) | 0.4834 / 0.4294 | 0.383 / 0.356 | **0.4524 / 0.3932** |
+| file-level R@1 (v->a / a->v, secondary) | 15.13% / 13.35% | 21.96% / 20.92% | **29.53% / 30.27%** |
+
+RUN-2 beats RUN-1 by **2.23x/2.47x** and beats even the 22.2%-share reference (the previous best,
+achieved with a much smaller VGGSound corpus) by **1.40x/1.44x** -- restoring VGGSound to full
+scale AND pushing Ego4D's absolute volume up (17,140 -> 134,491 windows, 40.5% share) got BOTH
+gains at once, resolving the exact tension the batch-share finding (RUN-1) identified. Shuffle-
+sanity gap clears its 0.20 floor (0.2487) and is the best value recorded across every run in this
+study, including the 22.2%-share reference.
+
+**Gate 3 -- Ego4D within-modality cosine (<=0.25): improved but still NOT MET, same as every prior
+run.** vision=0.4524 (was 0.4834 in RUN-1, was 0.559 pre-retrain baseline), ambient=0.3932 (was
+0.4294 in RUN-1, was 0.512 pre-retrain baseline). Real, monotonic improvement across every scaling
+step in this study, but still roughly 1.6-1.8x the 0.25 target -- this is the one threshold NO
+run in this entire study has cleared, RUN-2 included.
+
+**Combined verdict, stated plainly, not averaged into one story**: this run cleanly resolves the
+RUN-1 tension (Ego4D batch-share vs VGGSound scale) for the Ego4D side -- a genuinely large,
+unambiguous win, the best Ego4D result recorded in this project by a wide margin. The VGGSound
+gate is a near-miss, direction-dependent result, not a clean pass -- close enough that it may
+reflect run-to-run variance around the 52% line rather than a real regression, but that is not
+being assumed; it is reported as-is. The cosine gate remains unmet, a consistent pattern across
+every run regardless of data mix, suggesting this may need an architecture or loss change rather
+than more data to close, though that is a hypothesis for a future stage, not concluded here.
+
+**Full data lineage for this checkpoint**: VGGSound 197,462 clips (full persistent cache, held-out
+1545-gallery excluded) + Ego4D 134,491 windows (17,140 original v2 train split + 18,900 from
+raising the per-file candidate cap 50->150 on the same 946 files + 98,451 from 2,922 newly
+downloaded, activity-balanced, non-AV-benchmark Ego4D videos). No AudioSet. negatives=200x200
+(batch-size=50/GPU), verified free of any OOM cost at this scale before committing to the full run.

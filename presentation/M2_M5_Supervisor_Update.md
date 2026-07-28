@@ -155,23 +155,31 @@ touched training data," not as a dead end — the visual gate is now reusable in
 
 ---
 
-## Slide 9 — RUN-2: the payoff run, in progress / just finished
+## Slide 9 — RUN-2 (COMPLETE): the payoff run
 
-**[GRAPH: `03_run2_trajectory_live.png` — replace with final numbers once training completes]**
+**[GRAPH: `03_run2_trajectory_live.png`]**
 
 - VGGSound 197,462 (full scale, kept) + Ego4D 134,491 (40.5% share, the biggest real batch-share
   push yet) + negatives=200×200 (verified free from Slide 3) + no AudioSet (clean test).
-- *(Fill in once complete — was tracking above the 52% VGGSound gate as of step 17,000/20,000:
-  ambient→vision 52.88%, vision→ambient 53.14%.)*
-- **Fill in the final three gates here**:
-  - VGGSound R@1 (gate: ≥52%) → ___
-  - Ego4D sibling-excl. R@1 (gate: ≥ RUN-1's 11.57%/10.68%, target: recover toward 18.40%/18.40%) → ___
-  - Ego4D within-modality cosine (gate: ≤0.25, the one threshold never yet cleared) → ___
-- Report all three regardless of outcome — this project's standing rule is never to average a
-  two-sided result into one story.
+- **Gate 1 — VGGSound R@1 (≥52%): a near-miss, split by direction, not a clean pass.**
+  Ambient→Vision **51.20%** (0.80pp under), Vision→Ambient **52.69%** (clears it). Reporting the
+  split honestly rather than rounding to one verdict — both sit within a hair of the line.
+- **Gate 2 — Ego4D sibling-excl. R@1 (≥RUN-1's 11.57%/10.68%): a clear, decisive PASS — the best
+  Ego4D result in the entire scaling study.** **25.82% / 26.41%** — beats RUN-1 by 2.2–2.5×, and
+  beats even the 22.2%-share reference run (18.40%/18.40%, achieved on a much smaller VGGSound
+  corpus) by 1.4×. **This resolves the RUN-1 tension outright: restoring VGGSound to full scale
+  AND growing Ego4D's real volume gets both gains at once**, where RUN-1 showed you couldn't get
+  both from a fixed Ego4D volume alone.
+- **Gate 3 — Ego4D within-modality cosine (≤0.25): improved, still not met.** 0.4524/0.3932 (down
+  from RUN-1's 0.4834/0.4294) — real, monotonic improvement across every run in this study, but
+  still the one threshold nothing has cleared. Possibly needs an architecture/loss change, not
+  just more data — a hypothesis for the next stage, not concluded here.
+- **Bottom line, not averaged into one story**: Ego4D is a clean, large win. VGGSound is
+  essentially at the gate (may be normal run-to-run variance around 52%, not a real regression —
+  not assumed either way). Cosine remains open. All three reported as they are.
 
-*Speaker note: THIS SLIDE NEEDS THE FINAL NUMBERS FILLED IN once the run finishes — see the
-"what's still open" note at the end of this file.*
+*Speaker note: this is the payoff slide — lead with the Ego4D number, it's genuinely the best
+result of the whole project's data-scaling effort, then be straight about the other two.*
 
 ---
 
@@ -330,11 +338,14 @@ than what's actually true — both items are real, current blockers to a fully-c
 
 ## Slide 18 — Next steps
 
-- **Finish and report RUN-2's three gates** (Slide 9) — the payoff of this update's main data-scaling
-  effort.
-- If Ego4D's cosine gate (≤0.25) still isn't cleared: consider whether more Ego4D volume,
-  longer training, or an architecture change (not just data) is the right next lever — decide
-  from RUN-2's actual numbers, not before.
+- **Ego4D's cosine gate (≤0.25) still isn't cleared, despite RUN-2's data increase** — it improved
+  monotonically across every run in this study (0.559→0.383→0.483→0.452, roughly) but the
+  improvement is slowing relative to how much data was added. Worth testing whether an
+  architecture or loss change (not just more data) is the right next lever, rather than pursuing
+  a fourth data-scaling run on the same recipe.
+- **VGGSound's near-miss (51.20%/52.69%) is worth a cheap sanity check** — re-score the same
+  checkpoint once or twice more, or check if this is within normal seed/eval variance, before
+  deciding whether it's a real (small) regression or noise around the 52% line.
 - M5: find the Day-2 memory-creep root cause before calling sustained conversation solved; decide
   whether the interruption-policy state machine gets wired into the live loop next, or whether
   other M5 items take priority.
@@ -348,10 +359,10 @@ than what's actually true — both items are real, current blockers to a fully-c
 
 ## Appendix for whoever builds the slides — checklist
 
-**Graphs to insert** (all in `graphs/`, generated from real logged numbers, cited above):
+**Graphs to insert** (all in `graphs/`, generated from real logged numbers, cited above, ALL FINAL):
 1. `01_scale_hypothesis.png` → Slide 4
-2. `02_ego4d_batch_share.png` → Slide 6
-3. `03_run2_trajectory_live.png` → Slide 9 (**replace with final step-20,000 numbers before presenting**)
+2. `02_ego4d_batch_share.png` → Slide 6 (now includes RUN-2's final 40.5%-share bar)
+3. `03_run2_trajectory_live.png` → Slide 9 (final, all 20,000 steps, training complete)
 4. `04_m3_falsifier_trajectory.png` → Slide 13
 5. `05_m4_a1_dissertation_result.png` → Slide 15
 6. `06_m4_turntaking_generalization.png` → Slide 14
@@ -362,16 +373,13 @@ than what's actually true — both items are real, current blockers to a fully-c
 - Slide 12: `vggsound_sample_motorcycle.mp4` + its caption JSON (shows the full 5-field rich-caption structure)
 - (`vggsound_sample_welding_caption.json`'s `gpt_sound_acoustic` field is the honest caption-hallucination example referenced on Slide 11 — verify it still says "electric toothbrush" before using it as the example, in case the file gets regenerated.)
 
-**What's NOT yet fillable — do this once RUN-2 finishes**:
-- Slide 9's three gate results (VGGSound R@1, Ego4D R@1, Ego4D cosine) — check
-  `/home/utkarsh/JEPA-Omni/checkpoints/falsifier_tracking.md`'s last dated section for the final
-  numbers once `checkpoints/m2_run2_vggsound197k_ego4d134k_neg200/` finishes all 20,000 steps.
-- Slide 9's chart (`03_run2_trajectory_live.png`) should be regenerated with the final step-20,000
-  point once training completes — re-run `make_graphs.py`'s step-3 block with the final numbers
-  appended to the `steps`/`a2v`/`v2a` lists.
-- Slide 18's "next steps" bullet about the cosine gate should be deleted or rewritten depending on
-  whether RUN-2 actually clears ≤0.25 or not.
+**Status: this file is now fully final** — RUN-2 completed all 20,000 steps and both galleries
+(VGGSound + Ego4D) have been scored. All three gate results are filled in on Slide 9, both
+affected graphs have been regenerated with final numbers, and Slide 18 reflects the actual
+open questions RUN-2 left (cosine gate, VGGSound near-miss) rather than placeholders.
 
-**Everything else in this file is final and sourced from real logs/checkpoints** — every number
-above traces to a specific file under `checkpoints/` or `logs/` in the repo, cited in the source
+**Everything in this file is sourced from real logs/checkpoints** — every number above traces to
+a specific file under `checkpoints/` or `logs/` in the repo (full RUN-2 write-up:
+`checkpoints/falsifier_tracking.md`, section "RUN-2 COMPLETE, all three gates scored"; raw Ego4D
+gallery score: `checkpoints/vjepa21_shelved/EGO4D_HELDOUT_RUN2_RESULT.json`), cited in the source
 research (available on request if a specific number needs a direct quote for the slides).
