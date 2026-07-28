@@ -1,0 +1,10 @@
+{
+  "clip_id": "VrA0wG7iyuM_000031",
+  "dataset": "VGGSound",
+  "vggsound_label": "arc welding",
+  "gpt_action_brief": "A person wearing protective gear is welding metal.",
+  "gpt_action_detailed": "The individual, equipped with a welding helmet and gloves, meticulously works on joining two pieces of metal together by applying heat from an electrode. Sparks fly as the welder moves the torch along the seam, creating a bright light that illuminates the immediate area around them.",
+  "gpt_summary_brief": "An industrial worker engaged in the task of welding metal components within a workshop environment.",
+  "gpt_summary_detailed": "In this video segment, we observe a skilled worker performing the task of welding inside a well-equipped workshop. Dressed in safety attire including a blue welding helmet and gloves, they handle a welding torch with practiced ease. As they work, intense sparks illuminate their workspace, highlighting the precision required for such detailed craftsmanship.",
+  "gpt_sound_acoustic": "The sound is of an electric toothbrush being used."
+}
