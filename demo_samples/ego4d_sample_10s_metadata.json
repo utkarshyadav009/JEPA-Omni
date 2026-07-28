@@ -1,0 +1,6 @@
+{
+  "clip_id": "00792fa8-988c-4c85-8e80-73eb3ac53e80",
+  "dataset": "Ego4D",
+  "window_seconds": "0-10",
+  "description": "10-second egocentric video clip sample extracted from Ego4D Probe v2 dataset."
+}

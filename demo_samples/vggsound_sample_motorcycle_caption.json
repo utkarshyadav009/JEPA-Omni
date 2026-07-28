@@ -1,0 +1,10 @@
+{
+  "clip_id": "L_-v7FvY3Yc_000030",
+  "dataset": "VGGSound",
+  "vggsound_label": "driving motorcycle",
+  "gpt_action_brief": "A person starts their motorcycle.",
+  "gpt_action_detailed": "The individual begins by sitting on the motorcycle, then engages the kick starter to start the engine. The sound of the engine revving up fills the air as they prepare for departure.",
+  "gpt_summary_brief": "Starting a motorcycle outdoors near a building.",
+  "gpt_summary_detailed": "In an outdoor setting adjacent to a small structure resembling a shed or outbuilding, a person prepares to ride a yellow motorcycle. They sit on it, position themselves correctly, and use the kick starter mechanism to ignite the engine. As the engine roars to life, there's a sense of readiness and anticipation for the journey ahead.",
+  "gpt_sound_acoustic": "The sound is that of an engine revving up and then idling. It comes from a motorcycle."
+}
