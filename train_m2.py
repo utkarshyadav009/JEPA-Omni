@@ -249,7 +249,19 @@ def build_dataloader(
     distributed_sampler: bool = True,
     drop_last_override: Optional[bool] = None,
     source_disjoint_batches: bool = False,
+    mixed_sources: Optional[List["MixedSource"]] = None,
 ) -> Tuple[DataLoader, Optional[DistributedSampler]]:
+    """mixed_sources (item 5, M2 retrain; extended for RUN-2 to N sources):
+    combine THIS call's normal (cache_dir, clip_ids) -- e.g. the full
+    VGGSound cache -- with one or more ADDITIONAL (name, cache_dir,
+    clip_ids) sources -- e.g. the Ego4D train split and/or the AudioSet-
+    Strong draw -- via data.mixed_av_cached_dataset.MixedAVCachedDataset.
+    limit/exclude_ids are applied to EACH side's raw clip_id list BEFORE
+    the mixed dataset is constructed (not by mutating dataset.clip_ids
+    afterward, which would desync MixedAVCachedDataset's internal
+    index map from a plain list slice/filter -- unlike AVCachedDataset,
+    whose __getitem__ re-derives the file path from clip_ids[idx] at call
+    time, so post-construction mutation is safe for that class."""
     cache_dir    = str(cfg_get(cfg, "data.av_cache_dir",
                                default="/dev/shm/jepa_m2_cache"))
     audio_mode   = str(cfg_get(cfg, "model.audio_mode",   default="mean"))
@@ -258,16 +270,36 @@ def build_dataloader(
     num_workers  = (num_workers_override if num_workers_override is not None
                     else int(cfg_get(cfg, "train.num_workers", default=4)))
 
-    dataset = AVCachedDataset(
-        cache_dir=cache_dir,
-        clip_ids=clip_ids,
-        max_tdm_bins=max_tdm_bins,
-        audio_mode=audio_mode,
-    )
-    if limit is not None:
-        dataset.clip_ids = dataset.clip_ids[:limit]
-    if exclude_ids is not None and clip_ids is None:
-        dataset.clip_ids = [c for c in dataset.clip_ids if c not in exclude_ids]
+    if mixed_sources:
+        from data.mixed_av_cached_dataset import MixedAVCachedDataset, MixedSource
+        vgg_ids = clip_ids
+        if vgg_ids is None:
+            vgg_ids = AVCachedDataset(cache_dir=cache_dir, max_tdm_bins=max_tdm_bins,
+                                       audio_mode=audio_mode).clip_ids
+        if limit is not None:
+            vgg_ids = vgg_ids[:limit]
+        if exclude_ids is not None:
+            vgg_ids = [c for c in vgg_ids if c not in exclude_ids]
+        all_sources = [MixedSource("vggsound", cache_dir, vgg_ids)]
+        for src in mixed_sources:
+            ids = src.clip_ids
+            if exclude_ids is not None:
+                ids = [c for c in ids if c not in exclude_ids]
+            all_sources.append(MixedSource(src.name, src.cache_dir, ids))
+        dataset = MixedAVCachedDataset(
+            sources=all_sources, max_tdm_bins=max_tdm_bins, audio_mode=audio_mode,
+        )
+    else:
+        dataset = AVCachedDataset(
+            cache_dir=cache_dir,
+            clip_ids=clip_ids,
+            max_tdm_bins=max_tdm_bins,
+            audio_mode=audio_mode,
+        )
+        if limit is not None:
+            dataset.clip_ids = dataset.clip_ids[:limit]
+        if exclude_ids is not None and clip_ids is None:
+            dataset.clip_ids = [c for c in dataset.clip_ids if c not in exclude_ids]
 
     drop_last = (drop_last_override if drop_last_override is not None
                  else len(dataset) >= batch_size)
@@ -278,12 +310,18 @@ def build_dataloader(
         # from the SAME source video in the candidate pool -- without this,
         # two near-duplicate windows can land in one contrastive batch and
         # become false negatives (see data/source_disjoint_batch_sampler.py).
-        # Not compatible with DistributedSampler (single-GPU/rank use only
-        # for now -- this project's B-deploy retrain runs single-GPU).
-        assert not (is_distributed() and distributed_sampler), \
-            "source_disjoint_batches has no distributed variant yet"
+        # DISTRIBUTED (2026-07-26): SourceDisjointBatchSampler is now rank-
+        # aware (every rank computes the identical global batch list from
+        # the same seed+epoch, then slices round-robin by rank) -- real
+        # torchrun --nproc_per_node=N works correctly here: each rank gets
+        # DIFFERENT batches (not N redundant copies of the same one), and
+        # DDP's all-gather during the contrastive loss produces genuinely
+        # distinct negatives, same as the plain (non-source-disjoint) path.
+        rank = get_rank() if (is_distributed() and distributed_sampler) else 0
+        num_replicas = get_world_size() if (is_distributed() and distributed_sampler) else 1
         batch_sampler = SourceDisjointBatchSampler(
-            dataset.clip_ids, batch_size=batch_size, drop_last=drop_last)
+            dataset.clip_ids, batch_size=batch_size, drop_last=drop_last,
+            rank=rank, num_replicas=num_replicas)
         loader = DataLoader(
             dataset,
             batch_sampler=batch_sampler,
@@ -292,7 +330,12 @@ def build_dataloader(
             pin_memory=torch.cuda.is_available(),
             persistent_workers=num_workers > 0,
         )
-        return loader, None
+        # returned as the "sampler" slot so infinite_batches() calls
+        # set_epoch() on it each epoch (same duck-typed interface as
+        # DistributedSampler) -- without this, every epoch would reshuffle
+        # identically (seed+epoch never advances), silently repeating the
+        # same batches forever instead of re-shuffling per epoch.
+        return loader, batch_sampler
 
     if is_distributed() and distributed_sampler:
         sampler = DistributedSampler(dataset, shuffle=True, drop_last=drop_last)
@@ -715,7 +758,10 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
           tag_ckpts: bool = False,
           gradcache_micro_steps: int = 1,
           lam_fusion: float = 0.0,
-          fusion_layers: int = 2) -> None:
+          fusion_layers: int = 2,
+          source_disjoint_batches: bool = False,
+          mixed_source_specs: Optional[List[str]] = None,
+          train_clip_ids_path: Optional[str] = None) -> None:
     device = setup_distributed()
     rank   = get_rank()
     torch.manual_seed(int(cfg_get(cfg, "seed", default=0)) + rank)
@@ -907,9 +953,24 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
     # augmentation), so a single process easily keeps up with ~1.4s/step
     # GPU compute; this trades hypothetical loader parallelism for
     # eliminating the whole hazard class.
-    loader, sampler = build_dataloader(cfg, limit=limit, exclude_ids=eval_ids_set,
+    mixed_sources = None
+    if mixed_source_specs:
+        from data.mixed_av_cached_dataset import MixedSource
+        mixed_sources = []
+        for spec in mixed_source_specs:
+            name, spec_cache_dir, ids_path = spec.split("=", 2)
+            with open(ids_path) as _f:
+                ids = [l.strip() for l in _f if l.strip()]
+            mixed_sources.append(MixedSource(name, spec_cache_dir, ids))
+    train_clip_ids = None
+    if train_clip_ids_path:
+        with open(train_clip_ids_path) as _f:
+            train_clip_ids = [l.strip() for l in _f if l.strip()]
+    loader, sampler = build_dataloader(cfg, clip_ids=train_clip_ids, limit=limit, exclude_ids=eval_ids_set,
                                        batch_size_override=batch_size_override,
-                                       num_workers_override=(0 if is_distributed() else None))
+                                       num_workers_override=(0 if is_distributed() else None),
+                                       source_disjoint_batches=source_disjoint_batches,
+                                       mixed_sources=mixed_sources)
     batches         = infinite_batches(loader, sampler)
 
     # ── eval loader (only built if eval clips are cached) ─────────────
@@ -1435,6 +1496,22 @@ def main() -> None:
     parser.add_argument("--fusion-layers", type=int, default=2,
                         help="Number of bidirectional cross-attention layers in the "
                              "CrossAttnFusionBridge (only used when --lam-fusion > 0).")
+    parser.add_argument("--source-disjoint-batches", action="store_true",
+                        help="item 5 (M2 retrain): use SourceDisjointBatchSampler so no batch "
+                             "contains two windows from the same source file/video (needed for "
+                             "Ego4D, which has multiple windows per source video).")
+    parser.add_argument("--mixed-source", action="append", default=None, dest="mixed_source",
+                        help="item 5 / RUN-2: an ADDITIONAL corpus to combine with --cache-dir/"
+                             "config's primary (VGGSound) cache via "
+                             "data.mixed_av_cached_dataset.MixedAVCachedDataset. Repeatable for "
+                             "N sources (e.g. Ego4D + AudioSet-Strong). Format: "
+                             "'name=cache_dir=clip_ids_path', e.g. "
+                             "'ego4d=/mnt/.../feature_cache_ego4d_train_v1=data/ego4d_train_clip_ids.txt'.")
+    parser.add_argument("--train-clip-ids", default=None,
+                        help="item 5: path to a newline-delimited clip-id list restricting the "
+                             "MAIN (non-mixed side) dataset to a specific subsample -- e.g. "
+                             "data/vggsound_train_60k.txt -- instead of discovering every cached "
+                             "clip. Already excludes the eval/fresh-holdout sets by construction.")
     args = parser.parse_args()
 
     if args.mask_mode in ("high_frac", "asym_curriculum") and args.mask_frac is None:
@@ -1454,7 +1531,10 @@ def main() -> None:
           contrast_dim=args.contrast_dim, contrast_temp=args.contrast_temp,
           batch_size_override=args.batch_size, tag_ckpts=args.tag_ckpts,
           gradcache_micro_steps=args.gradcache_micro_steps,
-          lam_fusion=args.lam_fusion, fusion_layers=args.fusion_layers)
+          lam_fusion=args.lam_fusion, fusion_layers=args.fusion_layers,
+          source_disjoint_batches=args.source_disjoint_batches,
+          mixed_source_specs=args.mixed_source,
+          train_clip_ids_path=args.train_clip_ids)
 
 
 if __name__ == "__main__":

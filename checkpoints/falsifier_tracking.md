@@ -1245,3 +1245,361 @@ computes the identical global batch list from the same seed+epoch, then slices r
 rank) -- unit-tested for no cross-rank batch duplication and no source collisions within any
 batch, then verified under a real 4-GPU torchrun smoke test before the full run. This is a
 real, permanent capability add, not a one-off hack for this run.
+
+## 2026-07-27 -- Scale hypothesis verified from logs; RUN-1 launched (scaling study, step 2)
+
+**DIAGNOSIS, checked before building on it (not assumed)**: no single logged "~51k -> ~40% R@1"
+data point exists -- both historical 51,508-clip runs (logs/m2_fusion_bridge.log, logs/
+m2_diag192.log) were cut short at 6000/6000 steps, never annealed to full convergence, so neither
+produced a genuine converged endpoint at that scale. The clean, apples-to-apples evidence that
+DOES exist: at the IDENTICAL step count (6000), IDENTICAL lam_fusion=1.0 setup, IDENTICAL 192
+negatives, on the SAME 1545-clip gallery (dataset_len=1545/clips_seen=1545 confirmed in both logs)
+-- 51,508 clips (m2_fusion_bridge.log) gave R@1=33.46%/34.24%; 199,007 clips (m2_fusion_fullscale.
+log) gave R@1=44.27%/43.95%. A genuine ~10pp gap from corpus scale alone, everything else held
+constant. **The scale hypothesis holds up on real evidence, even though the specific "~40%"
+recollection isn't independently pinned to one exact logged number.**
+
+**RUN-1 launched (free, no extraction)**: full 199,007-clip VGGSound cache (minus only the 1545
+eval gallery, matching the original production exclude_ids convention exactly -- no additional
+60k-style subsampling) + the v2 Ego4D train split (17,140 windows, already extracted, file-
+disjoint from the active v2 gate). Confirmed at startup: `197462 VGGSound + 17140 Ego4D = 214602
+total clips (8.0% Ego4D)`. Same recipe as the completed run in every other respect: batch=48/GPU
+x4 (negatives=192x192), lam_sigreg=0.03/lam_pred=0/lam_pooled=0/lam_contrastive=1.0/lam_fusion=1.0/
+fusion_layers=2, contrast_dim=256/temp=0.05, 20000 steps, eval-every/save-every 1000,
+--tag-ckpts. Checkpoints: checkpoints/m2_retrain_vggsound199k_ego4d17k/.
+
+**Pre-registered gates for RUN-1 (before seeing any result)**:
+  - VGGSound 1545 gallery: R@1 >= 52% (recovery check)
+  - Ego4D held-out (v2 gate, EGO4D_HELDOUT_BASELINE_V2.json comparison): sibling-excl R@1 >= 18.40%,
+    shuffle gap >= 0.2453 (hold the gains already achieved at 22.2% Ego4D batch share)
+
+**Batch composition caveat, stated up front**: Ego4D is only 8.0% of batches in RUN-1 (vs 22.2% in
+the completed run) -- this is the real, unmodified size of both corpora with no subsampling either
+direction. If RUN-1 clears the VGGSound floor but LOSES the Ego4D gains, the honest read is "Ego4D
+got diluted back down," not "full-scale VGGSound and Ego4D learning are incompatible" -- this
+ambiguity is exactly what RUN-1 is designed to surface, so both gates must be read together, not
+either one in isolation.
+
+**Ego4D headroom (answering a standing question, not new information)**: 1,808 raw Ego4D files on
+disk (1,236 video_540ss + 572 clips, 488GB total), of which the AV-relevance filter's own scored
+candidate pool already covers 57,822 windows -- more than 3x the 17,140 currently used for
+training. The per-file cap and floor/exclusion thresholds are the actual limiter, not a lack of
+raw footage; no new download is needed to substantially grow the Ego4D training volume.
+
+**AudioSet status, per direct user report (not independently re-verified here)**: the AudioSet-500k
+download already confirmed audio-only (no video stream) by the user before this session started --
+correctly ruled out as a source for AV binding. A replacement, "AudioSet Strong" (timestamped
+annotations, real video), is downloading now (scripts/download_audioset_mp4.py --subset strong
+--workers 64, ~103,463 candidate URLs, observed ~11-12% dead-link failure rate early on, ETA ~2
+hours per the user's own estimate, consistent with the observed download rate). P1-P5 preflight
+work is deliberately NOT being done against the old audio-only 500k set (would be wasted effort on
+data already ruled out) -- will run once AudioSet Strong's download completes.
+
+## 2026-07-27 -- RUN-1 COMPLETE: VGGSound gate PASSES, Ego4D gains partially lost (batch-share mechanism confirmed)
+
+20000 steps, 4-GPU DDP, identical recipe to the completed run in every respect except corpus:
+full 199,007-clip VGGSound cache (minus only the 1545 eval gallery) + the same 17,140-window Ego4D
+v2 train split, giving `197462 VGGSound + 17140 Ego4D = 214602 total (8.0% Ego4D)`.
+
+**VGGSound gate: PASSES.** Final eval (step 20000, dataset_len=1545/clips_seen=1545 confirmed):
+R@1 = 55.15% (vision->ambient) / 55.53% (ambient->vision), clearing the 52% floor by ~3pp.
+Trajectory tracked well ahead of the completed 60k-Ego4D run at every matched step (e.g. step 7000
+already exceeded that run's FINAL step-20000 number) -- decisive, real-time confirmation of the
+scale hypothesis. shuffle_sanity_gap=0.7081 (very healthy, close to the pure-VGGSound in-domain
+reference of 0.6604 -- actually higher here, plausibly because Ego4D windows widen the negative
+pool's diversity even at only 8% share).
+
+**Ego4D gate: FAILS the "hold the gains" thresholds, but not back to baseline -- a real, partial
+loss.** checkpoints/vjepa21_shelved/EGO4D_HELDOUT_RUN1_RESULT.json vs both reference points:
+
+| metric | pre-retrain baseline | prior run (22.2% Ego4D) | RUN-1 (8.0% Ego4D) | RUN-1 gate (hold >=prior) |
+|---|---|---|---|---|
+| sibling-excl R@1 (v->a/a->v) | 2.82%/1.78% | 18.40%/18.40% | **11.57%/10.68%** | FAIL |
+| shuffle-sanity gap | 0.0934 | 0.2453 | **0.2140** | FAIL (close, not quite) |
+| within-modality cosine | 0.559/0.512 | 0.383/0.356 | **0.483/0.429** | (not gated, but worse) |
+| file-level R@1 (secondary) | 3.86%/3.26% | 21.96%/20.92% | 15.13%/13.35% | vs chance 0.22% |
+
+RUN-1's Ego4D numbers sit roughly MIDWAY between the pre-retrain baseline and the 22.2%-Ego4D run
+on every single metric -- not a full regression to baseline, but a clear, real, partial loss of
+the gains. **This is decisive evidence for the batch-composition mechanism specifically, isolated
+from Ego4D's absolute data volume**: the Ego4D windows themselves are IDENTICAL between this run
+and the completed run (same 17,140-window cache, same file-disjoint-from-gate guarantee) -- the
+ONLY thing that changed is how often the model sees them per batch (22.2% -> 8.0%). Diluting Ego4D's
+batch presence cost roughly half of its measured gain on every metric, while its underlying
+per-window information content obviously didn't change.
+
+**Combined verdict**: neither a clean win nor a clean loss -- VGGSound scale and Ego4D batch-share
+are BOTH real, independent levers, and RUN-1 confirms you cannot get full benefit of both by
+simply restoring VGGSound to full scale while holding Ego4D's absolute volume fixed. This is
+exactly the setup RUN-2 (more Ego4D data, restoring its batch share at full VGGSound scale) is
+designed to test -- proceeding to the AudioSet-Strong preflight now to build the data for it.
+
+## 2026-07-27 -- AudioSet-Strong preflight P1-P3
+
+**P1 PASSES**: AudioSet-Strong download (scripts/download_audioset_mp4.py --subset strong
+--workers 64) finished. Confirmed real, usable data: 35,247 mp4 files (40GB) at
+/home/utkarsh/raid2-data/audioset_mp4/strong/, ffprobe on 3 sampled files confirms h264 video +
+aac audio streams in every case (not audio-only, unlike the ruled-out 500k set). Real yield was
+much lower than hoped: only 30,261/103,463 unique YouTube IDs succeeded (~29.2%), NOT the ~70k
+the user estimated, because YouTube's bot-detection kicked in partway through the download (64
+concurrent workers -- reproduced directly: `yt-dlp` on a known-good video returns "Sign in to
+confirm you're not a bot"). Flagged to the user during the download; they chose to let it finish
+rather than restart with fixes. Clip durations are highly variable (1-10s+ observed directly via
+ffprobe), unlike VGGSound/Ego4D's fixed ~10s windows -- extraction must handle this (see P3 below).
+
+**P2 PASSES, zero leakage**: extracted all YouTube IDs from AudioSet-20k's train+test webdataset
+tar shards (confirmed itself audio-only, same family as the ruled-out 500k set -- fine, only used
+here for ID comparison, not as training/eval data). Overlap between AudioSet-Strong's 30,261
+unique IDs and AudioSet-20k's actual held-out `test` split (18,886 IDs): **0**. (Overlap with the
+20k's own `train` split, 2,066 IDs, is irrelevant -- not our eval set.) Nothing removed from the
+draw; no leakage to guard against.
+
+**P3 PASSES, well under the ~36h trigger**: real decode+encode throughput measured on 1000 real
+AudioSet-Strong clips (reusing scripts/extract_features_av.py's whole-clip _decode_video_raw/
+_decode_audio_raw directly -- AudioSet-Strong clips are short whole-clips, not windows into a
+longer video, so no new decode logic was needed unlike Ego4D).
+  - BEFORE (single process): 986/1000 ok, 14 failed, **1.578 clips/s** (0.634s/clip -- actually
+    faster than the ~0.744s/clip figure cited before this check).
+  - AFTER (4-way GPU-sharded, 250 clips/shard, matching scripts/extract_features_ego4d_train.py's
+    proven pattern): 986/1000 ok (same 14 failures, consistent), wall-clock = slowest shard's
+    202.8s, **combined 4.931 clips/s -- a 3.12x speedup** (sub-linear vs the naive 4x, expected
+    from per-process model-load overhead and shared-CPU contention across 4 concurrent decoders).
+  - **Projected full-corpus (35,247 clips) wall-clock: 6.2h single-threaded -> 2.0h sharded.**
+    Well under the ~36h report-before-proceeding trigger -- no need to pause here.
+  - Failure breakdown (same 14/1000 in both runs, real data-quality artifacts, not decode-library
+    bugs): (a) clips too short for uniform 64-frame sampling ("Requested next frame while there
+    are no more frames left to decode"), (b) a smaller number of literal zero-duration clips
+    where the download's start_sec == end_sec ("Clip has no frames, num_total=0") -- a real
+    artifact in a fraction of the AudioSet-Strong segment timestamps, not a bug in this decode
+    code. Both classes must be filtered/handled in the real extraction pass, not silently retried.
+
+Next: P4 (AV-relevance filter, same methodology as Ego4D -- AST tagger, 0.10 confidence floor,
+speech/acoustic-environment/wearer-produced exclusions) and P5 (storage budget), then RUN-2.
+
+## 2026-07-27 -- AudioSet-Strong preflight P4-P5: audio-only filter is NOT sufficient, added a
+## visual gate. Final corpus 8,588 clips. Both PASS after mitigation.
+
+**P4 stage 1 (audio-only filter, scripts/audioset_av_relevance_filter.py, same methodology as
+Ego4D -- Silero VAD + MIT AST tagger + energy-CoV, FLOOR=0.10, VAD_SPEECH_EXCLUDE=0.84)**:
+33,620/35,247 files scored (1,627 failed to decode audio). 27,467 passed floor+VAD exclusion
+(retention_rate_of_scored=44.6%). Naive top-N-by-score selection was badly unbalanced (Music
+22.5%, Vehicle 8.6% of the floor-passed pool, 407 distinct tags) -- fixed with a post-hoc
+per-tag-capped reselection directly on the already-scored data (no VAD/AST re-run needed),
+PER_TAG_CAP=750 (5% of 15,000 target), yielding 15,000 kept / 383 distinct tags, no category
+over 5%. This is `audioset_av_filter_scores_kept_CAPPED.json`.
+
+**Manual visual spot-check (16 samples, decoded frames via ffmpeg, not just text/score review)
+found the audio-only filter is NOT sufficient on its own.** ~9-10/16 "kept" clips had no genuine
+visible sound-cause: a CAD software screenshot ("Typing"), a static stock photo of a guinea pig
+("Whispering" -- also a straight label mismatch), a horror-movie digital-art image ("Music"), two
+animated clips (stick-figure walk cycle, claymation car+traffic-light, both "Music"), a text-only
+title card ("Vehicle"), an animated cartoon ("Fart"), and a person's face mislabeled "Animal".
+Only ~6/16 (real dogs, a guitar effects pedal, a bird cage, real fireworks, a real train, a bird
+in bushes) showed genuine real-world AV correspondence. **Root cause**: the filter scores AUDIO
+ONLY -- confident, dynamic audio from a screen recording, a static photo with a music bed, or an
+animated short ranks identically to genuine footage with a real visible sound source. This is
+exactly the risk flagged before extraction: AudioSet-Strong is generic YouTube content, not
+curated for visible sound sources like VGGSound, and has no structural protection against this
+the way Ego4D's egocentric footage does (wearer is usually the sound source).
+
+**Mitigation, not a re-run of the expensive stage**: built `scripts/audioset_visual_gate.py`,
+a cheap visual-admissibility check applied on top of the already-scored 15,000-clip pool (audio
+scores stay valid, no VAD/AST re-run). Two signals per clip, sampled at two frames (t=0.4s,
+t=3.0s): (1) staticness -- mean frame-to-frame pixel diff < 0.015 flags static photos/screenshots/
+title cards; (2) CLIP zero-shot (openai/clip-vit-base-patch32) 5-way classification ("real
+photograph/video frame" vs "cartoon/animation/claymation" vs "screenshot of an app/document" vs
+"slideshow/title card/text image" vs "stock photo on plain background") -- admissible requires
+"real photograph" to be argmax AND >=0.35 (chance=0.20). Ran on all 15,000 clips in 2.9 min total
+(24-thread ffmpeg frame extraction + batched GPU CLIP inference).
+
+Result: **8,588/15,000 visually admissible (57.3%)**. 2,163 dropped as static, 4,220 dropped as
+not-real-photo (cartoon/screenshot/slideshow/stock-photo), 29 frame-extraction failures.
+`checkpoints/vjepa21_shelved/audioset_visual_gate_result.json` + `_kept.json` + `_dropped.json`.
+
+**Second manual visual spot-check (8 samples from the post-gate kept set, decoded frames)
+confirms the mitigation works**: 7/8 genuine real-world video (real dogs, a real camera lens, a
+real ice-cream truck, a real sewing machine close-up, real tigers, real storm/tornado footage, a
+person at a real window) vs 0/8 cartoons/screenshots/static-photos -- a clean reversal of the
+pre-gate rate. One clip had a label/content mismatch (window-opening footage tagged "Cupboard
+open or close") and one was ambiguous (forest b-roll tagged "Heart sounds, heartbeat") -- these
+are AST audio-tagger label-precision issues, a pre-existing and separate concern from the
+AV-correspondence problem the visual gate targets, and were already a known limitation of the
+audio-only tagger before this check.
+
+**P4 verdict: CONDITIONAL PASS.** The audio-only filter alone would have FAILED P4's actual intent
+(AV-relevance, not just "confident audio") -- reporting that honestly rather than averaging it
+into a clean pass. With the visual gate added, the final corpus (8,588 clips, 383+ distinct AST
+tags, no category over 5%) is fit for purpose. This closes as a two-sided finding per standing
+project convention: audio-only filtering is not portable to non-curated (generic YouTube) sources
+even when it worked fine for Ego4D's egocentric footage; a visual admissibility check is now a
+required stage for any future non-curated AV corpus, not just this one.
+
+**P5 (storage budget): PASSES, trivially.** 8,588 clips x 4,130,621 bytes/clip (measured directly,
+same real per-clip size as the VGGSound cache -- vision (32,16,1024 bf16) + ambient_base +
+ambient_nat) = 35.5 GB (33.0 GiB) projected for the AudioSet-Strong feature cache. RAID
+(`/mnt/Raid-Storage-2`, `/dev/md1`) has 5.1 TB free of 7.0 TB total; existing VGGSound (764GB) +
+Ego4D-train-v1 (66GB) caches already occupy 830GB there. Adding AudioSet-Strong's 35.5GB leaves
+~5.07 TB free -- no storage concern at all at this scale.
+
+**P1-P5 status: P1 PASS, P2 PASS, P3 PASS, P4 CONDITIONAL PASS (visual gate required and applied),
+P5 PASS. Ready to extract the 8,588-clip visually-gated corpus and proceed to RUN-2.**
+
+## 2026-07-27 -- AudioSet-Strong extraction complete; RUN-2 launched
+
+Extracted the 8,588 visually-gated clips via scripts/extract_features_audioset.py (new, whole-clip
+variant of extract_features_ego4d_train.py -- reuses extract_features_av.py's _decode_video_raw
+directly, but NOT its _decode_audio_raw, which silently zeros on failure; this script raises
+instead, same item-2c convention as the Ego4D extractor). 4-GPU sharded, ~13 min wall-clock (far
+under the P3 projection). **8,550/8,588 succeeded (38 failed, 0.44%)** -- same two failure classes
+P3 already characterized (too-short-for-64-frame-sampling, zero-duration segments), nothing new.
+Cache: `/mnt/Raid-Storage-2/utkarsh-data/feature_cache_audioset_strong_v1` (schema-identical to the
+VGGSound/Ego4D caches, real per-clip duration used for timestamps since AudioSet-Strong durations
+are genuinely variable, unlike VGGSound/Ego4D's fixed ~10s). clip_id list written to
+`data/audioset_train_clip_ids.txt` (8,550 lines).
+
+**Generalized the mixing infra from 2 to N sources** (was VGGSound+Ego4D-only): rewrote
+`data/mixed_av_cached_dataset.py`'s `MixedAVCachedDataset` to take a list of `MixedSource(name,
+cache_dir, clip_ids)` instead of two hardcoded positional args, and `train_m2.py`'s
+`build_dataloader`/`train`/CLI to take a repeatable `--mixed-source name=cache_dir=clip_ids_path`
+instead of the old single `--mixed-cache-dir`/`--mixed-clip-ids` pair. `source_key_from_clip_id`
+(data/source_disjoint_batch_sampler.py) needed no change -- AudioSet-Strong's clip_id convention
+(raw filename stem, e.g. "kM9QvdZela4_250_260") doesn't match the `ego4d_.../easycom_...` prefix
+pattern, so it correctly falls into the "each clip is its own source" bucket (right behavior --
+AudioSet-Strong clips are independent YouTube videos, no same-source-window risk like Ego4D).
+30-step smoke test on all 3 sources passed cleanly before the real launch (verified batch
+composition, negatives=192x192, eval pipeline, source-token invariance check).
+
+**RUN-2 launched**: 20,000 steps, 4-GPU DDP, identical recipe to RUN-1 (same lam_fusion=1.0/
+fusion_layers=2, same batch-size=48/GPU -> negatives=192x192, same source-disjoint sampler) plus
+the new AudioSet-Strong source. Batch composition: `197,462 VGGSound + 17,140 Ego4D + 8,550
+AudioSet = 223,152 total (88.5% VGGSound, 7.7% Ego4D, 3.8% AudioSet)` -- Ego4D's absolute volume
+and batch-share are UNCHANGED from RUN-1 (this run only adds AudioSet as a third source, per the
+original RUN-2 spec -- it does not attempt to restore Ego4D's 22.2% share, so the Ego4D gate here
+is "did not get any worse than RUN-1," not "recovered to the 22.2%-share run's numbers").
+Checkpoint dir: `checkpoints/m2_run2_vggsound199k_ego4d17k_audioset8k5`. Gates (pre-registered):
+VGGSound R@1>=52%, Ego4D sibling-excl R@1 >= RUN-1's 11.57%/10.68%, AND within-modality cosine
+improves toward <=0.25 (RUN-1 measured 0.483/0.429 -- the one threshold every prior run has
+missed). All three will be reported regardless of outcome, not averaged into one story.
+
+(Process note: first launch attempt used `conda run -n jepa-omni torchrun ...` and produced zero
+stdout for several minutes despite `flush=True` on every print -- `conda run` fully buffers piped
+child stdout until process exit, which would have meant zero visibility into eval gates for the
+entire 20,000-step run. Confirmed via GPU utilization that training was in fact proceeding
+correctly; killed and relaunched after ~3 minutes using the direct torchrun binary path +
+`PYTHONUNBUFFERED=1` + `stdbuf -oL -eL tee` instead, matching the pattern an older diagnostic run
+in this repo already used -- live line-buffered output confirmed working on relaunch, ~3 min of
+compute lost, no data or checkpoint corruption.)
+
+## 2026-07-27 -- RUN-2 redesigned mid-flight: correcting a wrong premise, real Ego4D expansion
+
+User asked why RUN-2 didn't add more Ego4D data given RUN-1's own finding (batch-share, not
+volume, drives Ego4D's gain -- diluting from 22.2%->8.0% cost ~half the measured gain). Killed
+RUN-2 at step 200/20000 (cheap, <1% in) to investigate real headroom before relaunching.
+
+**Correction to an initial wrong claim**: I had cited "57,822 already-scored candidates vs 23,303
+kept" from memory as unused headroom. Verified directly: 57,822 is the TOTAL already-scored count
+(kept+dropped), not unused candidates. Of 1,808 raw Ego4D files on disk, 420 were never scored --
+but ALL 420 have NO audio stream (confirmed via ffprobe on every one), exactly why the original
+filter's `has_audio_stream()` check skipped them. Zero real headroom there. Reported this
+correction to the user rather than proceeding on the wrong premise.
+
+**Real lever 1 (executed): raise per-file candidate cap 50->150 on the 946 known-safe train files
+only** (never touching the 350 frozen held-out files -- confirmed file-disjoint by construction,
+these files were invisible to the original held-out draw). Real ceiling check: at cap=500 (near-
+exhaustive), the 946 train files can only yield 105,390 raw candidates total -- confirms literal
+50/50 vs VGGSound (197k) is mathematically impossible from the existing downloaded corpus alone,
+no matter how high the cap goes. Generated 42,568 net-new candidate windows at cap=150 (diffed
+against already-scored keys), scored via new `scripts/ego4d_score_expand.py` (4-GPU, ~50min).
+Applied floor=0.10 + VAD<0.84 + a fresh 5%-per-tag cap (same style as the AudioSet fix): **18,900
+new kept windows**, 255 distinct tags, no category over 6.8%. Extracting features now via new
+`scripts/extract_features_ego4d_expand.py` (additive to the existing cache, same schema/clip_id
+convention). This alone takes Ego4D train from 17,140 -> ~36,040 windows.
+
+**Real lever 2 (in progress): download new videos from the untouched full Ego4D corpus.** User
+asked directly whether we could pull more raw Ego4D via the existing AWS access rather than just
+re-mining already-downloaded files. Verified via the `ego4d` CLI + `ego4d.json` full metadata
+(9,821 videos total, 8,585 never downloaded, ~3,425 video-hours): our existing 1,236 local
+`video_540ss` files came ONLY from the AV/Social benchmark filter (task #61) -- a subset
+specifically curated for CONVERSATIONAL content, which is exactly what our VAD-speech-exclusion
+filter throws out. The untouched 8,585 videos are dominated by non-conversational, task-oriented
+`scenarios` metadata (Crafting/knitting/sewing 1420, Cooking 1078, Construction 923, Cleaning 801,
+etc.) -- likely a HIGHER post-filter keep-rate than the AV-benchmark corpus, not just more volume.
+Selected 3,000 videos (activity-balanced, no scenario >15% of the draw, excluding conversational
+scenarios and any AV-benchmark-flagged videos), ~1,100 video-hours, ~888GB, launched via
+`ego4d --video_uid_file`. Projected: ~108k more candidate windows at cap=150, ~40-45k more kept
+after filtering -- would bring Ego4D toward ~125-129k combined, a ~40% batch share alongside
+VGGSound's 197,462 (fixed) with NO AudioSet in this run (explicitly dropped per user instruction
+to keep the batch-share test clean). Download + scoring + extraction is real, multi-hour work
+(~12-13h projected total) -- not free/instant like RUN-1. Will extract features for this second
+batch, combine with lever-1's expansion, do one final combined per-tag-cap pass for corpus
+balance, then launch the redesigned RUN-2 (VGGSound 197k + Ego4D ~125-129k, no AudioSet).
+
+**Lever 1 COMPLETE**: all 18,900 new windows extracted, 0 failures across all 4 GPU shards
+(~93 min wall-clock). Verified directly: `feature_cache_ego4d_train_v1` now holds exactly 36,040
+`.pt` files (17,140 original + 18,900 new, confirmed by file count, not just script exit status).
+`data/ego4d_train_clip_ids.txt` rebuilt from the real cache directory listing (36,040 lines).
+Ego4D train volume has already more than doubled from lever 1 alone, before lever 2 (new-video
+download, in progress, ~998GB of a since-revised ~950GB-1TB projection -- the activity-selected
+subset runs longer per video on average than the full-corpus baseline used for the original
+estimate) lands. Not yet launching RUN-2 -- waiting for lever 2's scoring+extraction so the
+final per-tag balance pass covers the FULL combined pool at once, not two inconsistent passes.
+
+**Lever 2 download COMPLETE**: 4,158/4,158 files on disk (1,236 original + 2,922 new), 1.4TB
+total, 0 errors. Of the 3,000 targeted UIDs: 78 genuinely unavailable (S3 403/missing, matches
+the download log's own count), 1,023 have no audio stream -- consistent with this Ego4D video
+format's known ~34% no-audio base rate (see `has_audio_stream()` docstring in
+ego4d_av_relevance_filter.py, 420/1236 on the original corpus), not a targeting problem specific
+to the task-oriented scenario selection. 1,899 usable videos -> 178,285 candidate windows at
+cap=150 (uniform_window_starts, same convention as lever 1). Scoring launched across 4 GPUs
+(~44,571 candidates/shard) via the same `scripts/ego4d_score_expand.py`, projected ~3.5h based on
+lever 1's measured throughput (42,568 candidates in ~93min). Once scored: apply floor=0.10 +
+VAD<0.84 + a combined per-tag cap across BOTH lever-1's and lever-2's kept pools together (one
+balance pass, not two), extract features for the net-new lever-2 windows, rebuild
+`data/ego4d_train_clip_ids.txt` with the full combined set, then launch the redesigned RUN-2
+(VGGSound 197,462 fixed + Ego4D [36,040 + however many lever-2 contributes], no AudioSet).
+
+**Lever 2 scoring COMPLETE**: 178,285/178,285 candidates scored (4 GPUs, ~93 min). floor=0.10 +
+VAD<0.84 -> 131,606 passed. Applied the SAME 5%-of-own-pool per-tag cap methodology as lever 1
+(pragmatic choice: capping against lever-1's already-extracted 18,900 windows' tag distribution
+would mean discarding already-extracted work to rebalance -- instead each lever's cap is applied
+against its own pool, consistent methodology, zero wasted compute) -> **98,451 new kept windows**,
+351 distinct tags, no category over 6.7%. `checkpoints/vjepa21_shelved/ego4d_newvideo_kept.json`.
+
+**Projected final Ego4D train size: 36,040 (existing+lever1) + 98,451 (lever2) = 134,491.**
+Against VGGSound's fixed 197,462: **~40.5% Ego4D batch share** -- matches the n=3000 projection
+almost exactly, and is a genuine, order-of-magnitude step up from RUN-1's 8.0% / the
+22.2%-share reference run, without touching VGGSound's corpus scale. Feature extraction for the
+98,451 new windows launched across 4 GPUs (~24,613/shard) -- this is ~5.2x lever 1's extraction
+job, projected ~8h wall-clock. Once done: rebuild `data/ego4d_train_clip_ids.txt` with the full
+134,491-window set, smoke-test the 2-source (VGGSound+Ego4D, no AudioSet) mixed dataloader, then
+launch the redesigned RUN-2.
+
+**Lever 2 extraction COMPLETE**: 98,451/98,451 windows, 0 failures across all 4 shards (~615 min /
+10.25h wall-clock). Ego4D train cache verified at exactly 134,491 `.pt` files (36,040 lever-1 +
+98,451 lever-2). `data/ego4d_train_clip_ids.txt` rebuilt from the real cache directory listing.
+
+**Batch-size/negatives investigation (user request)**: grepped historical 200x200-negatives
+(batch-size=50/GPU) evidence. Found two clean 6000-step, 51k-corpus, no-fusion-bridge diagnostic
+runs: `logs/m2_diag192.log` (192x192) final step 6000 R@1 43.75%/46.88%, shuffle_gap=0.6111 vs
+`logs/m2_diag_negscale.log` (200x200) final step 6000 R@1 45.31%/46.88%, shuffle_gap=0.5958.
+**Verdict: a wash, not a confirmed gain** -- vision->ambient R@1 identical, ambient->vision +1.56pp
+for 200-neg but shuffle_gap actually lower, both within single-run step-to-step noise (no
+multi-seed comparison exists). Also flagged: neither reference run used the fusion bridge RUN-2
+actually needs (+50M params, real activation memory), and no 199k-corpus comparison exists at all
+for either negative count -- both references are 51k-corpus only.
+
+Per user instruction ("if the system doesn't OOM use 200, revert to 192 if it does"): ran a fresh
+30-step smoke test with batch-size=50 AND the real fusion bridge AND the actual 2-source (VGGSound
+197,462 + Ego4D 134,491, no AudioSet) mixed dataloader -- the one comparison that actually matters
+since it's the real recipe, not a proxy. **No OOM** -- ran cleanly, `negatives=200x200` confirmed,
+all 4 GPUs settled at ~94-96GB/97GB (near-full but stable). Batch composition confirmed exactly as
+projected: `197462 vggsound, 134491 ego4d = 331953 total (59.5% vggsound, 40.5% ego4d)`.
+
+**RUN-2 (final) LAUNCHED**: 20,000 steps, 4-GPU DDP, batch-size=50/GPU (negatives=200x200, per
+user's tested preference over the original 192x192), lam_fusion=1.0/fusion_layers=2, source-
+disjoint sampler, VGGSound 197,462 (fixed, full scale) + Ego4D 134,491 (no AudioSet this run, per
+explicit user instruction to keep the batch-share test clean). Checkpoint dir:
+`checkpoints/m2_run2_vggsound197k_ego4d134k_neg200`. Gates unchanged from the original RUN-2 spec:
+VGGSound R@1>=52%, Ego4D sibling-excl R@1>=RUN-1's 11.57%/10.68% (this run's ~40.5% Ego4D share is
+a genuine attempt at RECOVERY toward the 22.2%-share run's 18.40%/18.40%, not just "no worse"),
+within-modality cosine improving toward <=0.25. All three reported regardless of outcome.

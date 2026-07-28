@@ -1,0 +1,20 @@
+{"clip_id": "aJBHU0__eZI_000413", "vggsound_label": "playing bongo", "gen_seconds": 1.85, "category": "REAL_MATCH", "reason": "The person is playing two drums with their hands."}
+{"clip_id": "0fsFWLev-q4_000257", "vggsound_label": "running electric fan", "gen_seconds": 0.93, "category": "REAL_MISMATCH", "reason": "The audio contains music which doesn't correspond to an electric fan running."}
+{"clip_id": "FI6SwkcxekM_000540", "vggsound_label": "opening or closing drawers", "gen_seconds": 1.59, "category": "REAL_MISMATCH", "reason": "No drawer sounds present; laughter and speech dominate."}
+{"clip_id": "1W9fwoe4O-M_000117", "vggsound_label": "child singing", "gen_seconds": 1.53, "category": "REAL_MATCH", "reason": "A child is singing on stage."}
+{"clip_id": "mi7kgfvwTAw_000005", "vggsound_label": "playing badminton", "gen_seconds": 1.6, "category": "REAL_MATCH", "reason": "The sounds of badminton rackets hitting shuttlecocks clearly indicate an ongoing game."}
+{"clip_id": "qhK_b3hvbXg_000327", "vggsound_label": "playing drum kit", "gen_seconds": 0.83, "category": "REAL_MATCH", "reason": "The audio features a drum kit being played."}
+{"clip_id": "r4-n0MzzWUc_000030", "vggsound_label": "typing on typewriter", "gen_seconds": 0.74, "category": "SYNTHETIC", "reason": "The scene is from a Pok\u00e9mon game."}
+{"clip_id": "BI96CRWSZd4_000374", "vggsound_label": "ripping paper", "gen_seconds": 1.8, "category": "REAL_MATCH", "reason": "The sound clearly resembles tearing paper."}
+{"clip_id": "XitlFBW2DW4_001535", "vggsound_label": "sea waves", "gen_seconds": 1.68, "category": "REAL_MISMATCH", "reason": "The audio contains wind noise which is not typically associated with sea waves."}
+{"clip_id": "hizN7823a6c_000030", "vggsound_label": "typing on typewriter", "gen_seconds": 0.75, "category": "REAL_MATCH", "reason": "The sound clearly resembles typing on a typewriter."}
+{"clip_id": "BlhUt8AJJO8_000030", "vggsound_label": "skateboarding", "gen_seconds": 1.51, "category": "REAL_MATCH", "reason": "The soundscape includes skateboarding activity."}
+{"clip_id": "fEfe8jznp5Q_000030", "vggsound_label": "duck quacking", "gen_seconds": 1.68, "category": "SYNTHETIC", "reason": "The game environment suggests it's an animation rather than real-life."}
+{"clip_id": "bVg-KMzzrVA_000137", "vggsound_label": "ice cream truck, ice cream van", "gen_seconds": 1.75, "category": "SYNTHETIC", "reason": "The image shows colorful toy vehicles in an animated setting."}
+{"clip_id": "LcFXCaPmvbU_000155", "vggsound_label": "people nose blowing", "gen_seconds": 1.53, "category": "REAL_MISMATCH", "reason": "The audio contains generic impact sounds instead of people nose blowing."}
+{"clip_id": "XE0yaKh5vj4_000030", "vggsound_label": "female speech, woman speaking", "gen_seconds": 0.58, "category": "REAL_MATCH", "reason": "The woman is speaking in the background."}
+{"clip_id": "kq6PDicCx9Q_000084", "vggsound_label": "playing timbales", "gen_seconds": 0.85, "category": "REAL_MATCH", "reason": "The person is playing drums that resemble timbales."}
+{"clip_id": "FeXZY4eVLlo_000040", "vggsound_label": "basketball bounce", "gen_seconds": 0.85, "category": "REAL_MISMATCH", "reason": "The audio contains basketball bounces, but they do not correspond to the visual action."}
+{"clip_id": "dyFoyYMZu-E_000508", "vggsound_label": "lip smacking", "gen_seconds": 1.82, "category": "REAL_MISMATCH", "reason": "The audio contains generic impact sounds instead of lip-smacking noises."}
+{"clip_id": "5fLzQegwHUg_000030", "vggsound_label": "reversing beeps", "gen_seconds": 0.66, "category": "REAL_MISMATCH", "reason": "The reversing beeps are not clearly audible in the audio."}
+{"clip_id": "ez0LZnySWE4_000030", "vggsound_label": "people farting", "gen_seconds": 0.63, "category": "SYNTHETIC", "reason": "The characters depicted in the image are from an animated movie."}

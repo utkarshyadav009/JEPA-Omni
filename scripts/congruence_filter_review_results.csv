@@ -1,0 +1,21 @@
+clip_id,vggsound_label,category,reason,verdict,note
+S7C51ZWaw6A_000034,airplane,REAL_MISMATCH,No airplane sound detected.,agree,"not airplanes, human gliders but the sound of plane is there "
+eskqejEOXyU_000102,train wheels squealing,REAL_MISMATCH,No distinct train wheel squeal audible.,disagree,actual train wheel squeel 
+ncVm9aZPbHg_000095,missile launch,REAL_MISMATCH,No distinct sounds indicative of missile launches were heard.,agree,yeh no missile its a big cruise boat 
+LaUs2LAnO1w_000123,playing castanets,REAL_MISMATCH,The audio does not contain any distinct sound resembling castanets.,disagree,actual playing of castanets 
+De311q4Wp6Q_000030,car engine knocking,REAL_MISMATCH,No car engine knocking sound was detected.,disagree,car engine sound 
+DQg8b91HjRk_000030,"engine accelerating, revving, vroom",REAL_MISMATCH,No engine acceleration sounds were detected.,agree,I mean there is a wheel in the scene and the sound is of the wheel being moved on gravel (I think)
+BjiPjoHIpM0_000005,playing drum kit,REAL_MATCH,The entire audio features continuous drumming sounds.,agree,
+IHKjoCS9gs4_000028,chinchilla barking,REAL_MISMATCH,No distinct chinchilla bark was heard.,disagree,I mean there are chinchilla in the scene 
+pCo0zDiq5nM_000030,pig oinking,REAL_MISMATCH,No distinct pig oinking sounds were heard.,disagree,there is a pig in the scene and I hear an oinking 
+hrnJmoQW_-4_000030,playing vibraphone,REAL_MISMATCH,No distinct vibraphone sounds were heard.,agree,"I mean its a tutorial video with a vibraphone playing as bgm but like why, its such a bad example of this lol"
+8rKtax0rSuw_000030,"child speech, kid speaking",REAL_MISMATCH,"The audio contains music with singing, but no child speech.",agree,"there is a child singing, so I guess it considers that speaking?"
+wMLgi-rb6UM_000000,playing steelpan,REAL_MISMATCH,No distinct steelpan sound detected.,disagree,"there is an instrument but I am not sure what it is, it kinda looks like a steelpan based on one google search I did "
+r56PXyxKOMI_000030,people belly laughing,REAL_MISMATCH,No clear instance of people belly laughing was detected.,agree,not belly laughing but people are laughin/giggling I guess 
+bNsdqz8CYbs_000230,opening or closing drawers,REAL_MISMATCH,No distinct drawer opening/closing sounds were heard.,agree,I dont think the sliding sound is of the dentists shoes on the ground cause there wasnt any drawer being opened 
+DC4_1CHRcx8_000196,dinosaurs bellowing,SYNTHETIC,The audio features music and animal sounds typical of a game environment.,agree,yes 100% 3d graphics as well 
+Kt_KpRjgQfg_000230,skidding,SYNTHETIC,The scene appears to be from an animated game with exaggerated physics,agree,I mean there was skidding but in a video game/animated scene 
+PE4qQfZ22Ws_000113,bathroom ventilation fan running,REAL_MISMATCH,No distinct bathroom ventilation fan noise detected.,agree,there is a fan in the scene but its not running 
+cdEytWP8M9U_000057,air conditioning noise,REAL_MISMATCH,No clear air conditioning noise detected.,disagree,okay there is an airconditioning unit in the scene with a distinct buzz I can hear 
+8C4-ZFYWkcc_000102,wood thrush calling,REAL_MISMATCH,No distinct wood thrush calls were heard.,disagree,"I mean there is an actual bird in the scene and its making sounds, might as well be a wood thrush "
+cIGTj5lSvQs_000013,black capped chickadee calling,REAL_MISMATCH,No clear black capped chickadee calls were heard.,disagree,"very faintly audible but at the same time, as I said you can see a bird in the scene, why not use that "

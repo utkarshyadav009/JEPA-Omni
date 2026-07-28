@@ -61,8 +61,16 @@ TTS_WORDS_PER_MINUTE = 150.0   # standard speech-synthesis rate estimate
 
 @dataclass
 class StreamingConfig:
+    # LOCKED (2026-07-26): stride=window=10.0s + priority decision stream is
+    # the disclosed operating point (p95=786ms, mean=372ms, duty 37-41%,
+    # checkpoints/vjepa21_shelved/JETSON_PHASE4_2_3_RESULTS.json). VAD-on-CPU
+    # (54.57ms, JETSON_VAD_CPU_RESULTS.json) already makes interruption
+    # independent of GPU contention -- the hard constraint is met. No further
+    # latency tuning against this config; opportunistic refresh
+    # (start_vision_refresh_thread_opportunistic) remains available but is
+    # NOT the default and must be opted into explicitly.
     window_vision_sec: float = 10.0
-    stride_vision_sec: float = 2.0
+    stride_vision_sec: float = 10.0
     window_audio_sec: float = 2.0      # Whisper/speech-activity window (decision path) -- unchanged
     window_ambient_sec: float = 10.0   # NEW (2026-07-26): WavJEPA/M2-ambient window, matches
                                         # window_vision_sec/CLIP_DURATION_S -- a SEPARATE buffer
@@ -71,6 +79,8 @@ class StreamingConfig:
     tick_interval_sec: float = 0.25
     audio_sr: int = 16000
     video_fps: float = 6.4        # 64 frames / 10s -- matches CLIP_DURATION_S
+    use_priority_decision_stream: bool = True   # LOCKED default (item 3): p95 786ms vs 1220ms
+                                                 # without it (JETSON_PHASE4_2_3_RESULTS.json 4.2 vs 4.3)
 
 
 class RollingAudioBuffer:
@@ -169,6 +179,17 @@ class StreamingLoop:
         self._halted_soft_prompt = None
         self._halted_attn = None
         self.logs: List[TickLog] = []
+        # LOCKED default (item 3, 2026-07-26): decision path runs on a
+        # priority CUDA stream so its kernels interleave at ViT-L's kernel
+        # boundaries instead of queueing behind the whole encoder forward --
+        # measured p95 786ms vs 1220ms without it, same mean (JETSON_PHASE4_
+        # 2_3_RESULTS.json). None on CPU-only or if explicitly disabled via
+        # cfg.use_priority_decision_stream=False.
+        self._decision_stream = (
+            torch.cuda.Stream(priority=-1)
+            if (cfg.use_priority_decision_stream and torch.cuda.is_available())
+            else None
+        )
         # 2026-07-26: vision refresh moved off tick()'s critical path onto
         # its own thread (decide3_speechonly() never receives World-State,
         # so nothing in the decision path needs to wait on ViT-L). Vision
@@ -387,6 +408,25 @@ class StreamingLoop:
             self.logs.append(log)
             return log
 
+        # LOCKED default (item 3): the decision path's GPU work runs on a
+        # priority stream so it interleaves at ViT-L's kernel boundaries
+        # rather than queueing behind the vision thread's forward pass --
+        # baked into tick() itself (not caller-opt-in), matching the
+        # measured 4.3 configuration exactly (JETSON_PHASE4_2_3_RESULTS.json).
+        if self._decision_stream is not None:
+            with torch.cuda.stream(self._decision_stream):
+                label, probs, log = self._run_decision_path(
+                    t, speech_waveform, speech_dur_sec, generate_fn, latencies, refreshed, overlapped)
+            torch.cuda.current_stream().wait_stream(self._decision_stream)
+        else:
+            label, probs, log = self._run_decision_path(
+                t, speech_waveform, speech_dur_sec, generate_fn, latencies, refreshed, overlapped)
+
+        self.logs.append(log)
+        return log
+
+    def _run_decision_path(self, t, speech_waveform, speech_dur_sec, generate_fn,
+                            latencies, refreshed, overlapped):
         sf = None
         if speech_waveform is not None:
             t0 = time.perf_counter()
@@ -412,5 +452,4 @@ class StreamingLoop:
             self._tts_playing_until = t + dur
             log.latencies_ms = latencies
 
-        self.logs.append(log)
-        return log
+        return label, probs, log

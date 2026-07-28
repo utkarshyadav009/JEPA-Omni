@@ -150,7 +150,10 @@ def main() -> None:
     # An offline harness that free-runs would show staleness relative to
     # t_sim that has no relationship to the real vision-thread cadence.
     real_t_start = time.time()
-    stream.start_vision_refresh_thread(hz=0.3)
+    # LOCKED default (item 3, 2026-07-26): hz matches cfg.stride_vision_sec
+    # (10.0s), not the old hardcoded 0.3Hz (which assumed the old 2.0s-
+    # stride default and would over-refresh 3x too often against the new one).
+    stream.start_vision_refresh_thread(hz=1.0 / cfg.stride_vision_sec)
     print(f"[m5-stream] running {n_ticks} ticks ({args.duration_sec:.0f}s simulated, "
           f"paced to real wall-clock) ...", flush=True)
     for tick_i in range(n_ticks):

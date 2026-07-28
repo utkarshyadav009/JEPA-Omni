@@ -1,0 +1,20 @@
+{"clip_id": "De311q4Wp6Q_000030", "vggsound_label": "car engine knocking", "gen_seconds": 2.77, "category": "REAL_MISMATCH", "reason": "No car engine knocking sound was detected."}
+{"clip_id": "cdEytWP8M9U_000057", "vggsound_label": "air conditioning noise", "gen_seconds": 1.67, "category": "REAL_MISMATCH", "reason": "No clear air conditioning noise detected."}
+{"clip_id": "IHKjoCS9gs4_000028", "vggsound_label": "chinchilla barking", "gen_seconds": 1.61, "category": "REAL_MISMATCH", "reason": "No distinct chinchilla bark was heard."}
+{"clip_id": "pCo0zDiq5nM_000030", "vggsound_label": "pig oinking", "gen_seconds": 0.84, "category": "REAL_MISMATCH", "reason": "No distinct pig oinking sounds were heard."}
+{"clip_id": "r56PXyxKOMI_000030", "vggsound_label": "people belly laughing", "gen_seconds": 1.67, "category": "REAL_MISMATCH", "reason": "No clear instance of people belly laughing was detected."}
+{"clip_id": "8rKtax0rSuw_000030", "vggsound_label": "child speech, kid speaking", "gen_seconds": 0.73, "category": "REAL_MISMATCH", "reason": "The audio contains music with singing, but no child speech."}
+{"clip_id": "DC4_1CHRcx8_000196", "vggsound_label": "dinosaurs bellowing", "gen_seconds": 1.88, "category": "SYNTHETIC", "reason": "The audio features music and animal sounds typical of a game environment."}
+{"clip_id": "wMLgi-rb6UM_000000", "vggsound_label": "playing steelpan", "gen_seconds": 1.66, "category": "REAL_MISMATCH", "reason": "No distinct steelpan sound detected."}
+{"clip_id": "PE4qQfZ22Ws_000113", "vggsound_label": "bathroom ventilation fan running", "gen_seconds": 0.82, "category": "REAL_MISMATCH", "reason": "No distinct bathroom ventilation fan noise detected."}
+{"clip_id": "hrnJmoQW_-4_000030", "vggsound_label": "playing vibraphone", "gen_seconds": 1.67, "category": "REAL_MISMATCH", "reason": "No distinct vibraphone sounds were heard."}
+{"clip_id": "S7C51ZWaw6A_000034", "vggsound_label": "airplane", "gen_seconds": 2.01, "category": "REAL_MISMATCH", "reason": "No airplane sound detected."}
+{"clip_id": "BjiPjoHIpM0_000005", "vggsound_label": "playing drum kit", "gen_seconds": 1.73, "category": "REAL_MATCH", "reason": "The entire audio features continuous drumming sounds."}
+{"clip_id": "cIGTj5lSvQs_000013", "vggsound_label": "black capped chickadee calling", "gen_seconds": 0.98, "category": "REAL_MISMATCH", "reason": "No clear black capped chickadee calls were heard."}
+{"clip_id": "8C4-ZFYWkcc_000102", "vggsound_label": "wood thrush calling", "gen_seconds": 1.8, "category": "REAL_MISMATCH", "reason": "No distinct wood thrush calls were heard."}
+{"clip_id": "LaUs2LAnO1w_000123", "vggsound_label": "playing castanets", "gen_seconds": 0.88, "category": "REAL_MISMATCH", "reason": "The audio does not contain any distinct sound resembling castanets."}
+{"clip_id": "Kt_KpRjgQfg_000230", "vggsound_label": "skidding", "gen_seconds": 1.71, "category": "SYNTHETIC", "reason": "The scene appears to be from an animated game with exaggerated physics"}
+{"clip_id": "ncVm9aZPbHg_000095", "vggsound_label": "missile launch", "gen_seconds": 2.05, "category": "REAL_MISMATCH", "reason": "No distinct sounds indicative of missile launches were heard."}
+{"clip_id": "DQg8b91HjRk_000030", "vggsound_label": "engine accelerating, revving, vroom", "gen_seconds": 1.73, "category": "REAL_MISMATCH", "reason": "No engine acceleration sounds were detected."}
+{"clip_id": "eskqejEOXyU_000102", "vggsound_label": "train wheels squealing", "gen_seconds": 1.69, "category": "REAL_MISMATCH", "reason": "No distinct train wheel squeal audible."}
+{"clip_id": "bNsdqz8CYbs_000230", "vggsound_label": "opening or closing drawers", "gen_seconds": 1.67, "category": "REAL_MISMATCH", "reason": "No distinct drawer opening/closing sounds were heard."}

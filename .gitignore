@@ -6,3 +6,6 @@ slurm-*.out
 *.egg-info/
 .DS_Store
 Miniconda3-latest-Linux-x86_64.sh
+logs/
+scripts/qwen_omni_full_captions.jsonl
+scripts/qwen_omni_full_shard*.jsonl
