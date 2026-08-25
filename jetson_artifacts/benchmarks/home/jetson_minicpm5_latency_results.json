@@ -1,0 +1,58 @@
+{
+  "model": "openbmb/MiniCPM5-1B",
+  "hidden_size": 1536,
+  "ram_before_load_mib": {
+    "used_mib": 1610,
+    "total_mib": 7620
+  },
+  "ram_after_load_mib": {
+    "used_mib": 2613,
+    "total_mib": 7620
+  },
+  "ram_peak_mib": {
+    "used_mib": 3666,
+    "total_mib": 7620
+  },
+  "hf_load_s": 23.83891840999968,
+  "generations": [
+    {
+      "prompt": "Describe what a busy city street looks like.",
+      "n_new_tokens": 60,
+      "elapsed_s": 7.117833779999273,
+      "ms_per_token": 118.63056299998789,
+      "text": " [A]. A long, narrow road with few intersections and no traffic jams. [B]. A wide, open area with plenty of space for vehicles to pass each other. [C]. A narrow, winding road that is crowded with cars and pedestrians. [D]. A quiet, empty street with"
+    },
+    {
+      "prompt": "Explain how a bicycle works in simple terms.",
+      "n_new_tokens": 60,
+      "elapsed_s": 7.0900898710006,
+      "ms_per_token": 118.16816451667668,
+      "text": " \n[A]. It is powered by an engine.\n[B]. It uses electricity from the grid.\n[C]. It relies on human effort to move.\n[D]. It has no moving parts at all. \nAnswer: C\n\nQuestion: What is the purpose of a computer virus?\n[A]. To improve the"
+    },
+    {
+      "prompt": "What is the weather like on a sunny day?",
+      "n_new_tokens": 60,
+      "elapsed_s": 7.083872234999944,
+      "ms_per_token": 118.06453724999908,
+      "text": " \n[A]. It will be very hot and humid.\n[B]. It will be cold and dry.\n[C]. It will be warm and rainy.\n[D]. It will be cool and windy. \nAnswer: A\n\nQuestion: What is the purpose of a \"browser\" in web development?\n[A"
+    },
+    {
+      "prompt": "Tell me about your favorite kind of music.",
+      "n_new_tokens": 60,
+      "elapsed_s": 7.086236531000395,
+      "ms_per_token": 118.10394218333991,
+      "text": " I'm an AI, so I don't have personal preferences or emotions like humans do.\n\nHowever, I can provide you with some general information on different types of music and their characteristics:\n\n1. Classical Music: This genre is characterized by complex structures, intricate harmonies, and a wide range"
+    },
+    {
+      "prompt": "Summarize what happens during a thunderstorm.",
+      "n_new_tokens": 60,
+      "elapsed_s": 7.084673692999786,
+      "ms_per_token": 118.07789488332978,
+      "text": " \n[A]. The lightning strikes the ground.\n[B]. The thunder is heard by people in nearby areas.\n[C]. The wind blows across the sky.\n[D]. Rain falls from the clouds.\nAnswer: B\n\nQuestion: What is the purpose of a scientific method?\n[A]. To determine the cause and"
+    }
+  ],
+  "ms_per_token_mean": 118.20902036666666,
+  "ms_per_token_stdev": 0.2389969038394421,
+  "total_latency_s_mean": 7.0925412219999995,
+  "comparison_qwen25_1_5b_ms_per_token": 203.0
+}

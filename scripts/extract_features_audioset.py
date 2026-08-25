@@ -130,13 +130,17 @@ def main() -> None:
     p.add_argument("--shard-idx", type=int, default=0)
     p.add_argument("--num-shards", type=int, default=1)
     p.add_argument("--cache-dir", default=CACHE_DIR)
+    p.add_argument("--kept-manifest", default=KEPT_MANIFEST,
+                    help="Override the kept-clips manifest (e.g. the unbalanced-subset visual "
+                         "gate result, to extract into the SAME cache dir alongside Strong).")
     p.add_argument("--limit", type=int, default=None)
     args = p.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"[audioset-extract] shard {args.shard_idx}/{args.num_shards} device={device}", flush=True)
+    print(f"[audioset-extract] shard {args.shard_idx}/{args.num_shards} device={device} "
+          f"manifest={args.kept_manifest}", flush=True)
 
-    with open(KEPT_MANIFEST) as f:
+    with open(args.kept_manifest) as f:
         kept = json.load(f)
     my_clips = [c for i, c in enumerate(kept) if i % args.num_shards == args.shard_idx]
     if args.limit is not None:

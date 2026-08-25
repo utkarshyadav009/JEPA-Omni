@@ -1,0 +1,10 @@
+# GBNF for BMO tool calls (llama.cpp grammar). Use to CONSTRAIN decoding to a
+# valid <tool_call .../> when the runtime has decided a tool is needed, so the
+# tag is always parseable. Fine-tuning teaches WHEN/WHAT to call; this grammar
+# guarantees the FORM. (BMO's normal free-text turns run without this grammar.)
+root        ::= toolcall
+toolcall    ::= "<tool_call name=" name (" " attr)* "/>"
+name        ::= "weather" | "time" | "date" | "timer" | "reminder" | "search"
+attr        ::= key "=" value
+key         ::= [a-z]+
+value       ::= "\"" [^"]* "\"" | [a-zA-Z0-9:_-]+

@@ -1,0 +1,198 @@
+{
+  "config": {
+    "use_nat": false,
+    "query_ckpt": "qp_runD.pt",
+    "bank": "candidates_siglip2.pt",
+    "query_vectors": "query_vectors_siglip2.pt",
+    "text_mode": "preencoded",
+    "proj_from_ckpt": true,
+    "identity_ckpt": "identity_head_joint.pt",
+    "identity_threshold": 0.5,
+    "rounds": 3,
+    "frames": 16,
+    "scene_frames": 4,
+    "rotate": 90,
+    "gain": 1.8,
+    "out": "/home/bmo/fit_identity.json"
+  },
+  "rounds": [
+    {
+      "perception": "a person lying down",
+      "thinker": "I see a person lying down, and I'm curious about them. Maybe they're resting or just want to be quiet - I should ask if they need anything while I can keep the mood bright for Finn and Jake.",
+      "said": "Name: BMO! Thanks, I'm happy to help.",
+      "identity": {
+        "who": null,
+        "conf": 0.0,
+        "reason": "empty_memory"
+      },
+      "latency": {
+        "capture_ms": 52.84428596496582,
+        "perception_ms": 1368.931531906128,
+        "m2_ms": 48.73490333557129,
+        "siglip_ms": 209.01727676391602,
+        "query_ms": 221.22573852539062,
+        "thinker_ms": 1525.186538696289,
+        "identity_ms": 17.31586456298828,
+        "speaker_ms": 328.83238792419434,
+        "total_ms": 3772.0885276794434
+      }
+    },
+    {
+      "perception": "a person lying down",
+      "thinker": "I see a person lying down, and I'm curious about them. Maybe they're resting or just want to be quiet - what do you think?",
+      "said": "A resting person is like a paused game; maybe we can play a quick mini-game together.",
+      "identity": {
+        "who": "Alice",
+        "conf": 0.9999388456344604,
+        "reason": "match"
+      },
+      "latency": {
+        "capture_ms": 1.5478134155273438,
+        "perception_ms": 750.7026195526123,
+        "m2_ms": 21.853208541870117,
+        "siglip_ms": 102.57291793823242,
+        "query_ms": 31.210899353027344,
+        "thinker_ms": 834.5839977264404,
+        "identity_ms": 8.993148803710938,
+        "speaker_ms": 280.1706790924072,
+        "total_ms": 2031.6352844238281
+      }
+    },
+    {
+      "perception": "a person lying down",
+      "thinker": "I see a person lying down, and I'm curious about them. Maybe they're resting or just want to be quiet - what do you think?",
+      "said": "A resting person is like a paused game; maybe we can play a quick mini-game together.",
+      "identity": {
+        "who": "Alice",
+        "conf": 0.9999369382858276,
+        "reason": "match"
+      },
+      "latency": {
+        "capture_ms": 7.524728775024414,
+        "perception_ms": 652.6296138763428,
+        "m2_ms": 23.648738861083984,
+        "siglip_ms": 87.81838417053223,
+        "query_ms": 21.9724178314209,
+        "thinker_ms": 774.7993469238281,
+        "identity_ms": 3.5674571990966797,
+        "speaker_ms": 271.5466022491455,
+        "total_ms": 1843.5072898864746
+      }
+    }
+  ],
+  "fast_load_s": 1.5281281471252441,
+  "thinker_load_s": 2.9810779094696045,
+  "identity": {
+    "ckpt": "identity_head_joint.pt",
+    "dims": {
+      "vision": 2048,
+      "audio": 1536
+    },
+    "params_M": 8.1472
+  },
+  "siglip_load_s": 7.136633396148682,
+  "avail_after_load_MiB": 1306.28515625,
+  "streams": [
+    "m2",
+    "vision",
+    "ambient",
+    "scene"
+  ],
+  "rounds_identity": [
+    {
+      "who": null,
+      "conf": 0.0,
+      "reason": "empty_memory"
+    },
+    {
+      "who": "Alice",
+      "conf": 0.9999388456344604,
+      "reason": "match"
+    },
+    {
+      "who": "Alice",
+      "conf": 0.9999369382858276,
+      "reason": "match"
+    }
+  ],
+  "mem_log": [
+    {
+      "tag": "00_start",
+      "used": 1739.77734375,
+      "avail": 5880.078125,
+      "delta": 0.0
+    },
+    {
+      "tag": "01_cuda_ctx",
+      "used": 1754.12109375,
+      "avail": 5865.734375,
+      "delta": 14.34375
+    },
+    {
+      "tag": "02_speaker_fast_tier",
+      "used": 2638.94140625,
+      "avail": 4980.9140625,
+      "delta": 884.8203125
+    },
+    {
+      "tag": "03_thinker",
+      "used": 3729.84765625,
+      "avail": 3890.0078125,
+      "delta": 1090.90625
+    },
+    {
+      "tag": "04_vitl_int8",
+      "used": 4541.734375,
+      "avail": 3078.12109375,
+      "delta": 811.88671875
+    },
+    {
+      "tag": "05_wavjepa_base",
+      "used": 5186.12890625,
+      "avail": 2433.7265625,
+      "delta": 644.39453125
+    },
+    {
+      "tag": "07_m2",
+      "used": 5273.9765625,
+      "avail": 2345.87890625,
+      "delta": 87.84765625
+    },
+    {
+      "tag": "07b_identity_head",
+      "used": 5369.65234375,
+      "avail": 2250.203125,
+      "delta": 95.67578125
+    },
+    {
+      "tag": "08_siglip2_scene",
+      "used": 6142.75,
+      "avail": 1477.10546875,
+      "delta": 773.09765625
+    },
+    {
+      "tag": "09_preencoded_queries_NO_TEXT_ENCODER",
+      "used": 6142.984375,
+      "avail": 1476.87109375,
+      "delta": 0.234375
+    },
+    {
+      "tag": "10_query_predictor+candidates",
+      "used": 6313.5703125,
+      "avail": 1306.28515625,
+      "delta": 170.5859375
+    },
+    {
+      "tag": "11_camera",
+      "used": 6363.78125,
+      "avail": 1256.07421875,
+      "delta": 50.2109375
+    },
+    {
+      "tag": "12_end",
+      "used": 7353.796875,
+      "avail": 266.05859375,
+      "delta": 990.015625
+    }
+  ]
+}

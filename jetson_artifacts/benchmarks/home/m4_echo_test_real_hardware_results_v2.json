@@ -1,0 +1,34 @@
+{
+  "self_echo_capture": {
+    "no_fix_false_interrupt": 5,
+    "n_windows": 6,
+    "per_utterance": [
+      {
+        "text": "The weather today is partly cloudy with a light breeze.",
+        "tts_duration_sec": 2.8908843537414968,
+        "playback_wall_sec": 4.278403503999471,
+        "any_false_interrupt": true
+      },
+      {
+        "text": "I found three files matching your search query.",
+        "tts_duration_sec": 2.4729251700680273,
+        "playback_wall_sec": 3.527022520999708,
+        "any_false_interrupt": true
+      },
+      {
+        "text": "Let me know if you would like me to continue.",
+        "tts_duration_sec": 2.414875283446712,
+        "playback_wall_sec": 3.5066415689998394,
+        "any_false_interrupt": true
+      }
+    ]
+  },
+  "mic_gate_mechanism": {
+    "gated_correctly": 76,
+    "n_ticks_checked": 76
+  },
+  "live_control": {
+    "detected_speak": "speak",
+    "detected_silence_before_cue": "speak"
+  }
+}

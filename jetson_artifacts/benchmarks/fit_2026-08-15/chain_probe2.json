@@ -1,0 +1,52 @@
+{
+  "H1_truncation": [
+    {
+      "thought": "full",
+      "text": "Finn, you look a bit tired; maybe I can play a soft lullaby while you rest.",
+      "grounded": true
+    },
+    {
+      "thought": "trunc200",
+      "text": "Finn, you look a bit tired; maybe I can play a soft lullaby while you rest.",
+      "grounded": true
+    }
+  ],
+  "H2_scene_richness": [
+    {
+      "scene_kind": "top1_sitting",
+      "scene": "a person sitting",
+      "thinker": "Hey there! I'm glad you're here - let's make sweet, sweet music together and explore the fun of being your friend.",
+      "said": "Sweet, sweet music? Let's make it together!",
+      "thinker_grounded": false,
+      "said_grounded": false,
+      "thinker_ms": 852.7705669403076
+    },
+    {
+      "scene_kind": "top1_lying",
+      "scene": "a person lying down",
+      "thinker": "I see a person lying down, and I'm curious about them. Maybe they're resting or just want to be quiet - I should ask if they need anything while I can keep the mood bright for Finn and Jake.",
+      "said": "Finn, Jake - just how you like it!",
+      "thinker_grounded": true,
+      "said_grounded": false,
+      "thinker_ms": 1150.1307487487793
+    },
+    {
+      "scene_kind": "topk_tags",
+      "scene": "a person sitting, a desk, an office chair, dim lighting, a cluttered room",
+      "thinker": "Hey there! I just saw you walk in, and it looks like a cozy office with all the usual things. How about we make sweet, sweet music together?",
+      "said": "Let's make sweet, sweet music together! *starts a quick jingle*",
+      "thinker_grounded": false,
+      "said_grounded": false,
+      "thinker_ms": 877.0086765289307
+    },
+    {
+      "scene_kind": "caption_style",
+      "scene": "a person seated on an office chair in a dimly lit room with a desk and clutter around them",
+      "thinker": "Hey there! I just saw you walk in, and it looks like a new adventure is starting. How about we make sweet, sweet music together?",
+      "said": "Let's make sweet, sweet music together! *starts a quick jingle*",
+      "thinker_grounded": false,
+      "said_grounded": false,
+      "thinker_ms": 804.7804832458496
+    }
+  ]
+}

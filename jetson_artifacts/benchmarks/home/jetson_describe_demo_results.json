@@ -1,0 +1,178 @@
+{
+  "config": {
+    "rounds": 3,
+    "frames": 16,
+    "speak": false,
+    "query": "Describe the room and setting in detail.",
+    "rotate": 90,
+    "gain": 1.8,
+    "save_frame": "/home/bmo/demo_frame.jpg",
+    "out": "/home/bmo/jetson_describe_demo_results.json"
+  },
+  "stages": [
+    {
+      "tag": "00_start",
+      "used": 2643.64453125,
+      "avail": 4976.21484375,
+      "delta": 0.0
+    },
+    {
+      "tag": "01_cuda_context",
+      "used": 2656.3203125,
+      "avail": 4963.5390625,
+      "delta": 12.67578125
+    },
+    {
+      "tag": "02_fast_tier_v2_gguf",
+      "used": 2937.421875,
+      "avail": 4682.4375,
+      "delta": 281.1015625
+    },
+    {
+      "tag": "04_vitl_int8",
+      "used": 3533.828125,
+      "avail": 4086.03125,
+      "delta": 596.40625
+    },
+    {
+      "tag": "05_wavjepa_base_int8",
+      "used": 4262.92578125,
+      "avail": 3356.93359375,
+      "delta": 729.09765625
+    },
+    {
+      "tag": "06_wavjepa_nat_int8",
+      "used": 4878.109375,
+      "avail": 2741.75,
+      "delta": 615.18359375
+    },
+    {
+      "tag": "07_m2_predictor_int8",
+      "used": 4420.68359375,
+      "avail": 3199.17578125,
+      "delta": -457.42578125
+    },
+    {
+      "tag": "08_embeddinggemma",
+      "used": 5419.96875,
+      "avail": 2199.890625,
+      "delta": 999.28515625
+    },
+    {
+      "tag": "09_query_predictor+bank",
+      "used": 6085.125,
+      "avail": 1534.734375,
+      "delta": 665.15625
+    }
+  ],
+  "rounds": [
+    {
+      "perception": "In this video segment, we observe a person interacting with their environment inside a building. Initially focused on an air conditioning unit mounted on the ceiling, the camera then shifts downward as the individual proceeds to open a nearby door. The movement suggests routine activity within a domestic or office space.",
+      "spoken": "The person is opening a door to collect a coffee cup, while the AC unit hums in the background.",
+      "latency": {
+        "capture_ms": 2281.8007469177246,
+        "perception_ms": 11526.296377182007,
+        "m2_prepool_ms": 77.70848274230957,
+        "query_ms": 1640.7546997070312,
+        "llm_ms": 2874.6464252471924,
+        "total_ms": 18401.206731796265
+      }
+    },
+    {
+      "perception": "In this video segment, we observe a person interacting with their environment inside a building. Initially focused on an air conditioning unit mounted on the ceiling, the camera then shifts downward as the individual proceeds to open a nearby door. The movement suggests routine activity within a domestic or office space.",
+      "spoken": "The person is opening a door to collect a coffee cup, while the AC unit hums in the background.",
+      "latency": {
+        "capture_ms": 2275.897741317749,
+        "perception_ms": 12367.972373962402,
+        "m2_prepool_ms": 39.70670700073242,
+        "query_ms": 1032.5961112976074,
+        "llm_ms": 1551.9473552703857,
+        "total_ms": 17268.120288848877
+      }
+    },
+    {
+      "perception": "In this video segment, we observe a person interacting with their environment inside a building. Initially focused on an air conditioning unit mounted on the ceiling, the camera then shifts downward as the individual proceeds to open a nearby door. The movement suggests routine activity within a domestic or office space.",
+      "spoken": "The person is opening a door to collect a coffee cup, while the AC unit hums in the background.",
+      "latency": {
+        "capture_ms": 2280.184268951416,
+        "perception_ms": 3828.118324279785,
+        "m2_prepool_ms": 42.87290573120117,
+        "query_ms": 1545.6774234771729,
+        "llm_ms": 7274.113893508911,
+        "total_ms": 14970.966815948486
+      }
+    }
+  ],
+  "fast_tier_load_s": 2.490954637527466,
+  "perception_load_s": 32.578272104263306,
+  "query_engine_load_s": 9.745277166366577,
+  "avail_after_full_load_MiB": 1534.734375,
+  "mem_log": [
+    {
+      "tag": "00_start",
+      "used": 2643.64453125,
+      "avail": 4976.21484375,
+      "delta": 0.0
+    },
+    {
+      "tag": "01_cuda_context",
+      "used": 2656.3203125,
+      "avail": 4963.5390625,
+      "delta": 12.67578125
+    },
+    {
+      "tag": "02_fast_tier_v2_gguf",
+      "used": 2937.421875,
+      "avail": 4682.4375,
+      "delta": 281.1015625
+    },
+    {
+      "tag": "04_vitl_int8",
+      "used": 3533.828125,
+      "avail": 4086.03125,
+      "delta": 596.40625
+    },
+    {
+      "tag": "05_wavjepa_base_int8",
+      "used": 4262.92578125,
+      "avail": 3356.93359375,
+      "delta": 729.09765625
+    },
+    {
+      "tag": "06_wavjepa_nat_int8",
+      "used": 4878.109375,
+      "avail": 2741.75,
+      "delta": 615.18359375
+    },
+    {
+      "tag": "07_m2_predictor_int8",
+      "used": 4420.68359375,
+      "avail": 3199.17578125,
+      "delta": -457.42578125
+    },
+    {
+      "tag": "08_embeddinggemma",
+      "used": 5419.96875,
+      "avail": 2199.890625,
+      "delta": 999.28515625
+    },
+    {
+      "tag": "09_query_predictor+bank",
+      "used": 6085.125,
+      "avail": 1534.734375,
+      "delta": 665.15625
+    },
+    {
+      "tag": "10_camera_open",
+      "used": 6071.2421875,
+      "avail": 1548.6171875,
+      "delta": -13.8828125
+    },
+    {
+      "tag": "11_after_rounds",
+      "used": 6882.88671875,
+      "avail": 736.97265625,
+      "delta": 811.64453125
+    }
+  ]
+}

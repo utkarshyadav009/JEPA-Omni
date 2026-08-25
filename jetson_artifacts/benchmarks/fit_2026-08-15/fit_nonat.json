@@ -1,0 +1,147 @@
+{
+  "config": {
+    "use_nat": false,
+    "query_ckpt": "qp_runD.pt",
+    "bank": "candidates_siglip2.pt",
+    "query_vectors": "query_vectors_siglip2.pt",
+    "text_mode": "preencoded",
+    "proj_from_ckpt": true,
+    "rounds": 3,
+    "frames": 16,
+    "scene_frames": 4,
+    "rotate": 90,
+    "gain": 1.8,
+    "out": "/home/bmo/fit_nonat.json"
+  },
+  "rounds": [
+    {
+      "perception": "a person lying down",
+      "thinker": "I see a person lying down, and I'm curious about them. Maybe they're resting or just want to be quiet - I should ask if they need anything while I can keep the mood bright for Finn and Jake.",
+      "said": "Finn, Jake - just how you like it!",
+      "latency": {
+        "capture_ms": 926.243782043457,
+        "perception_ms": 1367.335319519043,
+        "m2_ms": 44.782161712646484,
+        "siglip_ms": 190.2315616607666,
+        "query_ms": 229.5522689819336,
+        "thinker_ms": 1542.457103729248,
+        "speaker_ms": 279.66809272766113,
+        "total_ms": 4580.270290374756
+      }
+    },
+    {
+      "perception": "a person sitting",
+      "thinker": "Hey there! I'm glad you're here - let's make sweet, sweet music together and explore the fun of being your friend.",
+      "said": "Sweet, sweet music? Let's make it together!",
+      "latency": {
+        "capture_ms": 909.2326164245605,
+        "perception_ms": 792.9251194000244,
+        "m2_ms": 25.00176429748535,
+        "siglip_ms": 104.73370552062988,
+        "query_ms": 32.087087631225586,
+        "thinker_ms": 830.833911895752,
+        "speaker_ms": 216.11595153808594,
+        "total_ms": 2910.9301567077637
+      }
+    },
+    {
+      "perception": "a person sitting",
+      "thinker": "Hey there! I'm glad you're here - let's make sweet, sweet music together and explore the fun of being your friend.",
+      "said": "Sweet, sweet music? Let's make it together!",
+      "latency": {
+        "capture_ms": 905.3983688354492,
+        "perception_ms": 791.907787322998,
+        "m2_ms": 22.32837677001953,
+        "siglip_ms": 104.2633056640625,
+        "query_ms": 33.104896545410156,
+        "thinker_ms": 817.3067569732666,
+        "speaker_ms": 212.16773986816406,
+        "total_ms": 2886.47723197937
+      }
+    }
+  ],
+  "fast_load_s": 1.3248920440673828,
+  "thinker_load_s": 2.704418897628784,
+  "siglip_load_s": 7.572617769241333,
+  "avail_after_load_MiB": 1409.8203125,
+  "streams": [
+    "m2",
+    "vision",
+    "ambient",
+    "scene"
+  ],
+  "mem_log": [
+    {
+      "tag": "00_start",
+      "used": 2663.484375,
+      "avail": 4956.3671875,
+      "delta": 0.0
+    },
+    {
+      "tag": "01_cuda_ctx",
+      "used": 2679.890625,
+      "avail": 4939.9609375,
+      "delta": 16.40625
+    },
+    {
+      "tag": "02_speaker_fast_tier",
+      "used": 2932.66015625,
+      "avail": 4687.19140625,
+      "delta": 252.76953125
+    },
+    {
+      "tag": "03_thinker",
+      "used": 3712.9375,
+      "avail": 3906.9140625,
+      "delta": 780.27734375
+    },
+    {
+      "tag": "04_vitl_int8",
+      "used": 4341.9921875,
+      "avail": 3277.859375,
+      "delta": 629.0546875
+    },
+    {
+      "tag": "05_wavjepa_base",
+      "used": 4960.33203125,
+      "avail": 2659.51953125,
+      "delta": 618.33984375
+    },
+    {
+      "tag": "07_m2",
+      "used": 4907.0078125,
+      "avail": 2712.84375,
+      "delta": -53.32421875
+    },
+    {
+      "tag": "08_siglip2_scene",
+      "used": 6076.74609375,
+      "avail": 1543.10546875,
+      "delta": 1169.73828125
+    },
+    {
+      "tag": "09_preencoded_queries_NO_TEXT_ENCODER",
+      "used": 6076.07421875,
+      "avail": 1543.77734375,
+      "delta": -0.671875
+    },
+    {
+      "tag": "10_query_predictor+candidates",
+      "used": 6210.03125,
+      "avail": 1409.8203125,
+      "delta": 133.95703125
+    },
+    {
+      "tag": "11_camera",
+      "used": 6228.34375,
+      "avail": 1391.5078125,
+      "delta": 18.3125
+    },
+    {
+      "tag": "12_end",
+      "used": 7191.17578125,
+      "avail": 428.67578125,
+      "delta": 962.83203125
+    }
+  ]
+}

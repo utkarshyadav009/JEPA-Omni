@@ -231,8 +231,18 @@ MAX_AMBIENT_T = 1024
 
 
 def _cap_ambient_len(feats: Dict[str, Tensor], tbins: Dict[str, Tensor],
-                      max_t: int = MAX_AMBIENT_T) -> None:
-    """In-place: truncate the 'ambient' entries to at most max_t tokens."""
+                      max_t: Optional[int] = None) -> None:
+    """In-place: truncate the 'ambient' entries to at most max_t tokens.
+    MUST be called on the CPU batch, BEFORE .to(device) -- an outlier-length
+    clip (AudioSet-Strong clips run up to ~245s vs VGGSound/Ego4D's fixed
+    ~10s, producing raw ambient sequences up to ~24k tokens pre-cap) would
+    otherwise have its full uncapped tensor copied to GPU first and only
+    truncated after, spiking peak memory by >20x for that step regardless
+    of batch size. Confirmed directly: this ordering bug caused a real OOM
+    at batch=50 (94.9/95GB) and a near-miss at batch=44 (95.0/95GB) once
+    AudioSet-Strong's variable-duration clips entered the mix (2026-07-31)."""
+    if max_t is None:
+        max_t = MAX_AMBIENT_T  # read dynamically, not bound at def time -- lets --max-ambient-t override
     if "ambient" in feats and feats["ambient"].shape[1] > max_t:
         feats["ambient"] = feats["ambient"][:, :max_t]
         tbins["ambient"] = tbins["ambient"][:, :max_t]
@@ -1048,9 +1058,9 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
         )
         if lam_contrastive > 0.0:
             _probe_batch = next(iter(loader))
+            _cap_ambient_len(_probe_batch["feats"], _probe_batch["tbins"])
             _feats0 = {k: v.to(device) for k, v in _probe_batch["feats"].items()}
             _tbins0 = {k: v.to(device) for k, v in _probe_batch["tbins"].items()}
-            _cap_ambient_len(_feats0, _tbins0)
             _micro_b = next(iter(_feats0.values())).shape[0]
             if gradcache_micro_steps > 1:
                 print(f"[train_m2] GradCache: micro_batch={_micro_b} x "
@@ -1075,9 +1085,9 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
     for step in range(start_step, total_steps):
         batch = next(batches)
 
+        _cap_ambient_len(batch["feats"], batch["tbins"])
         feats = {k: v.to(device) for k, v in batch["feats"].items()}
         tbins = {k: v.to(device) for k, v in batch["tbins"].items()}
-        _cap_ambient_len(feats, tbins)
 
         # GradCache: pull the REST of this step's microbatches now (feats/
         # tbins above stays the "primary" microbatch -- used for pred_loss/
@@ -1089,9 +1099,9 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
             gc_micro_batches.append((feats, tbins))
             for _ in range(gradcache_micro_steps - 1):
                 _b = next(batches)
+                _cap_ambient_len(_b["feats"], _b["tbins"])
                 _f = {k: v.to(device) for k, v in _b["feats"].items()}
                 _t = {k: v.to(device) for k, v in _b["tbins"].items()}
-                _cap_ambient_len(_f, _t)
                 gc_micro_batches.append((_f, _t))
 
         # Sample cross-modal mask
@@ -1488,6 +1498,13 @@ def main() -> None:
                         help="Override data.av_cache_dir from the config (in-memory only, "
                              "does not touch the config file) -- e.g. to point at a RAID-backed "
                              "copy of the feature cache instead of /dev/shm.")
+    parser.add_argument("--max-ambient-t", type=int, default=None,
+                        help="Override MAX_AMBIENT_T (default 1024) -- lower this when mixing in "
+                             "a source with much higher variance in per-clip duration than "
+                             "VGGSound/Ego4D (e.g. AudioSet-Strong, up to ~245s/clip vs ~10s), "
+                             "which raises how often batches hit the cap and can push sustained "
+                             "GPU memory close to the ceiling even with the cap correctly applied "
+                             "before the .to(device) transfer.")
     parser.add_argument("--lam-fusion", type=float, default=0.0,
                         help="STEP 2: weight for the CrossAttnFusionBridge auxiliary real-pair "
                              "vs shuffled-pair matching loss. 0.0 (default) = off. This branch "
@@ -1520,6 +1537,10 @@ def main() -> None:
     cfg = load_config(args.config)
     if args.cache_dir is not None:
         cfg.setdefault("data", AttrDict())["av_cache_dir"] = args.cache_dir
+    if args.max_ambient_t is not None:
+        global MAX_AMBIENT_T
+        print(f"[train_m2] MAX_AMBIENT_T override: {MAX_AMBIENT_T} -> {args.max_ambient_t}", flush=True)
+        MAX_AMBIENT_T = args.max_ambient_t
     train(cfg, max_steps=args.max_steps, limit=args.limit,
           mask_mode=args.mask_mode, mask_frac=args.mask_frac,
           ckpt_dir_override=args.ckpt_dir,

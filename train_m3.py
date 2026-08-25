@@ -41,10 +41,13 @@ from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
 from models.av_jepa_predictor import AVJepaConfig, AVJepaPredictor
 from models.m3_connector import M3Connector, M3ConnectorConfig
+from models.text_target import TextTarget
+from models.losses import info_nce
 
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 CAPTIONS_PATH = os.path.join(PROJECT_ROOT, "scripts", "qwen_omni_full_captions.jsonl")
 CACHE_DIR = "/home/utkarsh/raid2-data/feature_cache_vgg51k"
+_CAPTIONS_PATH_OVERRIDE = None  # set via --captions-path in main()
 MAX_AMBIENT_T = 1024   # same memory-safety cap as train_m2.py, independent reasoning: same cause
 
 ALL_GRANULARITIES = [
@@ -279,6 +282,25 @@ def train(args) -> None:
     print(f"[m3] connector params={n_params:,} ({n_params/1e6:.1f}M)  "
           f"layers={args.connector_layers}  n_latents=32", flush=True)
 
+    # Optional auxiliary alignment loss (BLIP-2-stage-1-style): pool the connector's
+    # soft-prompt vectors -> compare directly against a frozen text encoder's embedding
+    # of the ground-truth caption via InfoNCE. This gives the connector a short, direct
+    # gradient path that does not have to survive backprop through the full frozen LLM
+    # -- the captioning cross-entropy loss alone is the ONLY signal without this (the
+    # thing BLIP-2's own ablation shows causes weak/plateauing connector training).
+    # TextTarget's projection head (native EmbeddingGemma dim -> llm_hidden) is
+    # trainable and added to the same optimizer as the connector; the EmbeddingGemma
+    # base itself stays frozen (unfreeze_base=False, the default).
+    text_target = None
+    if args.lam_align > 0:
+        print(f"[m3] loading TextTarget (backbone={args.align_backbone}) for alignment loss "
+              f"(lam_align={args.lam_align}, temp={args.align_temp})...", flush=True)
+        text_target = TextTarget(backbone=args.align_backbone, shared_dim=llm_config.hidden_size,
+                                  device=str(device), dtype=torch.bfloat16)
+        n_align_params = sum(p.numel() for p in text_target.proj.parameters())
+        print(f"[m3] TextTarget native_dim={text_target.native_dim} -> shared_dim={text_target.shared_dim}  "
+              f"trainable proj params={n_align_params:,}", flush=True)
+
     train_ds = M3CaptionDataset(train_pairs, CACHE_DIR, tokenizer)
     test_ds = M3CaptionDataset(test_pairs, CACHE_DIR, tokenizer)
     print(f"[m3] cached clips found: train={len(train_ds)}  test={len(test_ds)}", flush=True)
@@ -295,7 +317,10 @@ def train(args) -> None:
                 yield b
     batches = batches_forever()
 
-    opt = torch.optim.AdamW(connector.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+    trainable_params = list(connector.parameters())
+    if text_target is not None:
+        trainable_params += list(text_target.proj.parameters())
+    opt = torch.optim.AdamW(trainable_params, lr=args.lr, weight_decay=args.weight_decay)
     sched = build_scheduler(opt, args.warmup_steps, args.max_steps)
 
     os.makedirs(args.ckpt_dir, exist_ok=True)
@@ -337,18 +362,34 @@ def train(args) -> None:
             labels = torch.cat([prompt_labels, labels], dim=1)
 
             out = llm(inputs_embeds=inputs_embeds, attention_mask=attention_mask, labels=labels)
-        return out.loss
+            ce_loss = out.loss
+
+            align_loss = None
+            align_metrics = {}
+            if text_target is not None:
+                pooled_prompt = F.normalize(soft_prompt.mean(dim=1).float(), dim=-1)  # (B, H)
+                z_text = text_target.encode_text(batch["caption_texts"])              # (B, H), fp32 normalized
+                align_loss, align_metrics = info_nce(pooled_prompt, z_text, temperature=args.align_temp)
+
+        total_loss = ce_loss if align_loss is None else ce_loss + args.lam_align * align_loss
+        metrics = {"ce_loss": ce_loss.item(), "total_loss": total_loss.item()}
+        if align_loss is not None:
+            metrics["align_loss"] = align_loss.item()
+            metrics["align_acc_v2t"] = align_metrics["acc_v2t"]
+        return total_loss, metrics
 
     @torch.no_grad()
-    def eval_loss(n_batches: int = 20) -> float:
+    def eval_loss(n_batches: int = 20) -> Dict[str, float]:
         connector.eval()
-        losses = []
+        agg: Dict[str, List[float]] = {}
         for i, batch in enumerate(test_loader):
             if i >= n_batches:
                 break
-            losses.append(compute_batch_loss(batch, train_mode=False).item())
+            _, metrics = compute_batch_loss(batch, train_mode=False)
+            for k, v in metrics.items():
+                agg.setdefault(k, []).append(v)
         connector.train()
-        return sum(losses) / max(1, len(losses))
+        return {k: sum(v) / max(1, len(v)) for k, v in agg.items()}
 
     @torch.no_grad()
     def generate_samples(n: int, out_path: str) -> None:
@@ -402,12 +443,20 @@ def train(args) -> None:
     connector.train()
     t_start = time.time()
     loss_ema = None
+    def save_ckpt(step: int) -> None:
+        ckpt_obj = {"step": step, "connector": connector.state_dict(),
+                    "connector_cfg": connector_cfg.__dict__}
+        if text_target is not None:
+            ckpt_obj["text_target_proj"] = text_target.proj.state_dict()
+            ckpt_obj["align_backbone"] = args.align_backbone
+        torch.save(ckpt_obj, os.path.join(args.ckpt_dir, "last.pt"))
+
     for step in range(args.max_steps):
         batch = next(batches)
         opt.zero_grad()
-        loss = compute_batch_loss(batch, train_mode=True)
+        loss, metrics = compute_batch_loss(batch, train_mode=True)
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(connector.parameters(), 1.0)
+        torch.nn.utils.clip_grad_norm_(trainable_params, 1.0)
         opt.step()
         sched.step()
 
@@ -415,28 +464,34 @@ def train(args) -> None:
         if step % args.log_every == 0:
             lr_now = sched.get_last_lr()[0]
             elapsed = time.time() - t_start
+            align_str = (f"  ce={metrics['ce_loss']:.4f}  align={metrics['align_loss']:.4f}  "
+                         f"align_acc={metrics['align_acc_v2t']:.3f}" if text_target is not None else "")
             print(f"[m3] step {step:6d}/{args.max_steps}  loss={loss.item():.4f}  "
-                  f"loss_ema={loss_ema:.4f}  lr={lr_now:.2e}  elapsed={elapsed:.0f}s", flush=True)
-            log_f.write(json.dumps({"step": step, "loss": loss.item(), "loss_ema": loss_ema,
-                                     "lr": lr_now, "split": "train"}) + "\n")
+                  f"loss_ema={loss_ema:.4f}  lr={lr_now:.2e}  elapsed={elapsed:.0f}s{align_str}", flush=True)
+            log_row = {"step": step, "loss": loss.item(), "loss_ema": loss_ema,
+                       "lr": lr_now, "split": "train"}
+            log_row.update(metrics)
+            log_f.write(json.dumps(log_row) + "\n")
             log_f.flush()
 
         if step > 0 and step % args.eval_every == 0:
-            tl = eval_loss()
-            print(f"[m3]   eval @ step {step}: test_loss={tl:.4f}", flush=True)
-            log_f.write(json.dumps({"step": step, "test_loss": tl, "split": "test"}) + "\n")
+            tm = eval_loss()
+            print(f"[m3]   eval @ step {step}: test_loss={tm['total_loss']:.4f}"
+                  + (f"  ce={tm['ce_loss']:.4f}  align={tm.get('align_loss', float('nan')):.4f}"
+                     if text_target is not None else ""), flush=True)
+            log_row = {"step": step, "split": "test"}
+            log_row.update({f"test_{k}": v for k, v in tm.items()})
+            log_f.write(json.dumps(log_row) + "\n")
             log_f.flush()
 
         if step > 0 and step % args.save_every == 0:
-            torch.save({"step": step, "connector": connector.state_dict(),
-                        "connector_cfg": connector_cfg.__dict__},
-                       os.path.join(args.ckpt_dir, "last.pt"))
+            save_ckpt(step)
 
-    final_test_loss = eval_loss(n_batches=50)
-    print(f"[m3] FINAL test_loss={final_test_loss:.4f}", flush=True)
-    torch.save({"step": args.max_steps, "connector": connector.state_dict(),
-                "connector_cfg": connector_cfg.__dict__},
-               os.path.join(args.ckpt_dir, "last.pt"))
+    final_metrics = eval_loss(n_batches=50)
+    print(f"[m3] FINAL test_loss={final_metrics['total_loss']:.4f}"
+          + (f"  ce={final_metrics['ce_loss']:.4f}  align={final_metrics.get('align_loss', float('nan')):.4f}"
+             if text_target is not None else ""), flush=True)
+    save_ckpt(args.max_steps)
 
     sample_path = os.path.join(args.ckpt_dir, "sample_generations.jsonl")
     generate_samples(args.n_samples, sample_path)
@@ -453,8 +508,17 @@ def main() -> None:
                          "(stage 2 scaling). Overrides --field if set. "
                          f"Available: {','.join(ALL_GRANULARITIES)}")
     p.add_argument("--m2-ckpt", default="checkpoints/m2_fusion_20k_best/step19000_peak.pt")
+    p.add_argument("--captions-path", default=None,
+                    help="Override CAPTIONS_PATH (default: scripts/qwen_omni_full_captions.jsonl).")
     p.add_argument("--llm", default="Qwen/Qwen2.5-1.5B-Instruct")
     p.add_argument("--connector-layers", type=int, default=3)
+    p.add_argument("--lam-align", type=float, default=0.0,
+                    help="Weight for the auxiliary EmbeddingGemma alignment InfoNCE loss "
+                         "(pooled soft-prompt vs frozen text encoding of the ground-truth "
+                         "caption). 0.0 (default) = off, exact old behavior.")
+    p.add_argument("--align-backbone", default="embeddinggemma",
+                    help="TextTarget backbone for the alignment loss (see models/text_target.py).")
+    p.add_argument("--align-temp", type=float, default=0.07, help="InfoNCE temperature for the alignment loss.")
     p.add_argument("--ckpt-dir", default="checkpoints/m3_connector")
     p.add_argument("--max-steps", type=int, default=5000)
     p.add_argument("--batch-size", type=int, default=32)
@@ -470,6 +534,10 @@ def main() -> None:
     p.add_argument("--limit-test", type=int, default=None, help="cap test clips (smoke tests)")
     p.add_argument("--seed", type=int, default=0)
     args = p.parse_args()
+    if args.captions_path:
+        global CAPTIONS_PATH
+        CAPTIONS_PATH = args.captions_path
+        print(f"[m3] CAPTIONS_PATH overridden -> {CAPTIONS_PATH}", flush=True)
     train(args)
 
 

@@ -1,0 +1,72 @@
+{
+  "duration_sec": 60.0,
+  "n_ticks": 240,
+  "action_counts": {
+    "backchannel": 4,
+    "gated": 153,
+    "silence": 70,
+    "speak": 13
+  },
+  "tick_wall_latency_ms": {
+    "n": 240,
+    "mean_ms": 721.1710038874799,
+    "max_ms": 18775.348983000185,
+    "p95_ms": 6005.833085650011
+  },
+  "n_camera_frames_captured": 1111,
+  "n_mic_chunks_captured": 694,
+  "generations": [
+    {
+      "t": 1.5,
+      "text": "What's that?"
+    },
+    {
+      "t": 3.25,
+      "text": "What's what?"
+    },
+    {
+      "t": 5.25,
+      "text": "What's what?"
+    },
+    {
+      "t": 7.0,
+      "text": "Is there anything else you'd like to add? ][:] ][: ][: ][: ][: ][: ][: ][: ][: ][: ][: ][: ][: ][: "
+    },
+    {
+      "t": 14.75,
+      "text": "?"
+    },
+    {
+      "t": 15.0,
+      "text": "Hey, thank you."
+    },
+    {
+      "t": 17.0,
+      "text": "."
+    },
+    {
+      "t": 26.75,
+      "text": "So, what kind of music do you like?  \nI like rock music.  \nWhat's your favorite band?  \nI like The Beatles.  \nWhat's your favorite song?  \nI like \""
+    },
+    {
+      "t": 36.5,
+      "text": "What kind of music do you like? I like country music. [Cue guitar strumming] I like country music. [Music] [Laughter] [Music] [Music] ["
+    },
+    {
+      "t": 44.75,
+      "text": "What kind of thing?"
+    },
+    {
+      "t": 47.75,
+      "text": "What kind of guard? What kind of guard? What kind of guard? What kind of guard? What kind of guard? What kind of guard? What kind of guard? What kind of guard?"
+    },
+    {
+      "t": 58.0,
+      "text": "What kind of guard?"
+    },
+    {
+      "t": 59.25,
+      "text": " kind of guard? What can you do? \" This is a classic question that has been asked for generations. It's a simple yet intriguing query that invites the listener to think about their own abilities or"
+    }
+  ]
+}

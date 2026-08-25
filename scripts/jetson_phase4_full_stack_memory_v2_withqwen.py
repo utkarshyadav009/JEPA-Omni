@@ -102,9 +102,14 @@ def q_int8_cpu_then_move(module, tag, device):
 
 def main() -> None:
     p = argparse.ArgumentParser()
-    p.add_argument("--m2-ckpt", default=os.path.expanduser("~/jepa_omni_transfer/checkpoints/m2_fusion_20k_best/step19000_peak.pt"))
-    p.add_argument("--m4-joint-ckpt", default=os.path.expanduser("~/jepa_omni_transfer/checkpoints/m4_joint/best.pt"))
-    p.add_argument("--speechonly-ckpt", default=os.path.expanduser("~/jepa_omni_transfer/checkpoints/m4_decision_head_3class_speechonly/best.pt"))
+    # Defaults updated to the LOCKED checkpoints (git tag freeze-submission-v1,
+    # 2026-07-26 freeze) -- previously pointed at pre-scaling M2 and the
+    # pre-freeze M3 bundled inside m4_joint/best.pt. Transfer these three
+    # paths (relative to checkpoints/ in the main repo) to
+    # ~/jepa_omni_transfer/checkpoints/ on the Jetson before running.
+    p.add_argument("--m2-ckpt", default=os.path.expanduser("~/jepa_omni_transfer/checkpoints/m2_run2_vggsound197k_ego4d134k_neg200/step19000.pt"))
+    p.add_argument("--m3-ckpt", default=os.path.expanduser("~/jepa_omni_transfer/checkpoints/m3_multigran_richcaption_v2/last.pt"))
+    p.add_argument("--speechonly-ckpt", default=os.path.expanduser("~/jepa_omni_transfer/checkpoints/m4_decision_head_3class_speechonly_v2/best.pt"))
     p.add_argument("--llm", default="Qwen/Qwen2.5-1.5B-Instruct")
     p.add_argument("--max-new-tokens", type=int, default=60)
     p.add_argument("--out", default=os.path.expanduser("~/jetson_phase4_memory_v2_withqwen_results.json"))
@@ -153,7 +158,7 @@ def main() -> None:
     snapshot("06_whisper_int8_on_gpu")
 
     sys.path.insert(0, os.path.expanduser("~/jepa_omni_transfer"))
-    from train_decision_head_3class_speechonly import SpeechOnlyThreeClassHead
+    from train_decision_head_3class_speechonly_v2 import SpeechOnlyThreeClassHead
     ckpt = torch.load(args.speechonly_ckpt, map_location=device, weights_only=False)
     decision_head = SpeechOnlyThreeClassHead(speech_feat_dim=ckpt["sf_dim"]).to(device)
     decision_head.load_state_dict(ckpt["state_dict"])
@@ -168,12 +173,14 @@ def main() -> None:
     llm.eval()
     snapshot("08_qwen25_1p5b_int8_on_gpu")
 
-    # ---- M3 connector (checkpoints/m4_joint/best.pt) ----
+    # ---- M3 connector: LOCKED checkpoint (checkpoints/m3_multigran_richcaption_v2/last.pt) ----
+    # Key names differ from the old m4_joint/best.pt bundle (m3_cfg/m3_connector) --
+    # this checkpoint uses connector_cfg/connector (confirmed by direct load, 2026-08-01).
     from models.m3_connector import M3Connector, M3ConnectorConfig
-    m4joint_ckpt = torch.load(args.m4_joint_ckpt, map_location=device, weights_only=False)
-    m3_cfg = M3ConnectorConfig(**m4joint_ckpt["m3_cfg"])
+    m3ckpt = torch.load(args.m3_ckpt, map_location=device, weights_only=False)
+    m3_cfg = M3ConnectorConfig(**m3ckpt["connector_cfg"])
     m3_connector = M3Connector(m3_cfg).to(device)
-    m3_connector.load_state_dict(m4joint_ckpt["m3_connector"])
+    m3_connector.load_state_dict(m3ckpt["connector"])
     m3_connector.eval()
     snapshot("09_m3_connector_on_gpu")
 

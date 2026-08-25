@@ -1,0 +1,52 @@
+{
+  "self_echo_capture": {
+    "no_fix_false_interrupt": 2,
+    "n_windows": 12,
+    "per_utterance": [
+      {
+        "text": "The weather today is partly cloudy with a light breeze.",
+        "tts_duration_sec": 2.8792743764172335,
+        "playback_wall_sec": 4.236300373999256,
+        "any_false_interrupt": true
+      },
+      {
+        "text": "I found three files matching your search query.",
+        "tts_duration_sec": 2.5425850340136056,
+        "playback_wall_sec": 3.6255690489997505,
+        "any_false_interrupt": true
+      },
+      {
+        "text": "Let me know if you would like me to continue.",
+        "tts_duration_sec": 2.391655328798186,
+        "playback_wall_sec": 3.4832182219997776,
+        "any_false_interrupt": false
+      },
+      {
+        "text": "The next step is to check the configuration file.",
+        "tts_duration_sec": 2.8444444444444446,
+        "playback_wall_sec": 3.937568962000114,
+        "any_false_interrupt": false
+      },
+      {
+        "text": "Your meeting is scheduled for three o'clock this afternoon.",
+        "tts_duration_sec": 3.006984126984127,
+        "playback_wall_sec": 4.105289262999577,
+        "any_false_interrupt": false
+      },
+      {
+        "text": "I can see a red mug on the table to your left.",
+        "tts_duration_sec": 2.5774149659863945,
+        "playback_wall_sec": 3.650440743999752,
+        "any_false_interrupt": false
+      }
+    ]
+  },
+  "mic_gate_mechanism": {
+    "gated_correctly": 159,
+    "n_ticks_checked": 159
+  },
+  "live_control": {
+    "detected_speak": "speak",
+    "detected_silence_before_cue": "silence"
+  }
+}

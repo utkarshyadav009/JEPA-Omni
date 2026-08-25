@@ -1,0 +1,58 @@
+{
+  "model": "openbmb/MiniCPM5-1B",
+  "hidden_size": 1536,
+  "ram_before_load_mib": {
+    "used_mib": 1734,
+    "total_mib": 7620
+  },
+  "ram_after_load_mib": {
+    "used_mib": 2447,
+    "total_mib": 7620
+  },
+  "ram_peak_mib": {
+    "used_mib": 3519,
+    "total_mib": 7620
+  },
+  "hf_load_s": 4.031886349999695,
+  "generations": [
+    {
+      "prompt": "Describe what a busy city street looks like.",
+      "n_new_tokens": 60,
+      "elapsed_s": 7.101844269000139,
+      "ms_per_token": 118.36407115000232,
+      "text": "<think>\nHmm, the user is asking for a description of a busy city street. This seems straightforward but requires capturing both visual and sensory details to make it vivid. \n\nI should structure this by starting with broad impressions before diving into specifics\u2014colors, sounds, smells, and human activity. The"
+    },
+    {
+      "prompt": "Explain how a bicycle works in simple terms.",
+      "n_new_tokens": 60,
+      "elapsed_s": 7.068346964000739,
+      "ms_per_token": 117.80578273334565,
+      "text": "<think>\nHmm, the user wants a simple explanation of how a bicycle works. This is a common question but requires breaking down complex mechanics into clear, everyday analogies. \n\nI should start with the core components (gears, wheels) and then explain the motion step-by-step without jargon. The"
+    },
+    {
+      "prompt": "What is the weather like on a sunny day?",
+      "n_new_tokens": 60,
+      "elapsed_s": 7.068936343001042,
+      "ms_per_token": 117.81560571668402,
+      "text": "<think>\nHmm, the user is asking about weather conditions on a sunny day. This seems straightforward but lacks context\u2014weather can vary widely depending on location and time of year. \n\nI should clarify that I don\u2019t have real-time data or access to current information. Instead, I\u2019ll explain how"
+    },
+    {
+      "prompt": "Tell me about your favorite kind of music.",
+      "n_new_tokens": 60,
+      "elapsed_s": 7.066938436999408,
+      "ms_per_token": 117.78230728332346,
+      "text": "<think>\nHmm, the user is asking about my favorite kind of music. This seems like a playful and subjective question since I don't have personal preferences or emotions. \n\nI should clarify that I'm an AI without personal tastes but can still provide information on different musical styles in general. The response"
+    },
+    {
+      "prompt": "Summarize what happens during a thunderstorm.",
+      "n_new_tokens": 60,
+      "elapsed_s": 7.068048823000936,
+      "ms_per_token": 117.80081371668226,
+      "text": "<think>\nHmm, the user is asking for a summary of what happens during a thunderstorm. This seems straightforward but requires careful structuring to cover all key aspects without oversimplifying or omitting important details.\n\nI should start with an overview that captures the sudden and dramatic nature of thunderstorms, then break it down"
+    }
+  ],
+  "ms_per_token_mean": 117.91371612000754,
+  "ms_per_token_stdev": 0.252046699677606,
+  "total_latency_s_mean": 7.074822967200452,
+  "comparison_qwen25_1_5b_ms_per_token": 203.0
+}

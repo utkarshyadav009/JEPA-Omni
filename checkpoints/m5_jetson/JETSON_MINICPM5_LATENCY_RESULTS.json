@@ -1,0 +1,58 @@
+{
+  "model": "openbmb/MiniCPM5-1B",
+  "hidden_size": 1536,
+  "ram_before_load_mib": {
+    "used_mib": 1708,
+    "total_mib": 7620
+  },
+  "ram_after_load_mib": {
+    "used_mib": 2493,
+    "total_mib": 7620
+  },
+  "ram_peak_mib": {
+    "used_mib": 3612,
+    "total_mib": 7620
+  },
+  "hf_load_s": 4.018754138000077,
+  "generations": [
+    {
+      "prompt": "Describe what a busy city street looks like.",
+      "n_new_tokens": 60,
+      "elapsed_s": 7.202347356000246,
+      "ms_per_token": 120.0391226000041,
+      "text": "A bustling city street is a vibrant tapestry of life, where the rhythm of daily existence syncs with the pulse of urban activity. It's a place that never sleeps, teeming with movement and energy.\n\nAt its core lies the **flowing river**\u2014the main thoroughfare connecting neighborhoods, flanked"
+    },
+    {
+      "prompt": "Explain how a bicycle works in simple terms.",
+      "n_new_tokens": 60,
+      "elapsed_s": 7.165627360001963,
+      "ms_per_token": 119.42712266669939,
+      "text": "A bicycle is essentially a two-wheeled vehicle that combines the mechanics of a car with the agility and efficiency of a skateboard or even a scooter. It's powered by an internal combustion engine, which converts fuel into mechanical energy to propel the bike forward.\n\nHere\u2019s a simplified breakdown:\n1"
+    },
+    {
+      "prompt": "What is the weather like on a sunny day?",
+      "n_new_tokens": 60,
+      "elapsed_s": 7.147743606001313,
+      "ms_per_token": 119.12906010002189,
+      "text": "I don't have access to real-time weather data or current conditions. To get accurate and up-to-date information about the weather, I would need you to provide me with specific details such as your location (e.g., \"the city of Paris\" or \"your current address\"), date, time zone"
+    },
+    {
+      "prompt": "Tell me about your favorite kind of music.",
+      "n_new_tokens": 60,
+      "elapsed_s": 7.146931430001132,
+      "ms_per_token": 119.1155238333522,
+      "text": "As an artificial intelligence, I don't have personal preferences or feelings like humans do! However, I can share that my \"favorite\" kind of music is quite diverse and fascinating.\n\nI'm particularly drawn to **classical music** because it spans centuries, offering a rich tapestry of emotions\u2014from the serene"
+    },
+    {
+      "prompt": "Summarize what happens during a thunderstorm.",
+      "n_new_tokens": 60,
+      "elapsed_s": 7.13621647400214,
+      "ms_per_token": 118.936941233369,
+      "text": "A thunderstorm is an atmospheric phenomenon characterized by the rapid rise and fall of air masses, often accompanied by lightning and thunder. Here's a detailed summary of what typically occurs during such events: \n\n1. **Preparation**: Before a storm hits, there are usually preparations like gathering indoors or in a safe"
+    }
+  ],
+  "ms_per_token_mean": 119.32955408668931,
+  "ms_per_token_stdev": 0.43392359451826706,
+  "total_latency_s_mean": 7.159773245201359,
+  "comparison_qwen25_1_5b_ms_per_token": 203.0
+}

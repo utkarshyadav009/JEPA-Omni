@@ -1,0 +1,98 @@
+[
+  {
+    "category": "continuer",
+    "text": "Mm-hmm.",
+    "file": "continuer_00.wav",
+    "api_latency_sec": 1.2
+  },
+  {
+    "category": "continuer",
+    "text": "Uh-huh.",
+    "file": "continuer_01.wav",
+    "api_latency_sec": 1.7
+  },
+  {
+    "category": "continuer",
+    "text": "Yeah.",
+    "file": "continuer_02.wav",
+    "api_latency_sec": 0.93
+  },
+  {
+    "category": "continuer",
+    "text": "Mm.",
+    "file": "continuer_03.wav",
+    "api_latency_sec": 0.67
+  },
+  {
+    "category": "continuer",
+    "text": "Okay.",
+    "file": "continuer_04.wav",
+    "api_latency_sec": 0.59
+  },
+  {
+    "category": "continuer",
+    "text": "Right.",
+    "file": "continuer_05.wav",
+    "api_latency_sec": 0.63
+  },
+  {
+    "category": "reactive",
+    "text": "[surprised] Oh!",
+    "file": "reactive_00.wav",
+    "api_latency_sec": 0.66
+  },
+  {
+    "category": "reactive",
+    "text": "Huh.",
+    "file": "reactive_01.wav",
+    "api_latency_sec": 0.41
+  },
+  {
+    "category": "reactive",
+    "text": "[surprised] Whoa.",
+    "file": "reactive_02.wav",
+    "api_latency_sec": 0.48
+  },
+  {
+    "category": "reactive",
+    "text": "Oh, really?",
+    "file": "reactive_03.wav",
+    "api_latency_sec": 0.47
+  },
+  {
+    "category": "reactive",
+    "text": "Ooh.",
+    "file": "reactive_04.wav",
+    "api_latency_sec": 0.57
+  },
+  {
+    "category": "thinking_filler",
+    "text": "Hmm...",
+    "file": "thinking_filler_00.wav",
+    "api_latency_sec": 0.88
+  },
+  {
+    "category": "thinking_filler",
+    "text": "Well...",
+    "file": "thinking_filler_01.wav",
+    "api_latency_sec": 0.59
+  },
+  {
+    "category": "thinking_filler",
+    "text": "Let's see...",
+    "file": "thinking_filler_02.wav",
+    "api_latency_sec": 0.8
+  },
+  {
+    "category": "thinking_filler",
+    "text": "Ooh, hmm...",
+    "file": "thinking_filler_03.wav",
+    "api_latency_sec": 1.05
+  },
+  {
+    "category": "thinking_filler",
+    "text": "Okay, so...",
+    "file": "thinking_filler_04.wav",
+    "api_latency_sec": 0.69
+  }
+]

@@ -38,6 +38,12 @@ FLOOR = 0.10
 VAD_SPEECH_EXCLUDE = 0.84
 
 
+def _yid_from_path(path: str) -> str:
+    base = os.path.splitext(os.path.basename(path))[0]
+    parts = base.rsplit("_", 2)
+    return parts[0] if len(parts) == 3 else base
+
+
 def extract_audio(path: str) -> np.ndarray:
     cmd = ["ffmpeg", "-v", "error", "-i", path, "-vn", "-ar", str(AUDIO_SR), "-ac", "1", "-f", "wav", "pipe:1"]
     out = subprocess.run(cmd, capture_output=True, timeout=30)
@@ -53,7 +59,15 @@ def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--top-n", type=int, default=15000)
     p.add_argument("--out", default="checkpoints/vjepa21_shelved/audioset_av_filter_scores.json")
+    p.add_argument("--clips-dir", default=CLIPS_DIR,
+                    help="Directory of AudioSet mp4 candidates to score (e.g. the unbalanced subset).")
+    p.add_argument("--exclude-ids-file", default=None,
+                    help="Optional file of newline-separated YouTube IDs to skip entirely "
+                         "(e.g. IDs already scored in another subset, or VGGSound eval-gallery overlaps).")
+    p.add_argument("--shard-idx", type=int, default=0)
+    p.add_argument("--num-shards", type=int, default=1)
     args = p.parse_args()
+    clips_dir = args.clips_dir
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"[audioset-filter] device={device}", flush=True)
@@ -68,8 +82,17 @@ def main() -> None:
     ast_model = AutoModelForAudioClassification.from_pretrained(ast_name).to(device).eval()
     id2label = ast_model.config.id2label
 
-    files = sorted(glob.glob(os.path.join(CLIPS_DIR, "*.mp4")))
-    print(f"[audioset-filter] {len(files)} candidate files", flush=True)
+    files = sorted(glob.glob(os.path.join(clips_dir, "*.mp4")))
+    if args.exclude_ids_file:
+        with open(args.exclude_ids_file) as f:
+            exclude_ids = set(l.strip() for l in f if l.strip())
+        before = len(files)
+        files = [p for p in files if _yid_from_path(p) not in exclude_ids]
+        print(f"[audioset-filter] excluded {before - len(files)} files via {args.exclude_ids_file} "
+              f"({len(exclude_ids)} ids)", flush=True)
+    files = files[args.shard_idx::args.num_shards]
+    print(f"[audioset-filter] clips_dir={clips_dir}  shard {args.shard_idx}/{args.num_shards}: "
+          f"{len(files)} candidate files", flush=True)
 
     cache_path = args.out.replace(".json", "_scores_incremental.pt")
     scored = []

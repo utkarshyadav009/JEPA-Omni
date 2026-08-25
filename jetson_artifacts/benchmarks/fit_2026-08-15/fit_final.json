@@ -1,0 +1,147 @@
+{
+  "config": {
+    "use_nat": false,
+    "query_ckpt": "qp_runD.pt",
+    "bank": "candidates_siglip2.pt",
+    "query_vectors": "query_vectors_siglip2.pt",
+    "text_mode": "preencoded",
+    "proj_from_ckpt": true,
+    "rounds": 3,
+    "frames": 16,
+    "scene_frames": 4,
+    "rotate": 90,
+    "gain": 1.8,
+    "out": "/home/bmo/fit_final.json"
+  },
+  "rounds": [
+    {
+      "perception": "a person lying down",
+      "thinker": "I see a person lying down, and I'm curious about them. Maybe they're resting or just want to be quiet - I should ask if they need anything while I can keep the mood bright for Finn and Jake.",
+      "said": "Finn, you look a bit tired - maybe I can queue a gentle lullaby while you rest.",
+      "latency": {
+        "capture_ms": 11.152505874633789,
+        "perception_ms": 1304.403305053711,
+        "m2_ms": 47.12033271789551,
+        "siglip_ms": 187.7603530883789,
+        "query_ms": 227.53596305847168,
+        "thinker_ms": 1392.3652172088623,
+        "speaker_ms": 403.05113792419434,
+        "total_ms": 3573.3888149261475
+      }
+    },
+    {
+      "perception": "a person lying down",
+      "thinker": "I see a person lying down, and I'm curious about them. Maybe they're resting or just want to be quiet - what do you think?",
+      "said": "They might just be relaxing, or maybe they're having a quiet moment.",
+      "latency": {
+        "capture_ms": 8.992671966552734,
+        "perception_ms": 659.1744422912598,
+        "m2_ms": 27.72355079650879,
+        "siglip_ms": 86.00544929504395,
+        "query_ms": 24.909257888793945,
+        "thinker_ms": 769.8273658752441,
+        "speaker_ms": 217.90075302124023,
+        "total_ms": 1794.5334911346436
+      }
+    },
+    {
+      "perception": "a person lying down",
+      "thinker": "I see a person lying down, and I'm curious about them. Maybe they're resting or just want to be quiet - what do you think?",
+      "said": "They might just be relaxing, or maybe they're having a quiet moment.",
+      "latency": {
+        "capture_ms": 6.437063217163086,
+        "perception_ms": 651.1518955230713,
+        "m2_ms": 22.095918655395508,
+        "siglip_ms": 90.21735191345215,
+        "query_ms": 25.269031524658203,
+        "thinker_ms": 762.3190879821777,
+        "speaker_ms": 217.6375389099121,
+        "total_ms": 1775.12788772583
+      }
+    }
+  ],
+  "fast_load_s": 1.3756310939788818,
+  "thinker_load_s": 2.8241629600524902,
+  "siglip_load_s": 7.337367057800293,
+  "avail_after_load_MiB": 1246.02734375,
+  "streams": [
+    "m2",
+    "vision",
+    "ambient",
+    "scene"
+  ],
+  "mem_log": [
+    {
+      "tag": "00_start",
+      "used": 2797.12109375,
+      "avail": 4822.734375,
+      "delta": 0.0
+    },
+    {
+      "tag": "01_cuda_ctx",
+      "used": 2809.6484375,
+      "avail": 4810.20703125,
+      "delta": 12.52734375
+    },
+    {
+      "tag": "02_speaker_fast_tier",
+      "used": 3055.234375,
+      "avail": 4564.62109375,
+      "delta": 245.5859375
+    },
+    {
+      "tag": "03_thinker",
+      "used": 3844.1875,
+      "avail": 3775.66796875,
+      "delta": 788.953125
+    },
+    {
+      "tag": "04_vitl_int8",
+      "used": 4467.296875,
+      "avail": 3152.55859375,
+      "delta": 623.109375
+    },
+    {
+      "tag": "05_wavjepa_base",
+      "used": 5026.640625,
+      "avail": 2593.21484375,
+      "delta": 559.34375
+    },
+    {
+      "tag": "07_m2",
+      "used": 5135.7109375,
+      "avail": 2484.14453125,
+      "delta": 109.0703125
+    },
+    {
+      "tag": "08_siglip2_scene",
+      "used": 6503.02734375,
+      "avail": 1116.828125,
+      "delta": 1367.31640625
+    },
+    {
+      "tag": "09_preencoded_queries_NO_TEXT_ENCODER",
+      "used": 6503.09375,
+      "avail": 1116.76171875,
+      "delta": 0.06640625
+    },
+    {
+      "tag": "10_query_predictor+candidates",
+      "used": 6373.828125,
+      "avail": 1246.02734375,
+      "delta": -129.265625
+    },
+    {
+      "tag": "11_camera",
+      "used": 6408.0234375,
+      "avail": 1211.83203125,
+      "delta": 34.1953125
+    },
+    {
+      "tag": "12_end",
+      "used": 7239.32421875,
+      "avail": 380.53125,
+      "delta": 831.30078125
+    }
+  ]
+}

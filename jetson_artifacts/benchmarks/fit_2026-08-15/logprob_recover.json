@@ -1,0 +1,56 @@
+[
+  {
+    "logits_all": true,
+    "reader": "scores[n_tokens-1]",
+    "mean_neg_logprob": 0.7932,
+    "n": 15,
+    "text": "I'm here, and I can hear the sighs of tired feet.",
+    "error": null,
+    "matches_baseline": true
+  },
+  {
+    "logits_all": false,
+    "reader": "scores[n_tokens-1]",
+    "mean_neg_logprob": 11.0904,
+    "n": 15,
+    "text": "I'm here, and I can hear the sighs of tired feet.",
+    "error": null,
+    "matches_baseline": false
+  },
+  {
+    "logits_all": false,
+    "reader": "scores[0]",
+    "mean_neg_logprob": 11.0904,
+    "n": 15,
+    "text": "I'm here, and I can hear the sighs of tired feet.",
+    "error": null,
+    "matches_baseline": false
+  },
+  {
+    "logits_all": false,
+    "reader": "scores[-1]",
+    "mean_neg_logprob": 11.0904,
+    "n": 15,
+    "text": "I'm here, and I can hear the sighs of tired feet.",
+    "error": null,
+    "matches_baseline": false
+  },
+  {
+    "logits_all": false,
+    "reader": "eval_logits[-1]",
+    "mean_neg_logprob": 11.0904,
+    "n": 15,
+    "text": "I'm here, and I can hear the sighs of tired feet.",
+    "error": null,
+    "matches_baseline": false
+  },
+  {
+    "logits_all": false,
+    "reader": "get_logits_ith(-1)",
+    "mean_neg_logprob": null,
+    "n": 0,
+    "text": "",
+    "error": "ValueError: '&<f' is not a valid PEP 3118 buffer format string",
+    "matches_baseline": false
+  }
+]

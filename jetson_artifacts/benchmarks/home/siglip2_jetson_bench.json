@@ -1,0 +1,44 @@
+{
+  "google/siglip2-base-patch16-224": {
+    "ram_MiB": 1685.6796875,
+    "load_s": 34.99624752998352,
+    "img_encode_ms": 18.60823631286621,
+    "room_in_top4": 4,
+    "top3": [
+      [
+        "a bedroom with a desk, an office chair and posters on the wall",
+        0.1341
+      ],
+      [
+        "a home office with a desk and a computer chair",
+        0.1262
+      ],
+      [
+        "an empty dim room with furniture and pictures on the wall",
+        0.1054
+      ]
+    ],
+    "avail_after": 4160.41796875
+  },
+  "google/siglip2-large-patch16-256": {
+    "ram_MiB": 2404.60546875,
+    "load_s": 67.52054619789124,
+    "img_encode_ms": 37.877607345581055,
+    "room_in_top4": 3,
+    "top3": [
+      [
+        "an empty dim room with furniture and pictures on the wall",
+        0.1272
+      ],
+      [
+        "a person playing an accordion indoors",
+        0.1101
+      ],
+      [
+        "an indoor room with a door, shelves and a chair",
+        0.1093
+      ]
+    ],
+    "avail_after": 1846.953125
+  }
+}

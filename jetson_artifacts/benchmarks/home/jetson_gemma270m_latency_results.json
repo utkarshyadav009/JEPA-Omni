@@ -1,0 +1,58 @@
+{
+  "model": "google/gemma-3-270m-it",
+  "hidden_size": 640,
+  "ram_before_load_mib": {
+    "used_mib": 2135,
+    "total_mib": 7620
+  },
+  "ram_after_load_mib": {
+    "used_mib": 2781,
+    "total_mib": 7620
+  },
+  "ram_peak_mib": {
+    "used_mib": 3474,
+    "total_mib": 7620
+  },
+  "hf_load_s": 14.435162107001815,
+  "generations": [
+    {
+      "prompt": "Describe what a busy city street looks like.",
+      "n_new_tokens": 60,
+      "elapsed_s": 8.1399660269999,
+      "ms_per_token": 135.66610044999834,
+      "text": "A bustling city street is a vibrant tapestry of activity, filled with people moving and interacting in various ways. It's a place where the sights, sounds, smells, and tastes are all interwoven to create an unforgettable experience. \n\nHere's some key features that define a busy city street:"
+    },
+    {
+      "prompt": "Explain how a bicycle works in simple terms.",
+      "n_new_tokens": 60,
+      "elapsed_s": 8.050475299998652,
+      "ms_per_token": 134.17458833331085,
+      "text": "Imagine you're riding your bike on a flat road, like the sidewalk. You have pedals that turn it to move forward and backward.\n\nA bicycle uses two main parts:\n\n*   **Wheels:** These are like spokes on a wheel. They allow you to change direction easily.\n"
+    },
+    {
+      "prompt": "What is the weather like on a sunny day?",
+      "n_new_tokens": 60,
+      "elapsed_s": 8.06027629700111,
+      "ms_per_token": 134.33793828335183,
+      "text": "The weather on a sunny day can vary greatly depending on several factors, including:\n\n*   **Time of year:** Summer in many regions will be warm and humid. Winter may bring cold temperatures and snow or ice.\n*   **Temperature:** Sunny days are generally warmer than cloudy ones.\n"
+    },
+    {
+      "prompt": "Tell me about your favorite kind of music.",
+      "n_new_tokens": 60,
+      "elapsed_s": 8.057782255997154,
+      "ms_per_token": 134.29637093328589,
+      "text": "As a large language model, I don't have personal preferences like \"favorite\" in the same way humans do. However, if I were to choose one genre that consistently resonates with me and is often considered a cornerstone of modern music, it would be **electronic dance music (EDM)**."
+    },
+    {
+      "prompt": "Summarize what happens during a thunderstorm.",
+      "n_new_tokens": 44,
+      "elapsed_s": 5.907169224999961,
+      "ms_per_token": 134.25384602272638,
+      "text": "A thunderstorm is a powerful atmospheric event characterized by lightning, thunder, rain, and sometimes hail. It's a period of intense weather with potential for flooding, heavy rainfall, strong winds, and even tornadoes.\n"
+    }
+  ],
+  "ms_per_token_mean": 134.54576880453465,
+  "ms_per_token_stdev": 0.6291918769943148,
+  "total_latency_s_mean": 7.643133820999355,
+  "comparison_qwen25_1_5b_ms_per_token": 203.0
+}

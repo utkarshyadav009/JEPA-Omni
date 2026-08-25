@@ -1705,3 +1705,633 @@ Standing methodology note for future runs: `best.pt`'s save criterion (lowest tr
 is a training-time proxy, not a held-out-eval selection -- do not assume it is the run's best
 checkpoint without checking the eval log directly, especially for long runs where the loss and the
 held-out metric can decouple after a plateau begins.
+
+## 2026-08-01 -- FREEZE Phase A1 + B4: first real Jetson hardware results on the locked checkpoints
+
+Tailscale SSH access to the physical Jetson (Orin Nano, 7620MiB usable RAM) was established this
+session (previously no remote-execution path existed from the dev machine). Hardware confirmed via
+`lsusb`: Intel RealSense D435i (camera, ID 8086:0b3a) and Seeed ReSpeaker 4 Mic Array UAC1.0 (mic
++ speaker, both directions, ID 2886:0018) -- both already attached, no additional hardware needed.
+Three real environment bugs found and fixed in the process: (1) `libportaudio2` missing system-side
+(sounddevice's pip package alone doesn't provide it); (2) the RealSense exposes 6 `/dev/video*`
+nodes, only index 4 is the 1920x1080 RGB color stream -- indices 0/1/3/5 report `isOpened()=True`
+but every `read()` fails, index 2 is single-channel infrared; `models/m5_live_capture.py`'s
+`LiveCameraCapture` previously defaulted to index 0 and had no post-open validation, so a wrong
+index would have silently produced zero frames forever -- fixed (default index 4, real read-test
+added before starting capture). (3) The ReSpeaker's ALSA `default_samplerate` is 16000Hz; Piper's
+`en_US-lessac-medium` voice outputs 22050Hz -- `sd.play()` at the mismatched rate raised
+`PortAudioError('Invalid sample rate')`; fixed with a `scipy.signal.resample_poly` step in
+`models/m5_tts.py`'s `TTSEngine.play()`, resampling to whatever the target device actually reports.
+
+**A1 (re-verify the 854MiB headroom figure directly on the locked checkpoints, not by
+architectural equivalence)**: ran `scripts/jetson_phase4_full_stack_memory_v2_withqwen.py`
+(defaults updated to the three locked checkpoint paths, M3 loading code updated for the locked
+checkpoint's `connector`/`connector_cfg` key names, which differ from the old `m4_joint/best.pt`
+bundle's `m3_connector`/`m3_cfg`) on-device against
+`m2_run2_vggsound197k_ego4d134k_neg200/step19000.pt` + `m3_multigran_richcaption_v2/last.pt` +
+`m4_decision_head_3class_speechonly_v2/best.pt`. Result: **peak=6781MiB/7620MiB, headroom=839MiB**
+(`checkpoints/m5_jetson/PHASE_A1_LOCKED_CHECKPOINTS_MEMORY_RESULTS.json`) -- confirms the prior
+854MiB figure (inferred from `connector_cfg` architectural equivalence to a different M3 checkpoint)
+directly, within 15MiB. Zero `NvMapMemAllocInternalTagged` warnings this run (prior runs near this
+memory level had shown them -- worth noting, not a guarantee, could be run-to-run variance). Real
+60-token generation through the locked M2+M3+Qwen2.5-1.5B-int8 stack produced coherent, on-topic
+output in 12.2s.
+
+**B4 (verify MicGate against REAL acoustic speaker->mic coupling, not `simulate_echo_path()`'s
+synthetic delay+attenuation model)**: ran `scripts/m4_echo_test_real_hardware.py` -- real Piper
+playback through the ReSpeaker's speaker output, real simultaneous mic recording, decision head
+run on what the mic actually picked up. Two real hardware/software bugs found and fixed mid-session
+that CONFOUNDED the first two attempts (91.7% and 83.3% false-interrupt, both discarded, not the
+reported number):
+  1. The physical speaker is a separate unit connected to the ReSpeaker via AUX cable, powered by
+     its OWN USB connection, not through the ReSpeaker -- it was unpowered for the first two runs.
+     `sd.play()` raised no error either way, so this was silent until the user (physically at the
+     Jetson) reported hearing nothing and plugged in its power cable.
+  2. `models/m5_tts.py`'s resample step (added earlier this session to fix a device sample-rate
+     mismatch) cast int16 PCM to float32 without normalizing to [-1,1] first -- `sd.play()`
+     interprets float32 arrays as already in [-1,1], so values up to +-32767 were feeding the
+     driver ~32767x out of range, producing hard-clipped/garbled output at the driver level. Fixed:
+     normalize by /32768.0 before resampling.
+  After both fixes, re-ran clean with the user physically present, confirming the speaker was
+  audible before trusting the result. `checkpoints/m5_jetson/PHASE_B4_REAL_ECHO_TEST_RESULTS.json`
+  (this file was overwritten with the clean run; the confounded 91.7%/83.3% runs are not preserved
+  as separate artifacts, only in this log entry):
+- **`no_fix` real acoustic self-echo false-interruption rate: 16.7% (2/12 windows)** -- a real,
+  moderate problem (not the near-certain one the broken-speaker runs implied), still enough to
+  justify `MicGate` over doing nothing.
+- **`mic_gate` mechanism correctness: 100% (159/159 ticks checked across all 6 utterances)** -- the
+  deployed mechanism (`should_run_decision()` returning `False` for the entire real playback
+  window) held with zero exceptions, consistent across all three runs regardless of the speaker bug.
+- Live control (mic not gated): quiet-room 2s recording correctly labeled `silence` (the earlier
+  broken-speaker runs had labeled it `backchannel` then `speak` -- most likely explained by
+  electrical noise from the unpowered-but-connected speaker leaking into the mic circuit, resolved
+  once it was properly powered; not confirmed by a dedicated electrical test, but no other variable
+  changed between runs). Live-speech cue (audible "Recording in 3, 2, 1, speak now" through the
+  speaker, replacing an earlier `input()`-based prompt that failed with `EOFError` over a
+  no-TTY SSH session) correctly triggered `speak` with the user physically present and speaking on
+  cue, both on this run and the immediately preceding (still-broken-speaker) run.
+
+**C3 (live-vs-offline World-State cosine gate) blocked, not run**: the offline-decode half of
+`scripts/m5_live_vs_offline_gate.py` depends on `torchcodec` (via `scripts/extract_features_av.py`'s
+`_decode_video_raw`/`_decode_audio_raw`), which fails to import on this Jetson even after fixing
+the obvious CUDA-lib-path issue (`LD_LIBRARY_PATH` pointed at the pip-bundled
+`nvidia/cu13/lib/libnvrtc.so.13`/`libcudart.so.13` -- present, but loading still hits a separate
+`libstdc++` ABI mismatch, `undefined symbol: ..._M_replace_coldEPcmPKcmm`). Root cause not fully
+diagnosed; likely the torchcodec wheel was built against a newer libstdc++ than this JetPack
+R36.4/Ubuntu 22.04 image ships. Not pursued further this session -- lower priority than Phase D per
+explicit instruction, and the live-capture half of the gate (no torchcodec dependency) works standalone.
+
+## 2026-08-01 (cont.) -- FREEZE lifted: VL-JEPA-style embedding predictor, Phase 1 comparison + MiniCPM5-1B latency
+
+Freeze lifted by explicit instruction. Live M3-connector -> Qwen autoregressive generation was too
+slow (perceive ~2.5-3.5s + generate ~1-6s/round, worse under thread contention) and prone to
+confidently-wrong captions on out-of-distribution content ("tap dancing" while typing -- VGGSound has
+no keyboard-typing class, model fell back to the nearest trained class; confirmed real once the
+speaker was properly powered: real acoustic self-echo false-interrupt rate 16.7%, quiet-room
+correctly silence, live speech correctly "speak", "guitar" hallucination reproduced live with no
+guitar present). User found VL-JEPA (arXiv 2512.10942, Meta FAIR + LeCun): predicts continuous text
+embeddings via InfoNCE instead of autoregressive tokens, non-autoregressive so genuinely real-time,
+with "selective decoding" (only decode to text on a real semantic shift). Verified real via direct
+paper read (not just abstract).
+
+**Adopted the training OBJECTIVE and inference PATTERN, not the paper's literal heavy predictor.**
+This project already ran that exact architecture comparison once, at M1: `models/predictor.py`'s
+`llama_last8` mode (last 8 layers of an LLM, the literal VL-JEPA recipe) LOST to the simple `mlp` mode
+(`m1_experiment_results.md`: R@1 13.9-16.2% llama_last8 vs 16.8% mlp at matched scale; M1's eventual
+22.5% R@1 winner was mlp scaled up, not llama_last8). Per direct instruction, re-ran the comparison
+at this task's actual scale rather than assuming the M1 finding transfers:
+
+**Phase 1 result (`train_m2_embed_predictor.py`, new script)**: frozen M2 `encode_pre_pool_tokens`
+(same pre-pool tokens M3Connector already consumes) -> trainable `Predictor` (mlp or llama_last8) ->
+InfoNCE against `TextTarget`'s EmbeddingGemma-300M Y-Encoder, VGGSound `gpt_action_brief` captions,
+8000 clips / 3000 steps, held-out R@1:
+- **mlp: R@1 = 18.3% (pred->text) / 19.6% (text->pred)** -- batch 64, stable, 19.5M trainable params.
+- **llama_last8: R@1 = 13.1% / 13.0%** -- had to drop to batch 16 (batch 64 crashed with a genuine
+  CUDA OOM at step 0, ~94GB used by this process alone on a 95GB GPU, before llama_last8 even
+  finished its first backward pass), 493M trainable params, ~2x slower per step even at the smaller batch.
+mlp wins decisively on R@1 AND practicality (4x larger stable batch, 25x fewer trainable params,
+no OOM risk). Confirms the M1-stage finding transfers to this AV-conditioned setting. **mlp is the
+predictor for Phase 3 (combined VGGSound+Action100M training).** Ego4D has no caption/text
+supervision in this project (used only for M2's separate cross-modal objective) -- not part of this
+training track.
+
+**MiniCPM5-1B real-hardware check (`scripts/jetson_minicpm5_latency.py`, new script)**, per direct
+request ("if we are retraining, use minicpm5-1B?"): real model, OpenBMB, 1.08B params, 24 layers,
+GQA 16Q/2KV, `hidden_size=1536` (matches Qwen2.5-1.5B exactly -- drop-in for M3Connector/
+UltravoxProjectorConfig's `llm_hidden` if ever swapped in). First run (no chat template) produced
+quiz-completion-style garbage -- formatting mismatch, not a broken model. Second run (chat template,
+default thinking mode) burned the full 60-token budgets entirely inside `<think>...</think>`, never
+reaching an answer -- matches the model's own docs ("always use enable_thinking=False"). Third run
+(`enable_thinking=False`) gave real, coherent, on-topic answers, including correctly saying "I don't
+have access to real-time weather data" rather than hallucinating.
+**Result: 119.3ms/token vs Qwen2.5-1.5B's 203ms/token (A1) -- 1.70x faster, real and consistent
+(stdev 0.43ms across 5 prompts).** Memory: 2493MiB after load+quantize, 3612MiB peak -- comparable to
+Qwen's footprint. Not yet integrated anywhere (Phase 4, live-inference-integration decision, not
+started) -- this is a standalone speed/quality check, no M3/M4b retraining around it has happened.
+
+## 2026-08-02 -- Action100M maximize + isolated training: root cause found, fix confirmed
+
+Per direct instruction: maximize Action100M extraction ("all the timestamps"), isolate it from
+VGGSound (no dilution confound), evaluate honestly, and if weak, research a real fix rather than
+just reporting failure.
+
+**Real scale check, before extracting further**: counted the ACTUAL total qualifying Action100M
+segments (every hierarchy level, all currently-downloaded videos): **4,609,257 segments across
+36,104 videos** (avg ~127/video). Extracting all of it would take ~36 days at measured throughput
+(~0.5-0.7s/clip) -- not feasible. User chose 50,000 segments as the practical ceiling (~9-10hr,
+ran ~4hr in practice). Final extraction used `--mode all` (every qualifying node, not just
+de-overlapped ones, per direct instruction that overlapping/nested segments are additive value,
+not noise) against the ~1007 videos already touched by the first de-overlap pass -- so this is
+DEEP coverage of ~1007 videos (~50 segments/video avg across many hierarchy levels/time points),
+not BROADER coverage of more of the 36,104 available videos. Final count: 50,000 segments, 1149
+extraction failures (2.3%, mostly a handful of videos with audio tracks shorter than video).
+
+**Isolated Action100M-only run** (`--skip-vggsound`, new flag, 45,094 train / 1,000 held-out,
+video-level split, field=`gpt_action_brief`, 6000 steps): **R@1 plateaued at 2.5-3.1%** from step
+~500 onward, flat through 6000 steps -- genuinely stuck, not a training-time or dilution artifact
+(this run has ZERO VGGSound mixed in, full undiluted signal). Rules out the earlier combined run's
+apparent VGGSound-R@1-drop being purely about batch dilution; Action100M itself, in this
+formulation, was the harder factor.
+
+**Root cause, found via qualitative inspection** (15-item retrieval gallery, held-out): most
+"wrong" top-1 predictions were topically close and ranked #2/15 (e.g. "Spray across grass" GT vs
+"Remove sod" pred; "smooth icing" GT vs "Whip cream" pred) -- the model IS learning real structure,
+not failing randomly. Two concrete data-quality problems found instead:
+1. **3.4% of `gpt_action_brief` captions are the literal string `"N/A"`** (or `NA`/`None`/`Null`),
+   not a null value -- `if not text` doesn't catch these since a non-empty string is truthy. Pure
+   noise, polluting the embedding space. Fixed: explicit placeholder-string filter added to
+   `load_action100m_splits`.
+2. **`gpt_action_brief` captions average only 3.1 words, 37.5% are <=2 words** ("Turn knob", "Fish
+   swim") -- generic short action phrases that many DIFFERENT video segments could plausibly share,
+   breaking InfoNCE's core assumption that each caption uniquely identifies its clip. This is a real
+   ceiling on retrievability, not a model failure. `gpt_action_detailed` (already extracted
+   alongside `brief`, no new extraction needed) averages 26.1 words -- far more specific.
+
+**Isolated Action100M-only, `gpt_action_detailed` field, otherwise identical setup**: **R@1 rose to
+5.6-8.8%** across the run (roughly 2-2.5x the `brief` field's ~2.5-3.1%), R@5 ~20-26% (vs ~10-12%),
+R@10 ~32-39% (vs ~15-19%). Confirms the caption-specificity hypothesis directly, on real held-out
+data.
+
+**Combined VGGSound+Action100M, `gpt_action_detailed` for both, heavier Action100M skew than the
+first combined attempt (43,572 Action100M vs 8,000 VGGSound, 84.5% Action100M)**: at step 5999 --
+**VGGSound R@1 = 16.6%/13.9%** (recovered to near Phase 1's pure-VGGSound-alone number of
+18.3%/19.6%, and never plateaued/declined the way the first `brief`-field combined attempt did),
+**Action100M R@1 = 8.8%/8.0%** (its own best number yet, better than the Action100M-isolated run --
+combining now appears to help BOTH datasets, not trade one off against the other). This resolves
+the earlier negative finding: the root cause was caption-field specificity, not an inherent
+data-scale or batch-dilution problem with mixing VGGSound and Action100M.
+
+**Standing conclusion**: `gpt_action_detailed` is the right field for this training track, not
+`gpt_action_brief` used in Phase 1's original comparison. Live-inference integration (Phase 4)
+intentionally NOT started this session per direct instruction -- reserved for user review.
+
+---
+
+**DDP + GradCache scale-up to global batch 2048 (2026-08-02, per direct instruction "use gradcache
+and DDP to scale to a 1000+")**: added `setup_distributed`/`sync_grads`/`gathered_info_nce_embed`/
+`gradcache_step` to `train_m2_embed_predictor.py`, adapted from `train_m2.py`'s proven DDP+GradCache
+implementation. Applied a preemptive fix for a real bug already hit once in this project's history
+(found via `git log --all --grep`, commit `0efdbf5` "Fix GradCache DDP head synchronization" in
+`train_m2.py`): `sync_grads()` only averages gradients every step, it does NOT correct different
+random initializations across ranks -- the original bug broadcast `predictor` from rank 0 but forgot
+`pooled_heads`/`vision_proj`/`ambient_proj`, so those heads trained as uncoordinated per-rank copies
+forever. Same class of module (`predictor` + `text_target.proj`) exists here, so both are now
+explicitly broadcast from rank 0 before training starts.
+
+2-GPU smoke test (500 clips, 6 steps) passed clean: broadcast fired once per rank, GradCache
+Phase1/2/3 ran without shape errors, eval + checkpoint write succeeded.
+
+**Full run**: 4 GPUs x batch-256 micro-batch x 2 GradCache chunks = **global batch 2048** (target
+1000+ exceeded 2x). Same data recipe as the best prior combined run (8000 VGGSound + all ~43.5k
+Action100M pairs, `gpt_action_detailed`, mlp predictor), 500 steps, eval every 50, ~6.6s/step on
+4x RTX PRO 6000 Blackwell (~55min wall clock total).
+
+Held-out R@1 (pred-to-text / text-to-pred) by step:
+
+| step | VGGSound R@1 | Action100M R@1 |
+|---|---|---|
+| 49 | 5.6 / 2.6 | 2.6 / 3.3 |
+| 99 | 13.1 / 9.2 | 6.4 / 7.8 |
+| 199 | 17.6 / 14.1 | 9.8 / 10.0 |
+| 249 | 17.9 / 15.8 | 10.5 / 11.7 |
+| **299 (peak, VGGSound)** | **18.0 / 15.4** | 10.3 / 10.5 |
+| **349 (peak, Action100M)** | 17.6 / 16.3 | **10.4 / 11.8** |
+| 399 | 17.6 / 16.3 | 10.0 / 11.1 |
+| 449 | 17.3 / 16.3 | 9.9 / 10.1 |
+| 499 (final, saved to last.pt) | 16.4 / 16.5 | 9.2 / 9.0 |
+
+**Headline result**: the batch-64 run needed 5999 steps to reach VGGSound R@1 16.6%/13.9%,
+Action100M R@1 8.8%/8.0%. The batch-2048 run **matched or beat both numbers by step ~150-200** --
+roughly 30x fewer gradient steps -- and peaked at VGGSound R@1 18.0%/16.3% and Action100M R@1
+10.4%/11.8% around step 300-350, both clearly above the batch-64 endpoint. Directly confirms the
+in-repo (M1: batch 8->256 drove R@1 16.8%->22.5%) and external (DPR, Arctic-Embed) evidence that
+batch size / negative count is the dominant lever for InfoNCE retrieval quality, now reproduced at
+this AV-conditioned embedding-predictor scale too.
+
+**Real problem found, not yet fixed**: training loop only writes `last.pt`, overwritten at every
+eval -- it does not track or separately save the best-eval checkpoint. Training accuracy (acc_v2t)
+climbed past held-out R@1's plateau (61% train acc at step 300 vs held-out R@1 already flat/starting
+to dip), a classic overfitting signature -- confirmed by held-out R@1 declining from its step
+~300-350 peak to the final step-499 numbers above. **The checkpoint actually on disk
+(`checkpoints/m2_embed_predictor_mlp_ddp_gradcache_bs2048/last.pt`) is the step-499 one, not the
+better step-300-350 one.** Needs a `best.pt`-by-held-out-R@1 save path before this checkpoint is used
+for anything downstream.
+
+---
+
+**Scale-up round 2 (2026-08-02, per direct instruction): delete AudioSet, broaden Action100M
+extraction, push batch further.**
+
+1. **Deleted unused AudioSet** (confirmed unhelpful -- RUN-2 final M2 checkpoint excluded it
+   entirely): 109GB raw mp4s + 85GB feature cache from RAID, 14.6GB of two superseded
+   AudioSet-trained M2 checkpoints from the tight root partition (94%->93%->then 66GB free after),
+   377MB tmpfs working cache, 256MB unused HF dataset mirror. Kept the shared `ast-finetuned-
+   audioset` classifier model (331MB) since Ego4D's AV-relevance-filter scripts still depend on it
+   as a general audio-event classifier, unrelated to whether raw AudioSet training data helped.
+
+2. **Fixed the missing best-checkpoint bug found in round 1**: `train_m2_embed_predictor.py` now
+   tracks `best_score` (sum of held-out R@1 across active eval sets, averaged) and saves `best.pt`
+   separately from `last.pt` whenever a new best is hit. Verified working in this round's run:
+   `best.pt` landed on step 359 (score 51.15), `last.pt` on step 399 (score 50.35, a small late dip
+   on Action100M) -- correctly NOT the same checkpoint.
+
+3. **Broadened Action100M extraction, 2 stages**:
+   - Stage 1: sharded `extract_features_action100m.py` (new `--shard-idx`/`--num-shards` args,
+     videos partitioned by `md5(video_uid) % num_shards`), ran 4 parallel processes (1/GPU),
+     `--mode all --limit 40000` each. Found GPU utilization stuck at ~0-30% despite CPU load
+     average hitting 232/256 -- root cause: `torch.set_num_threads()` was never called, so each
+     process's own CPU threadpool independently defaulted to `os.cpu_count()`=256, meaning 4
+     processes were oversubscribing the box ~4x and thrashing instead of parallelizing (confirmed:
+     `ps -L` showed ~280 threads per process). Not primarily an ffmpeg/torchcodec issue --
+     `num_ffmpeg_threads` already defaults to 1.
+   - Stage 2 (fix + re-launch, per direct follow-up question about low GPU utilization): added
+     `--cpu-threads` arg calling `torch.set_num_threads(N)`, killed the 4 stage-1 processes (zero
+     lost work -- file-existence checkpointing), relaunched as 8 processes (2/GPU, `--num-shards 8
+     --cpu-threads 32`). Exploited that `hash%8` is a clean, zero-overlap refinement of `hash%4`
+     (h%8 determines h%4 as `(h%8)%4`), so the new 8-way partition exactly bisects each of the old
+     4 shards with no wasted/duplicate work anywhere. Result: CPU idle jumped 56%->83.5%, load
+     average dropped 232->~40-50 steady-state even with 2x the processes, GPU utilization visibly
+     spiking (was flat ~0-30%, now bursts to 88%/46%/32%/etc per snapshot), and combined extraction
+     throughput roughly doubled (~448 segments/min -> ~827/min).
+   - Total: 8 shards x 20,000 = 160,000 new segments (all completed cleanly, 0/8 crashed), on top
+     of the existing 50,000. Merged per-shard caption files (written separately to avoid
+     concurrent-append corruption) into `scripts/action100m_captions.jsonl` -- verified 249,934
+     total lines, 249,934 unique `clip_id`s, zero duplicates. Feature cache: 249,934 `.pt` files,
+     947GB, matches caption count exactly.
+
+4. **Re-ran DDP+GradCache training with the expanded data + a further-doubled batch**: global batch
+   **4096** (256 micro-batch x 4 GradCache chunks x 4 GPUs, vs round 1's 2048), full available data
+   this time -- 173,053 VGGSound + 217,686 Action100M = 390,739 pairs (`gpt_action_detailed`,
+   `--n-clips 250000` effectively uncapped), 400 steps / eval every 40 (~4 epochs over the full
+   pool, vs round 1's ~500 steps over only 51.5k pairs = ~20 near-duplicate passes -- directly
+   fixing the data-starvation diagnosis from round 1). ~14.6s/step (2x round 1's 6.6s/step, as
+   expected from 2x microbatches), ~1.7hr wall clock.
+
+   Held-out R@1 (pred-to-text / text-to-pred) by step:
+
+   | step | VGGSound R@1 | Action100M R@1 |
+   |---|---|---|
+   | 39 | 7.7 / 7.1 | 3.2 / 4.6 |
+   | 119 | 20.7 / 20.6 | 11.0 / 12.9 |
+   | 199 | 25.9 / 26.4 | 15.2 / 15.3 |
+   | 279 | 29.2 / 28.1 | 17.5 / 19.0 |
+   | 319 | 30.1 / 30.3 | 18.9 / 20.2 |
+   | **359 (best.pt, highest combined score)** | 29.8 / 30.1 | **20.7 / 21.7** |
+   | 399 (final, last.pt) | **31.8 / 31.3** | 18.5 / 19.1 |
+
+   **Headline result**: VGGSound R@1 nearly DOUBLED vs round 1's peak (18.0%/16.3% -> 31.8%/31.3%),
+   Action100M R@1 roughly DOUBLED vs round 1's peak (10.4%/11.8% -> 20.7%/21.7% at best.pt). Unlike
+   round 1, VGGSound kept rising through the very last eval (no late-run decline) and Action100M's
+   decline from its step-359 peak to the final step was small (20.7->18.5, not the sharper drop seen
+   in round 1) -- directly consistent with the data-starvation diagnosis: round 1 repeated a small
+   51.5k-pair pool ~20x and overfit; round 2 saw a 390,739-pair pool for only ~4 epochs and did not.
+
+**Standing conclusion, updated**: both batch size AND data volume are real, independently-confirmed
+levers for this InfoNCE retrieval objective at this project's actual scale -- round 1 isolated the
+batch effect (same ~51.5k data, batch 64->2048, R@1 roughly matched/beat 6000 steps' worth of gains
+in ~150-200 steps), round 2 isolated adding real data volume on top (~51.5k->390.7k pairs, batch
+2048->4096, R@1 roughly doubled again with no overfitting signature this time). Live-inference
+integration (Phase 4) still intentionally NOT started -- reserved for user review.
+
+---
+
+**Real VL-JEPA batch size, checked directly (2026-08-02, per direct instruction not to assume the
+recalled ~30k figure)**: fetched the actual paper (arXiv 2512.10942). Image-only pretraining stage:
+**batch 24,000** (global/effective), 100,000 iterations, 2 billion samples seen, on 192 H200 GPUs
+(24 nodes x 8 GPUs), ~2 weeks. Supervised finetuning (SFT) stage: **batch 6,000**, ~2 days on the
+same 24 nodes, 35,000 steps. So round 3's batch 8,192 already exceeds VL-JEPA's own SFT batch and is
+roughly a third of their full pretraining batch -- useful calibration for how much further scaling
+still has real headroom against the paper's own numbers, on 192 fewer GPUs.
+
+**Scale-up round 3 (2026-08-02)**: extracted 80,000 more Action100M segments (8 shards x 10,000, same
+sharded pipeline as round 2) while respecting disk headroom for the still-in-progress video download
+(120,000-video target, 64,000 processed / 53.3% at the time, ~63% historical success rate on
+attempts -- reserved ~1.05TB for its remaining space needs before committing to extraction volume).
+Total Action100M: 249,934 -> **329,934** segments (verified zero duplicates). Combined with VGGSound:
+**459,298 total training pairs** (173,053 + 286,245, up from round 2's 390,739).
+
+Pushed batch to **8,192** (256 micro-batch x 8 GradCache chunks x 4 GPUs, double round 2's 4,096).
+Dry-run first (per established practice): completed 10 steps + eval cleanly, but GPU memory peaked at
+~91-92GB/98GB on 2 of 4 ranks -- thin headroom, flagged as a real risk (real training batches have
+variable-length AV-token padding that could spike higher than the synthetic probe) rather than
+assumed safe. Proceeded with frequent checkpointing (eval every 24 steps) and active OOM monitoring
+so a crash would cost minutes not hours, rather than backing off preemptively without evidence of an
+actual problem.
+
+**Action100M download pipeline diagnosed as bottlenecked, per direct request ("check the download
+script cause its slow") -- NOT fixed, only diagnosed, since a real fix requires restarting the Tor
+daemon and the standing instruction was explicitly "do not stop the script unless you have to"**:
+- Measured actual throughput from the live log: ~719 attempts/hour, ~300 successful downloads/hour,
+  despite 30 parallel worker threads (`--workers 30`) -- roughly 3% of naive theoretical capacity
+  (30 workers x even a conservative ~1 video/5s each would be ~21,600/hour).
+- Root cause: all 30 workers share ONE local Tor SOCKS5 proxy (single `tor` process, port 9050,
+  confirmed via `ps aux`/`ss -tlnp`). No `--ControlPort` is configured (confirmed: only SocksPort
+  9050 listening, no 9051), and the download script itself has zero NEWNYM/circuit-rotation logic
+  anywhere (`grep` for NEWNYM/stem/ControlPort: no matches). Tor's default behavior reuses a small
+  number of circuits for repeated connections to the same destination (youtube.com, over and over) --
+  with no forced rotation, the "6 account cookies with Tor IP switching" the user described is only
+  getting account-level diversity from the cookies; the underlying Tor exit-IP diversity is much
+  lower than the 30-worker concurrency implies, since nothing ever tells Tor to build fresh circuits.
+  This explains BOTH symptoms: (a) severe bandwidth contention, 30 workers effectively sharing a
+  handful of low-bandwidth Tor circuits: (b) the high failure rate (Failed: 24,764/66,500 = 37.2% at
+  last check) -- YouTube's bot-detection likely fingerprints the concentrated set of real exit IPs
+  despite different cookies per request.
+- Secondary finding: the script computes a per-video failure `reason` string (used only for the
+  30-consecutive-fails cooldown trigger) but never logs it anywhere -- there is currently NO
+  visibility into how much of the 37% failure rate is genuine unavailable/private/deleted videos
+  (unfixable, expected) vs proxy/bot-detection failures (fixable). Only one 15-minute cooldown has
+  ever triggered across the whole multi-day run (2026-07-30), so the explicit cooldown mechanism is
+  NOT the dominant time sink -- the steady-state per-request slowness is.
+- **Fix implemented and deployed (2026-08-02, ~23:15, per explicit follow-up instruction overriding
+  the earlier "do not stop the script" caution)**: added `renew_tor_circuit()` to
+  `download_action100m_videos.py` -- raw control-port protocol (no new `stem` dependency needed):
+  reads Tor's cookie-auth file, sends `AUTHENTICATE <hex>` then `SIGNAL NEWNYM` over a socket to
+  port 9051. Wired in two places: (1) immediately on every bot/429-classified failure (the strongest
+  fixable-failure signal), (2) defensively every 15 completed requests regardless of failures (own
+  12s rate-limit guard prevents over-calling past what Tor honors anyway). Also fixed the secondary
+  gap: failure `reason` strings are now bucketed (`bot_or_ratelimit` / `genuinely_unavailable` /
+  `timeout` / `other` / `exception`) and reported in the periodic progress line, so future runs have
+  real visibility into failure composition instead of a single opaque `Failed` count.
+  Deployment: killed the old Tor process (no ControlPort) and the old download script cleanly,
+  restarted Tor with `--ControlPort 9051 --CookieAuthentication 1` using the SAME `DataDirectory`
+  (bootstrapped in ~2s thanks to the cached consensus, not a slow from-scratch bootstrap), verified
+  the AUTHENTICATE+NEWNYM exchange manually (`250 OK` both), then relaunched the download script.
+  **Verified both explicit requirements from the follow-up instruction**: no duplicate downloads
+  (was already guaranteed -- `download_single_video` checks `os.path.exists()` before ever touching
+  the network, unrelated to this fix) and fast recovery to the 55%-complete frontier (confirmed:
+  900 already-downloaded videos skip-checked in ~4 seconds after restart, since skip-checks are a
+  cheap filesystem stat with no network I/O -- not slowed by the Tor bottleneck at all). No
+  control-port auth errors logged since restart. Effective throughput improvement not yet measured
+  (need to watch it reach the genuinely-new-download frontier past 55%) -- polling every 30 min.
+
+**Round 3 training result (2026-08-02, batch 8192, 459,298 pairs, 240 steps) -- a REAL, notable
+non-improvement vs round 2, reported honestly rather than glossed over**: final/best (step 239, since
+it was still improving at the last step): VGGSound R@1 29.2%/27.0%, Action100M R@1 19.4%/20.6%,
+combined score 48.10. This is BELOW round 2's peak (score 51.15 at step 359: VGGSound 29.8/30.1,
+Action100M 20.7/21.7) despite round 3 having MORE data (459,298 vs 390,739 pairs) and a bigger batch
+(8192 vs 4096). Both runs got similar EPOCH coverage (round 2: 400 steps x 4096 / 390,739 = ~4.2
+epochs; round 3: 240 steps x 8192 / 459,298 = ~4.28 epochs) -- so this isn't a data-starvation
+repeat of round 1's failure mode. The real asymmetry: round 3 had far fewer ABSOLUTE optimizer
+UPDATE steps than round 2 (240 vs 400) despite similar total samples-seen, since each step processes
+2x more samples. Adam-family optimizers' per-parameter adaptive estimates benefit from update-step
+count, not just samples-seen -- fewer, bigger steps can converge to a worse point per unit of
+samples processed, independent of any learning-rate mismatch. Learning rate was left unscaled
+(3e-4, unchanged from round 2) since round 2 itself never showed an LR-bottleneck symptom (VGGSound
+R@1 climbed cleanly to its very last eval, no early plateau) -- no evidence yet that LR is the actual
+problem, so isolating step-count as the single next lever to test rather than changing LR too and
+confounding the read.
+
+**Follow-up launched to test the step-count hypothesis directly, per standing instruction to keep
+scaling only while results keep improving (this one did NOT clearly improve, so pausing further
+data/batch escalation until this is understood)**: same batch 8192, same LR 3e-4, same 459,298-pair
+data -- steps raised from 240 to 600 (~10.7 epochs, well above round 2's 4.2). If this surpasses
+round 2's peak, confirms round 3 was simply under-trained in step-count terms, not that batch 8192
+itself is worse -- clears the way to resume the data+batch scaling loop. If it plateaus/declines at
+a similar or lower level despite ~2.5x the steps, that would be real evidence of a genuine large-batch
+generalization gap at this scale, and the next thing to try would be LR scaling instead.
+
+**Step-count hypothesis CONFIRMED decisively (2026-08-03)**: final result at step 599 (also the best
+checkpoint -- still improving at the very last step until a small late softening on VGGSound only):
+VGGSound R@1 35.4%/35.3%, Action100M R@1 23.5%/27.2%, combined score **60.70**. This is dramatically
+higher than round 3's original 240-step result (score 48.10) and also clearly surpasses round 2's
+peak (score 51.15) -- batch 8192 was never inherently worse than batch 4096, it simply needed
+proportionally more absolute optimizer update steps (Adam-family per-parameter adaptive estimates
+benefit from step count, not just samples-seen, exactly as hypothesized). Trajectory: matched the
+original 240-step run almost exactly through step 239 (as expected, same config), then kept climbing
+cleanly through ~step 520 before a mild plateau/late softening (VGGSound peaked at step 559: 36.3/
+35.5, dipped slightly to 35.4/35.3 by the final step -- the familiar late-run pattern from every
+round so far, but far less severe than round 1's overfitting collapse). Checkpoint:
+`checkpoints/m2_embed_predictor_mlp_ddp_gradcache_bs8192_stepcount_followup/best.pt` (step 599).
+
+**Literature check on LR scaling, per direct instruction not to hesitate on research** (2026-08-03):
+square-root LR scaling is the standard heuristic for Adam-family optimizers at increased batch size
+(confirmed via BERT large-batch training results, Large Batch Optimization for Deep Learning: Training
+BERT in 76 minutes, arXiv 1904.00962) -- under Adam, gradient noise variance scales with lr^2/batch,
+so constant variance requires lr up by sqrt(batch ratio). Caveat found in more recent work (arXiv
+2601.05034, "How to Set the Batch Size for Large-Scale Pre-training?"): sqrt-scaling can OVERSHOOT the
+true optimal at extreme batch ratios (1024x batch increase needed only ~3x lr in one reported case, not
+sqrt(1024)=32x) -- but this project's batch increases are much more modest (2x per round), where
+sqrt-scaling is expected to be reliable. SimCLR (arXiv 2002.05709), the most directly-relevant
+precedent (InfoNCE-style contrastive pretraining at large batch), was also checked for its own
+batch/LR pairing as a sanity reference.
+
+**LR-scaling follow-up launched** (2026-08-03, GPUs freed after the step-count run completed): same
+batch 8192, same 459,298-pair data, same 600 steps -- LR raised from 3e-4 to **4.24e-4** (sqrt(2) x
+the round-2-proven-good 3e-4 baseline, since batch doubled 4096->8192). Tests whether properly-scaled
+LR converges to the same/better quality FASTER (fewer effective steps needed) than the now-confirmed
+"just needs more steps" fix, or whether it's unnecessary now that step-count is fixed -- either way
+a genuine, informative result rather than an assumption.
+
+**LR-scaling result: a real, decisive NEGATIVE finding (2026-08-03) -- reported honestly, not
+discarded because it contradicted the hypothesis**. Early trajectory (through ~step 200) showed the
+scaled-LR run (4.24e-4) genuinely ahead of the base-LR run (3e-4) at matched steps (e.g. step 39:
+score 13.70 vs 10.55; step 119: 36.05 vs 33.90) -- faster early convergence, as sqrt-scaling theory
+predicts. But from roughly step 279 onward the advantage reversed: the scaled-LR run's held-out R@1
+plateaued and even declined at points while TRAIN accuracy kept climbing HIGHER than the base-LR
+run's at matched steps (step 550: acc_v2t 36.9% scaled-LR vs 33.5% base-LR) -- the exact
+generalization-gap signature the literature caveat warned about (arXiv 2601.05034: sqrt-scaling can
+overshoot the true optimal, even at more modest batch ratios than that paper's extreme 1024x case).
+Final result: scaled-LR run's best checkpoint was step 439 (score 57.95, `best.pt` -- note this is
+LOWER than the step-count follow-up's final score, and the scaled-LR run never surpassed this 57.95
+peak despite 160 more steps after it, while the base-LR run kept climbing all the way to its final
+step). **Base-LR (3e-4), more-steps-only run is the clear overall winner**: score 60.70 vs 57.95,
+a genuine ~4.5% relative gap, not noise (the gap was consistent across 3+ consecutive evals in the
+back half of training, not a single anomalous point).
+
+**Practical conclusion for future scaling rounds**: do NOT blindly apply sqrt-LR-scaling when
+increasing batch size further at this project's actual data/model scale -- keep LR at the
+round-2-proven 3e-4 baseline and let step-count (more epochs) do the work instead, unless a specific
+future batch increase is large enough that a fresh LR test is independently justified. This is the
+"don't assume, verify" lesson landing exactly as it should -- the literature-motivated hypothesis was
+tested honestly, and disproven at this scale, rather than assumed to hold because a paper said so.
+**Best overall checkpoint across all scale-up rounds**:
+`checkpoints/m2_embed_predictor_mlp_ddp_gradcache_bs8192_stepcount_followup/best.pt` (step 599, score
+60.70, VGGSound R@1 35.4%/35.3%, Action100M R@1 23.5%/27.2%, batch 8192, lr 3e-4, 459,298 pairs).
+
+---
+
+**Loss-function research + Soft-InfoNCE implementation (2026-08-03), per direct instruction to
+research LLM-JEPA / SIGReg / hard-negative-mining / soft-InfoNCE and pick the best next lever.**
+
+Researched all four real techniques rather than assuming:
+- **SIGReg** (checked `models/sigreg.py`, LeJEPA arXiv 2511.08544): an anti-collapse regularizer
+  that shapes the *marginal distribution* of a batch of embeddings toward isotropic Gaussian N(0,I).
+  No pairs involved, unsupervised. Ruled out -- this project's InfoNCE-trained predictor shows no
+  collapse symptom (held-out R@1 keeps improving cleanly with more steps/data); SIGReg solves a
+  different problem than the one we actually have.
+- **LLM-JEPA** (arXiv 2509.14252, Atlassian/NYU/Brown, Sept 2025, real paper, checked directly):
+  hybrid loss `L = gamma*L_nexttoken + lambda*cosine_dist(Predictor(Enc(source)), Enc(target))` added
+  ON TOP of standard next-token LM training as a regularizer (+14.17pp on fine-tuning tasks in their
+  results). Predictor is a tied-weight reuse of the LLM's own attention via `[PRED]` tokens, not a
+  separate network. Real, cheap idea extracted: a direct positive-pair alignment term is complementary
+  to (not a replacement for) InfoNCE's ranking signal -- noted as a candidate for a LATER round, not
+  chosen as the single next lever since it doesn't address this project's specific known data problem
+  (see below).
+- **Hard-negative mining** (NV-Retriever arXiv 2407.15831, Conan-embedding arXiv 2408.15710, "Breaking
+  the Batch Barrier" arXiv 2505.11293): real, well-evidenced technique -- "using hard negatives can
+  let you get away with smaller batches while still training an effective model," beats naive
+  in-batch negatives beyond a point. NOT chosen as the immediate next lever: it requires new
+  infrastructure (periodic nearest-neighbor mining index over the caption pool) AND -- more
+  importantly -- it would actively amplify a problem this project already found in its own data
+  (short/generic captions being near-duplicates across different clips, the exact reason
+  `gpt_action_brief` was replaced with `gpt_action_detailed`). Mining hard negatives without first
+  handling false negatives would surface exactly those false-negative-prone pairs as if they were
+  informative negatives.
+- **Soft-InfoNCE** (real named technique, confirmed via search -- "SoftNCE smooths the hard labels of
+  InfoNCE," "Soft-InfoNCE assign[s] real-valued weights to negatives according to estimated
+  similarity"): **chosen as the next lever.** Directly fixes the false-negative risk that would
+  otherwise block hard-negative mining, costs nothing extra to implement (text embeddings for every
+  sample in the batch already exist as a normal byproduct of the forward pass -- no new mining index,
+  no new data pipeline), and is complementary to continued batch/data scaling rather than competing
+  with it.
+
+**Implementation** (`train_m2_embed_predictor.py`): added `_soft_targets_from_text_sim()` -- builds a
+soft cross-entropy target per anchor from TRUE caption-to-caption cosine similarity (using the
+frozen, already-L2-normalized `TextTarget.encode_text` output -- confirmed via
+`text_target.py:74/86`, `F.normalize(z, dim=-1)` -- so the dot product IS cosine similarity, no
+extra normalization needed). Uses the TRUE text embeddings, not the predicted embeddings, as the
+similarity reference -- deliberately avoids a moving/circular target. Self-similarity is always 1.0
+(maximum), so the correct answer always dominates the soft target; only genuinely-similar OTHER
+captions get graded partial credit instead of full false-negative punishment. New `_soft_cross_entropy()`
+KL-style loss. Wired through `gathered_info_nce_embed()` (new `soft_infonce`/`soft_temp` params),
+`gradcache_step()`, and `main()` via new `--soft-infonce` / `--soft-temp` (default 0.05, colder than
+the main 0.07 InfoNCE temperature) CLI flags.
+
+**Verified in isolation** (CPU-only unit test, since all 4 GPUs were occupied by the batch-16384 run):
+simulated a near-duplicate caption pair -- got real graded credit split (61.9%/38.1%) instead of a
+hard 0/1 false-negative punishment; an unrelated anchor got correctly near-one-hot soft targets
+(1.0 on the true position); at a very cold soft-temp the soft loss correctly reduces to being
+numerically identical to standard hard cross-entropy (0.1785 vs 0.1785) -- confirms the implementation
+is correct before spending any GPU time on it. Not yet run end-to-end on GPU (queued for the next
+training round once the current batch-16384 run finishes and frees the GPUs).
+
+**Round 5 result (batch 16384, 2026-08-03/04, ~16.1hr wall clock, 573,053 pairs = 173,053 VGGSound +
+399,934 (post-round-5-extraction) Action100M pairs, 1000 steps, lr 3e-4 unchanged)**: **new best
+checkpoint, but a smaller relative gain than the previous batch doubling.** best.pt at step 799: score
+**62.05** (VGGSound R@1 33.6%/35.0%, Action100M R@1 26.2%/28.1%), beating the batch-8192 peak (60.70)
+by ~2.2% relative -- compare to the 4096->8192 jump's ~17.5% relative gain (51.15->60.70). Diminishing
+returns from batch size alone are now visible, consistent with round 3's own lesson that batch
+increases need proportionally more steps to pay off, and with this session's later research finding
+that hard-negative-mining/soft-label techniques (not just more batch/data) are the well-evidenced next
+lever once batch scaling starts flattening. Trajectory: matched batch-8192 closely through ~step 300,
+trailed through the first ~700 steps (e.g. step 399: score 55.35 vs batch-8192's 57.50 at the same
+step), then caught up and took the lead by step 699 (score 61.85, first time surpassing 60.70), peaked
+at step 799 (62.05), then softened slightly to the final step 999 (score ~60.5, last.pt) -- the same
+late-training softening pattern seen in every round so far, again correctly NOT captured in best.pt
+thanks to the round-2 checkpoint-tracking fix. Confirms: bigger batch DOES still help at this scale,
+just with materially smaller marginal returns than the previous doubling -- data quality / negative
+quality (soft-InfoNCE, next) is likely a better next investment than continuing to double batch size
+blindly. Checkpoint: `checkpoints/m2_embed_predictor_mlp_ddp_gradcache_bs16384/best.pt` (step 799).
+
+**Next: Soft-InfoNCE comparison launched** at the same batch-16384/573k-pair/lr-3e-4 configuration,
+`--soft-infonce --soft-temp 0.05`, to directly test whether it beats 62.05 -- first real GPU
+validation of the soft-target implementation (previously only unit-tested on CPU).
+
+**Correction + frozen-similarity variant added mid-run (2026-08-04), per direct user question**: the
+user found the actual reference Soft-InfoNCE repo (github.com/Alex-HaochenLi/Soft-InfoNCE, "Rethinking
+Negative Pairs in Code Search", EMNLP 2023) and asked directly whether this implementation matches it.
+Checked honestly: it does NOT, in one real way -- the original docstring's claim that `z_t` (from
+`TextTarget.encode_text()`) is "frozen, stable" was WRONG. `encode_text()`'s output passes through
+`self.proj`, one of this project's own TRAINABLE modules (confirmed via `--soft-infonce`'s broadcast
+list and `text_target.py`), so the soft-target similarity source was shifting step-to-step as
+training progressed -- a milder version of exactly the circular-dependency risk the reference paper's
+authors designed around by using an EXTERNAL, static source (BM25 / SimCSE / a fixed checkpoint).
+
+Follow-up question from the user: does a code-search paper even transfer to an AV-embedding/caption
+setup? Answered directly rather than assuming: the DOMAIN-SPECIFIC part of their design (BM25 lexical
+scoring, tuned for code+docstring pairs) doesn't transfer as-is, but the CORE MECHANISM does -- their
+insight is that when the candidate POOL is text (their code documentation, our captions), near-duplicate
+text descriptions cause false-negative punishment regardless of what's being retrieved against that
+text (code, in their case; an AV embedding, in ours). Same failure mode on the candidate side,
+different query side.
+
+**Fix implemented** (`models/text_target.py`): added `encode_text_frozen_raw()` -- returns the
+PRE-proj pooled embedding (native EmbeddingGemma/MiniLM space, always `torch.no_grad()`), skipping
+the trainable `.proj` head entirely. `self.base` (the actual pretrained encoder) is already frozen by
+default (`unfreeze_base=False`), so this required no periodic snapshotting and no new external model
+(BM25/SimCSE) -- just read the genuinely-frozen intermediate representation that already exists in
+the forward pass. Verified in isolation (CPU, MiniLM): near-duplicate caption pair ("a dog barking
+loudly" / "a dog barks loudly outside") scored 0.855 cosine similarity, unrelated pair
+("glass shattering") scored 0.111 -- confirms real, sane semantic structure, and `requires_grad=False`
+confirmed.
+
+Wired through `train_m2_embed_predictor.py` as a new `--soft-infonce-frozen-sim` flag (default off,
+so the currently-running comparison is unaffected): `gradcache_step()` computes
+`encode_text_frozen_raw()` once per microbatch during Phase 1 only (never needs Phase-3 replay, since
+it's always no_grad and depends on no trainable parameter, unlike `z_t`), threaded through
+`gathered_info_nce_embed()`'s new `sim_local` parameter. Queued as the next comparison once the
+current (non-frozen-sim) Soft-InfoNCE run finishes.
+
+## Jetson latency investigation + TensorRT export attempt (2026-08-04)
+
+Per direct request, real inference test (not just training) of the VL-JEPA-style embedding
+predictor on Jetson (`bmo-desktop`, JetPack R36.4.7 Orin, 7.4GB unified memory). Transferred
+`checkpoints/m2_embed_predictor_mlp_ddp_gradcache_bs16384/best.pt` (step 799) + 30 real
+`gpt_action_detailed` captions as a candidate bank. Built `scripts/jetson_embed_predictor_latency.py`
+(on Jetson): loads ViT-L/WavJEPA-base/WavJEPA-nat/M2 quantized via the proven `q_int8_cpu_then_move`
+sequence, loads the new (unquantized, small) Predictor + co-trained `text_target.proj` weights from
+the checkpoint, precomputes candidate embeddings once, live-loops on the CSI camera (no mic --
+real silent zero-valued audio buffer used instead).
+
+**Real result: predictor + nearest-neighbor lookup = 8ms (5ms predictor + 3ms NN), vs the old
+M3-connector-to-Qwen autoregressive path's 1-6s generation.** This validates the core architectural
+thesis of the whole redesign. TOTAL pipeline latency (AV encode + M2 + predictor + NN) = 2534ms,
+dominated by AV encoding (2366ms). Full breakdown: AV_encode=2366ms, M2=160ms, predictor=5ms,
+nn_lookup=3ms. Memory: 6472MiB/7620MiB used, 1148MiB free -- fits, no OOM.
+
+**Isolated the AV-encode bottleneck** (`scripts/jetson_isolate_encode_timing.py`): ViT-L vision
+encode = 1907ms (81% of total), WavJEPA-base = 159ms, WavJEPA-nat = 287ms. Real CUDA-streams
+concurrency test (vision + audio on separate streams) gave essentially zero gain (2350ms vs 2352ms
+sequential, 0.09%) -- DISPROVES the "run vision and audio async" hypothesis empirically: Jetson's
+single GPU is compute-saturated during ViT-L's forward, no idle capacity for audio to exploit
+concurrently. DLA ruled out via research (transformer/attention layers unsupported on DLA as of
+JetPack 6.2). GGML/llama.cpp's clip.cpp ruled out as a first step (wrong domain fit -- built for
+CLIP-style LLaVA/Qwen-VL projectors, not V-JEPA2's architecture; documented GPU-support gaps).
+
+**TensorRT export: real attempt, real hard blocker found, NOT a config/tuning issue.** ONNX export
+succeeded (`torch.onnx.export(..., dynamo=True)`, GPU fp16, 191.7s, after fixing a CPU-forward hang
+by moving the trace to GPU and installing `onnxscript` for the dynamo path over the legacy exporter,
+which failed at serialization with a mixed CPU/CUDA tensor-device bug). `trtexec` engine BUILD then
+failed identically across THREE real attempts, ruling out both hypotheses tested:
+1. Workspace-size tuning (4096MiB -> 1024MiB `--memPoolSize`): same failure, same node, same
+   requested allocation size (4362076160 bytes, ~4.36GB) both times. Rules out "just needs a smaller
+   workspace budget."
+2. ONNX graph simplification (`onnxsim`, confirmed `check=True`, real graph rewrite applied): same
+   failure, same node (`model.encoder.layer.0.norm1... ONNXTRT_Broadcast`), same exact byte count.
+   Rules out "bad LayerNorm op mapping, fixable by graph rewrite" -- graph already used native
+   `LayerNormalization` ops (49 instances, confirmed via direct op-count inspection) before
+   simplification even ran.
+
+The repeated exact byte count is diagnostic: 4362076160 bytes / 4 (fp32) ~= 1.09B elements; 16 heads
+x 8192^2 (full self-attention score matrix over all 8192 video tokens) = 1.07B elements -- close
+enough (~1.5% diff, plausible alignment padding) to conclude this is TensorRT materializing the full
+dense multi-head attention score matrix as a single buffer for even one tactic candidate's build-time
+profiling, not a bug. Real conclusion: **this is a genuine architectural/hardware ceiling** --
+uncached, full O(n^2) self-attention over 8192 tokens needs ~4.3GB fp32 (~2.2GB fp16, also tried and
+also failed) in one shot, which doesn't fit in what's left of 7.4GB total unified memory once TRT's
+own build overhead (~2.5GB) is subtracted, regardless of workspace-pool config or graph representation.
+Not pursued further (would require a custom fused-attention TensorRT plugin -- a much larger, separate
+engineering effort with uncertain payoff given TensorRT's own literature shows only 17.7%-a-few-x
+variance in realized speedup even when it DOES build). **Verdict: TensorRT is not a viable lever for
+ViT-L on this 7.4GB Jetson via the standard ONNX-import path.** The already-proven 2534ms total /
+8ms predictor-path latency stands as the real, validated number for this hardware.

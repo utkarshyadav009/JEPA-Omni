@@ -1,0 +1,69 @@
+{
+  "scene": "a person sitting",
+  "thought": "I see a person lying down, and I'm curious about them. Maybe they're resting or just want to be quiet - I should ask if they need anything while I can keep the mood bright for Finn",
+  "results": [
+    {
+      "variant": "A_current_all_in_user",
+      "text": "Finn, you look a bit tired; maybe I can play a soft lullaby while you rest.",
+      "ms": 530.4229259490967,
+      "grounded": true,
+      "transcript": "You see: a person sitting Your thought: I see a person lying down, and I'm curious about them. Maybe they're resting or just want to be quiet - I should ask if they need anything while I can keep the mood bright for Finn Say one short friendly line to the person.",
+      "history": null
+    },
+    {
+      "variant": "B_system_grounding",
+      "text": "BMO, thanks! I saved a moment for you.",
+      "ms": 212.1429443359375,
+      "grounded": false,
+      "transcript": "Hey BMO.",
+      "history": [
+        {
+          "role": "system",
+          "content": "You can see: a person sitting. You are thinking: I see a person lying down, and I'm curious about them. Maybe they're resting or just want to be quiet - I should ask if they need anything while I can keep the mood bright for Finn"
+        }
+      ]
+    },
+    {
+      "variant": "C_assistant_thought",
+      "text": "Boo! BMO, thanks for talking to me. What's your favorite thing about being alive?",
+      "ms": 322.2928047180176,
+      "grounded": false,
+      "transcript": "Hey BMO.",
+      "history": [
+        {
+          "role": "assistant",
+          "content": "(thinking) I see a person lying down, and I'm curious about them. Maybe they're resting or just want to be quiet - I should ask if they need anything while I can keep the mood bright for Finn"
+        }
+      ]
+    },
+    {
+      "variant": "D_voice_the_plan",
+      "text": "Finn, you want to try the new pizza? I'll keep the lights on!",
+      "ms": 276.97157859802246,
+      "grounded": false,
+      "transcript": "Say this out loud in your own words, one short line: ask if they need anything while I can keep the mood bright for Finn",
+      "history": null
+    },
+    {
+      "variant": "E_scene_only_utterance",
+      "text": "BMO is curious! Let's play a game.",
+      "ms": 180.32312393188477,
+      "grounded": false,
+      "transcript": "Hey BMO.",
+      "history": [
+        {
+          "role": "system",
+          "content": "You can see: a person sitting."
+        }
+      ]
+    },
+    {
+      "variant": "F_control_no_grounding",
+      "text": "BMO is intrigued! Let's play a game and see where the fun goes.",
+      "ms": 269.55723762512207,
+      "grounded": false,
+      "transcript": "Hey BMO.",
+      "history": null
+    }
+  ]
+}

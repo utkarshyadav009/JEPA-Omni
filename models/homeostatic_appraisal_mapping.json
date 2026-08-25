@@ -1,0 +1,17 @@
+{
+  "_comment": "Explicit, file-backed mapping from the 4 homeostatic variables (energy, social_need, curiosity, stress) plus recent_novelty (a fast-decaying real-event signal, deliberately separate from curiosity -- see homeostatic_state.py's dataclass comment for why) to the Face Engine's real 5D AppraisalVector (valence, arousal, control, novelty, obstruct). Coefficients are a real, reasoned design, revised 2026-08-04 after a real test found the first version routing prolonged-silence/boredom to 'face_shocked_pale' instead of a sad/lonely expression -- the bug was novelty being driven by curiosity (the drive to WANT novelty) instead of recent_novelty (whether something ACTUALLY novel just happened), which are near-opposite during silence. NOT calibrated against real BMO-Project deployment data (none exists yet). Ranges (clamp) taken directly from observed min/max in the real face_tags.csv (32 rows, /home/bmo/bmo_fresh/BMO Face Engine/face_tags.csv, read 2026-08-04): valence in [-1,1], arousal/control/novelty/obstruct in [0,1].",
+  "coefficients": {
+    "valence": {"bias": 0.3, "social_need": -0.6, "stress": -0.5, "energy": 0.1, "curiosity": -0.2, "recent_novelty": 0.0},
+    "arousal": {"bias": 0.25, "stress": 0.55, "energy": 0.15, "social_need": 0.05, "curiosity": 0.1, "recent_novelty": 0.35},
+    "control":  {"bias": 0.6, "stress": -0.5, "energy": 0.2, "social_need": -0.15, "curiosity": -0.1, "recent_novelty": 0.0},
+    "novelty":  {"bias": 0.0, "recent_novelty": 0.85, "stress": 0.15, "energy": 0.0, "social_need": 0.0, "curiosity": 0.0},
+    "obstruct": {"bias": 0.0, "stress": 0.5, "social_need": 0.3, "curiosity": 0.15, "energy": -0.2, "recent_novelty": 0.0}
+  },
+  "clamp": {
+    "valence": [-1.0, 1.0],
+    "arousal": [0.0, 1.0],
+    "control": [0.0, 1.0],
+    "novelty": [0.0, 1.0],
+    "obstruct": [0.0, 1.0]
+  }
+}

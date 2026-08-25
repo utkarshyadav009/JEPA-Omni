@@ -57,8 +57,20 @@ class LiveCameraCapture:
     just wastes CPU on frames that get overwritten in RollingVideoBuffer's
     fixed-length deque before ever being sampled)."""
 
-    def __init__(self, stream, device_index: int = 0, target_fps: float = 6.4,
+    def __init__(self, stream, device_index: int = 4, target_fps: float = 6.4,
                  resolution: int = 256):
+        # device_index default (2026-08-01, real hardware confirmed): the attached
+        # camera is an Intel RealSense D435i, which exposes SIX /dev/video* nodes,
+        # not one. Index 4 is the 1920x1080 RGB color stream (confirmed by direct
+        # capture + auto-exposure ramp-up over the first ~10 frames). Indices
+        # 0/1/3/5 report isOpened()=True but EVERY cap.read() call fails (ok=False)
+        # -- they need a specific pixel-format request this class doesn't make, and
+        # silently produce ZERO frames forever if selected, since _run only pushes
+        # on ok=True and never raises for a persistently-failing read. Index 2 is a
+        # single-channel 1280x720 stream (infrared), not RGB. If a different
+        # RealSense unit or a plain UVC webcam is attached instead, re-run the
+        # per-index probe (grab 15+ frames per index, check shape/channel-count/
+        # rising mean brightness) before trusting index 4 again.
         self.stream = stream
         self.device_index = device_index
         self.target_fps = target_fps
@@ -88,6 +100,18 @@ class LiveCameraCapture:
             raise RuntimeError(
                 f"could not open camera device index {self.device_index} -- "
                 f"check /dev/video* exists and is accessible (v4l2-ctl --list-devices)")
+        # isOpened()=True is NOT sufficient on a multi-stream device (e.g. RealSense
+        # D435i's non-RGB sub-streams all open() fine but every read() fails) --
+        # confirm at least one real frame comes back before starting the background
+        # thread, so a wrong index fails loudly here instead of silently producing
+        # zero frames forever.
+        ok, _ = cap.read()
+        if not ok:
+            cap.release()
+            raise RuntimeError(
+                f"camera device index {self.device_index} opened but read() failed -- "
+                f"wrong sub-stream index for a multi-stream device? probe other indices "
+                f"(grab 15+ frames, check shape/rising brightness) before retrying")
 
         def _loop():
             period = 1.0 / self.target_fps
@@ -113,14 +137,22 @@ class LiveCameraCapture:
 
 
 class LiveMicCapture:
-    """Reads real audio from the system's default input device via
-    sounddevice (PortAudio), pushes into stream.ingest_audio_chunk() at
+    """Reads real audio from the ReSpeaker 4 Mic Array via sounddevice
+    (PortAudio), pushes into stream.ingest_audio_chunk() at
     StreamingConfig.tick_interval_sec cadence (0.25s chunks by default) --
     ingest_audio_chunk already fans this out to BOTH the 2s Whisper/
     decision buffer and the 10s WavJEPA/ambient buffer internally."""
 
     def __init__(self, stream, sample_rate: int = 16000, chunk_sec: float = 0.25,
-                 device: Optional[int] = None):
+                 device: Optional[int] = 24):
+        # device default (2026-08-01, real hardware confirmed): sounddevice index 24
+        # is "ReSpeaker 4 Mic Array (UAC1.0)" (in=6, out=2 -- it's also the playback
+        # device TTSEngine should target, see models/m5_tts.py). Requires
+        # libportaudio2 installed system-side (not just the `sounddevice` pip
+        # package) -- PortAudio raised OSError('PortAudio library not found') until
+        # this was installed via apt on the Jetson. Do not rely on device=None
+        # (system default) resolving to this device; verify with
+        # sounddevice.query_devices() if the attached hardware changes.
         self.stream = stream
         self.sample_rate = sample_rate
         self.chunk_sec = chunk_sec

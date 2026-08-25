@@ -22,11 +22,13 @@ from __future__ import annotations
 
 import argparse
 import csv
+import glob as glob_mod
 import json
 import logging
 import os
 import subprocess
 import sys
+import threading
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, List, Tuple
@@ -45,6 +47,29 @@ CSV_URLS = {
 YTDLP_BIN = sys.executable.replace("python", "yt-dlp")
 if not os.path.exists(YTDLP_BIN):
     YTDLP_BIN = "yt-dlp"
+COOKIE_DIR = "/home/utkarsh"
+
+
+def get_cookie_files() -> List[str]:
+    """Dynamically scans for all available cookie files in COOKIE_DIR."""
+    cookies = sorted(glob_mod.glob(os.path.join(COOKIE_DIR, "cookies[0-9]*.txt")))
+    if not cookies:
+        cookies = sorted(glob_mod.glob(os.path.join(COOKIE_DIR, "cookies_*.txt")))
+    if not cookies:
+        cookies = [os.path.join(COOKIE_DIR, "cookies.txt")]
+    return cookies
+
+
+def get_cookie_for_thread() -> str:
+    """Assigns a cookie file to the current thread via round-robin from currently available cookies."""
+    cookie_files = get_cookie_files()
+    tid = threading.get_ident()
+    idx = abs(hash(tid)) % len(cookie_files)
+    return cookie_files[idx]
+
+
+# Tor SOCKS5 proxy (if running)
+TOR_PROXY = "socks5://127.0.0.1:9050"
 
 
 def setup_logging(log_file: str):
@@ -118,11 +143,16 @@ def download_single_clip(
     start_sec: float,
     end_sec: float,
     out_dir: str,
+    existing_files: Dict[str, str] | None = None,
 ) -> Tuple[str, bool, str]:
     """Downloads a single 10-second MP4 video clip containing BOTH video and audio streams."""
     safe_ytid = ytid.replace("/", "_").replace("\\", "_")
     out_filename = f"{safe_ytid}_{int(start_sec)}_{int(end_sec)}.mp4"
     out_path = os.path.join(out_dir, out_filename)
+
+    # Check if file already exists in current directory or ANY existing subset directory
+    if existing_files is not None and out_filename in existing_files:
+        return ytid, True, "exists"
 
     if os.path.exists(out_path) and os.path.getsize(out_path) > 10000:
         return ytid, True, "exists"
@@ -133,14 +163,28 @@ def download_single_clip(
     cmd = [
         YTDLP_BIN,
         url,
+        "--cookies",
+        get_cookie_for_thread(),
+        "--proxy",
+        TOR_PROXY,
         "--remote-components",
         "ejs:github",
+        "--sleep-requests",
+        "1",
+        "--min-sleep-interval",
+        "1",
+        "--max-sleep-interval",
+        "2",
+        "--limit-rate",
+        "10M",
+        "--extractor-retries",
+        "1",
         "-N",
-        "4",
+        "2",
         "--download-sections",
         section_arg,
         "-f",
-        "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+        "bestvideo[height<=360][ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
         "--merge-output-format",
         "mp4",
         "-o",
@@ -149,10 +193,6 @@ def download_single_clip(
         "--quiet",
         "--no-warnings",
     ]
-
-    cookie_path = "/home/utkarsh/cookies.txt"
-    if os.path.exists(cookie_path):
-        cmd.extend(["--cookies", cookie_path])
 
     try:
         res = subprocess.run(cmd, capture_output=True, text=True, timeout=90)
@@ -221,6 +261,17 @@ def main():
         all_items = all_items[: args.max_clips]
         logging.info(f"Limited download to first {len(all_items):,} clips")
 
+    # 1.5 Scan ALL existing MP4 files across all AudioSet subset folders (strong, balanced, eval, unbalanced)
+    existing_files: Dict[str, str] = {}
+    if os.path.exists(args.output_dir):
+        for root, _, files in os.walk(args.output_dir):
+            for f in files:
+                if f.endswith(".mp4") and not f.endswith(".part"):
+                    f_path = os.path.join(root, f)
+                    if os.path.getsize(f_path) > 10000:
+                        existing_files[f] = f_path
+    logging.info(f"Scanned {len(existing_files):,} pre-existing AudioSet MP4 clips across all subset folders")
+
     # Save manifest mapping for downstream dataloaders
     manifest_path = os.path.join(subset_dir, "manifest.json")
     manifest_dict = {}
@@ -244,9 +295,10 @@ def main():
     n_failed = 0
     missing_ytids = []
 
+    consecutive_fails = 0
     with ThreadPoolExecutor(max_workers=args.workers) as executor:
         futures = {
-            executor.submit(download_single_clip, ytid, start, end, subset_dir): (ytid, start, end)
+            executor.submit(download_single_clip, ytid, start, end, subset_dir, existing_files): (ytid, start, end)
             for ytid, start, end, _ in all_items
         }
 
@@ -260,9 +312,22 @@ def main():
                     n_skipped += 1
                 else:
                     n_success += 1
+                consecutive_fails = 0
             else:
                 n_failed += 1
                 missing_ytids.append(ytid)
+                status_lower = status.lower()
+                if "bot" in status_lower or "sign in" in status_lower or "429" in status_lower:
+                    consecutive_fails += 1
+                else:
+                    consecutive_fails = 0
+
+            if consecutive_fails >= 30:
+                logging.warning("⚠️ Detected 30 consecutive bot-lock / rate-limit failures. Initiating 15-minute automatic cooldown...")
+                import time
+                time.sleep(900)
+                logging.info("✅ 15-minute cooldown complete. Resuming download pipeline...")
+                consecutive_fails = 0
 
             if count % 100 == 0 or count == total:
                 pct = (count / total) * 100

@@ -146,6 +146,63 @@ class WhisperSpeechEncoder(nn.Module):
         return hidden, valid_frames
 
 
+class MoonshineSpeechEncoder(nn.Module):
+    """Task 150: real replacement for the decision-head-facing leg of
+    WhisperSpeechEncoder -- NOT a replacement for Whisper everywhere. The
+    M4b speech projector / AsyncThinker deep-grounding path still uses
+    WhisperSpeechEncoder (untouched, out of scope here -- confirmed by
+    reading scripts/bmo_jetson_startup.py that the currently-DEPLOYED
+    production stack never wires that path up at all, only the 3-class
+    decision head, which is the actual load-bearing consumer this swap
+    targets).
+
+    Real, measured win (2026-08-07, Jetson): 20-26ms encode vs Whisper-
+    medium's 277ms -- 10-13x faster, and (unlike Whisper's fixed 1500-
+    position/30s-padded window) Moonshine's ergodic sliding-window encoder
+    naturally outputs a length proportional to the real input, so there is
+    no padding-derived tail to slice off -- valid_frames below is just the
+    real output length, kept only for interface parity with
+    WhisperSpeechEncoder so callers don't need two code paths.
+
+    Real, measured cost: retraining SpeechOnlyThreeClassHead on Moonshine-
+    base features (416-dim, vs Whisper-medium's 1024-dim) scored 90.67%
+    test accuracy vs the Whisper-based head's previously-reported 95.00%
+    -- a real ~4.3pt regression, not hidden. Backchannel recall dropped
+    most (0.85). If that gap matters more than the latency win, moonshine-
+    medium-streaming (245M params, still far smaller than whisper-medium's
+    769M) is the next lever to try -- not attempted here."""
+
+    def __init__(self, model_id: str = "UsefulSensors/moonshine-base", dtype: torch.dtype = torch.bfloat16):
+        super().__init__()
+        from transformers import AutoProcessor, MoonshineModel
+
+        self.processor = AutoProcessor.from_pretrained(model_id)
+        full = MoonshineModel.from_pretrained(model_id, dtype=dtype)
+        self.encoder = full.encoder
+        del full.decoder
+        for p in self.encoder.parameters():
+            p.requires_grad_(False)
+        self.encoder.eval()
+        self.hidden_size = full.config.hidden_size
+        self.native_sr = 16000
+        self.dtype = dtype
+
+    @torch.no_grad()
+    def forward(self, waveforms: List, durations_sec: List[float], device) -> Tuple[Tensor, Tensor]:
+        """Same call signature as WhisperSpeechEncoder.forward() for
+        drop-in compatibility. Single-sample batches only for now (matches
+        every real call site today, models/m4_duplex_loop.py's
+        compute_speech_activity -- extend to true batching if a caller
+        ever needs it)."""
+        assert len(waveforms) == 1, "MoonshineSpeechEncoder currently only supports batch size 1"
+        inputs = self.processor(waveforms[0], sampling_rate=self.native_sr, return_tensors="pt")
+        input_values = inputs.input_values.to(device, dtype=self.dtype)
+        out = self.encoder(input_values)
+        hidden = out.last_hidden_state   # (1, T, hidden_size) -- T already matches real input length
+        valid_frames = torch.tensor([hidden.shape[1]], device=device, dtype=torch.long)
+        return hidden, valid_frames
+
+
 if __name__ == "__main__":
     # CPU-friendly smoke test: projector mechanics only (Whisper needs a
     # real checkpoint download, exercised separately in train_m4b.py).

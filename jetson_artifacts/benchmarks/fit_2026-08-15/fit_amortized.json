@@ -1,0 +1,303 @@
+{
+  "config": {
+    "use_nat": false,
+    "query_ckpt": "qp_runD.pt",
+    "bank": "candidates_siglip2.pt",
+    "query_vectors": "query_vectors_siglip2.pt",
+    "text_mode": "preencoded",
+    "proj_from_ckpt": true,
+    "identity_ckpt": "identity_head_joint.pt",
+    "identity_threshold": 0.5,
+    "identity_max_age": 30.0,
+    "identity_retry_unknown": 8.0,
+    "rounds": 6,
+    "frames": 16,
+    "scene_frames": 4,
+    "rotate": 90,
+    "gain": 1.8,
+    "out": "/home/bmo/fit_amortized.json"
+  },
+  "rounds": [
+    {
+      "perception": "a person sitting",
+      "thinker": "Hey there! I'm glad you're here - let's make sweet, sweet music together and explore the fun of being your friend.",
+      "said": "BMO: I'm BMO, the curious little console who loves making up songs!",
+      "identity": {
+        "who": null,
+        "conf": 0.0,
+        "reason": "empty_memory"
+      },
+      "latency": {
+        "capture_ms": 4.34422492980957,
+        "perception_ms": 1468.752384185791,
+        "m2_ms": 45.02749443054199,
+        "siglip_ms": 203.42683792114258,
+        "query_ms": 235.00466346740723,
+        "thinker_ms": 1064.7432804107666,
+        "identity_ms": 18.550872802734375,
+        "identity_ran": 1,
+        "speaker_ms": 415.1432514190674,
+        "total_ms": 3454.9930095672607
+      }
+    },
+    {
+      "perception": "a person sitting",
+      "thinker": "Hey there! I'm glad you're here - let's make sweet, sweet music together and explore the fun of being your friend.",
+      "said": "Alice, you're welcome! Let's make sweet, sweet music together.",
+      "identity": {
+        "who": "Alice",
+        "conf": 0.9952939748764038,
+        "reason": "match"
+      },
+      "latency": {
+        "capture_ms": 7.163286209106445,
+        "perception_ms": 745.4276084899902,
+        "m2_ms": 22.922754287719727,
+        "siglip_ms": 101.61805152893066,
+        "query_ms": 28.91063690185547,
+        "thinker_ms": 775.9618759155273,
+        "crop_cx": 0.301,
+        "crop_cy": -0.211,
+        "identity_ms": 240.3550148010254,
+        "identity_ran": 1,
+        "speaker_ms": 505.9669017791748,
+        "total_ms": 2428.41612991333
+      }
+    },
+    {
+      "perception": "a person lying down",
+      "thinker": "I see a person lying down, and I'm curious about them. Maybe they're resting or just want to be quiet - I should ask if they need anything while I can keep the mood bright for Finn and Jake.",
+      "said": "Alice, thank you for resting - would you like a quiet \"beep-boop\" sound?",
+      "identity": {
+        "who": "Alice",
+        "conf": 0.9952939748764038,
+        "reason": "match|cached(2s)"
+      },
+      "latency": {
+        "capture_ms": 0.9160041809082031,
+        "perception_ms": 735.2907657623291,
+        "m2_ms": 22.202491760253906,
+        "siglip_ms": 99.09915924072266,
+        "query_ms": 29.196500778198242,
+        "thinker_ms": 1256.9172382354736,
+        "identity_ms": 0.04220008850097656,
+        "identity_ran": 0,
+        "speaker_ms": 335.7110023498535,
+        "total_ms": 2479.3753623962402
+      }
+    },
+    {
+      "perception": "a person sitting",
+      "thinker": "Hey there! I'm glad you're here - let's make sweet, sweet music together and explore the fun of being your friend.",
+      "said": "Alice, you're welcome! Let's make sweet, sweet music together.",
+      "identity": {
+        "who": "Alice",
+        "conf": 0.9952939748764038,
+        "reason": "match|cached(4s)"
+      },
+      "latency": {
+        "capture_ms": 1.1157989501953125,
+        "perception_ms": 744.6527481079102,
+        "m2_ms": 22.969961166381836,
+        "siglip_ms": 97.15485572814941,
+        "query_ms": 31.934022903442383,
+        "thinker_ms": 744.3592548370361,
+        "identity_ms": 0.035762786865234375,
+        "identity_ran": 0,
+        "speaker_ms": 242.6462173461914,
+        "total_ms": 1884.8686218261719
+      }
+    },
+    {
+      "perception": "a person sitting",
+      "thinker": "Hey there! I'm glad you're here - let's make sweet, sweet music together and explore the fun of being your friend.",
+      "said": "Alice, you're welcome! Let's make sweet, sweet music together.",
+      "identity": {
+        "who": "Alice",
+        "conf": 0.9952939748764038,
+        "reason": "match|cached(6s)"
+      },
+      "latency": {
+        "capture_ms": 0.8904933929443359,
+        "perception_ms": 693.6368942260742,
+        "m2_ms": 23.250341415405273,
+        "siglip_ms": 92.64874458312988,
+        "query_ms": 26.323795318603516,
+        "thinker_ms": 702.8994560241699,
+        "identity_ms": 0.04124641418457031,
+        "identity_ran": 0,
+        "speaker_ms": 243.9441680908203,
+        "total_ms": 1783.635139465332
+      }
+    },
+    {
+      "perception": "a person sitting",
+      "thinker": "Hey there! I'm glad you're here - let's make sweet, sweet music together and explore the fun of being your friend.",
+      "said": "Alice, you're welcome! Let's make sweet, sweet music together.",
+      "identity": {
+        "who": "Alice",
+        "conf": 0.9952939748764038,
+        "reason": "match|cached(8s)"
+      },
+      "latency": {
+        "capture_ms": 0.9028911590576172,
+        "perception_ms": 695.8155632019043,
+        "m2_ms": 21.964073181152344,
+        "siglip_ms": 93.62578392028809,
+        "query_ms": 24.919748306274414,
+        "thinker_ms": 702.3694515228271,
+        "identity_ms": 0.04172325134277344,
+        "identity_ran": 0,
+        "speaker_ms": 242.31457710266113,
+        "total_ms": 1781.9538116455078
+      }
+    }
+  ],
+  "fast_load_s": 1.4004485607147217,
+  "thinker_load_s": 2.904482126235962,
+  "identity": {
+    "ckpt": "identity_head_joint.pt",
+    "dims": {
+      "vision": 2048,
+      "audio": 1536
+    },
+    "params_M": 8.1472
+  },
+  "siglip_load_s": 6.700993776321411,
+  "avail_after_load_MiB": 1412.68359375,
+  "streams": [
+    "m2",
+    "vision",
+    "ambient",
+    "scene"
+  ],
+  "rounds_identity": [
+    {
+      "who": null,
+      "conf": 0.0,
+      "reason": "empty_memory",
+      "ran": true,
+      "why": "no_answer_yet"
+    },
+    {
+      "who": "Alice",
+      "conf": 0.9952939748764038,
+      "reason": "match",
+      "ran": true,
+      "why": "no_answer_yet"
+    },
+    {
+      "who": "Alice",
+      "conf": 0.9952939748764038,
+      "reason": "match|cached(2s)",
+      "ran": false,
+      "why": "reuse_cached"
+    },
+    {
+      "who": "Alice",
+      "conf": 0.9952939748764038,
+      "reason": "match|cached(4s)",
+      "ran": false,
+      "why": "reuse_cached"
+    },
+    {
+      "who": "Alice",
+      "conf": 0.9952939748764038,
+      "reason": "match|cached(6s)",
+      "ran": false,
+      "why": "reuse_cached"
+    },
+    {
+      "who": "Alice",
+      "conf": 0.9952939748764038,
+      "reason": "match|cached(8s)",
+      "ran": false,
+      "why": "reuse_cached"
+    }
+  ],
+  "identity_schedule": {
+    "runs": 2,
+    "skipped": 4,
+    "run_rate": 0.3333333333333333
+  },
+  "mem_log": [
+    {
+      "tag": "00_start",
+      "used": 2703.1796875,
+      "avail": 4916.67578125,
+      "delta": 0.0
+    },
+    {
+      "tag": "01_cuda_ctx",
+      "used": 2715.31640625,
+      "avail": 4904.5390625,
+      "delta": 12.13671875
+    },
+    {
+      "tag": "02_speaker_fast_tier",
+      "used": 2981.171875,
+      "avail": 4638.68359375,
+      "delta": 265.85546875
+    },
+    {
+      "tag": "03_thinker",
+      "used": 3756.2578125,
+      "avail": 3863.59765625,
+      "delta": 775.0859375
+    },
+    {
+      "tag": "04_vitl_int8",
+      "used": 4485.38671875,
+      "avail": 3134.46875,
+      "delta": 729.12890625
+    },
+    {
+      "tag": "05_wavjepa_base",
+      "used": 5283.1484375,
+      "avail": 2336.70703125,
+      "delta": 797.76171875
+    },
+    {
+      "tag": "07_m2",
+      "used": 4877.453125,
+      "avail": 2742.40234375,
+      "delta": -405.6953125
+    },
+    {
+      "tag": "07b_identity_head",
+      "used": 4968.6953125,
+      "avail": 2651.16015625,
+      "delta": 91.2421875
+    },
+    {
+      "tag": "08_siglip2_scene",
+      "used": 5893.49609375,
+      "avail": 1726.359375,
+      "delta": 924.80078125
+    },
+    {
+      "tag": "09_preencoded_queries_NO_TEXT_ENCODER",
+      "used": 5893.3046875,
+      "avail": 1726.55078125,
+      "delta": -0.19140625
+    },
+    {
+      "tag": "10_query_predictor+candidates",
+      "used": 6207.171875,
+      "avail": 1412.68359375,
+      "delta": 313.8671875
+    },
+    {
+      "tag": "11_camera",
+      "used": 6247.46875,
+      "avail": 1372.38671875,
+      "delta": 40.296875
+    },
+    {
+      "tag": "12_end",
+      "used": 7296.453125,
+      "avail": 323.40234375,
+      "delta": 1048.984375
+    }
+  ]
+}

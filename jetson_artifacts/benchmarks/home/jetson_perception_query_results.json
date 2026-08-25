@@ -1,0 +1,17 @@
+{
+  "embeddinggemma_load_s": 8.12592601776123,
+  "engine_load_s": 0.9187521934509277,
+  "engine_total_MiB": null,
+  "query_encode_ms_median": 263.5190486907959,
+  "predictor_ms_median": 138.51845264434814,
+  "bank_lookup_ms_median": 2.6079416275024414,
+  "total_ask_ms_median": 403.8020372390747,
+  "bank_size": 24000,
+  "streams": [
+    "m2",
+    "vision",
+    "ambient"
+  ],
+  "sample_answer": "The video depicts someone playing an accordion inside a house near a window. The individual appears to be focused on their performance, moving their fingers across the accordion's keys and buttons rhythmically. The setting suggests a casual indoor environment where music is being enjoyed or practice",
+  "mem_avail_after_MiB": 4237.14453125
+}

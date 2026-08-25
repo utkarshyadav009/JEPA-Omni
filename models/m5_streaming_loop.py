@@ -13,8 +13,13 @@ rather than implicit.
 WINDOW_VISION_SEC = 10.0, matching CLIP_DURATION_S in
 scripts/extract_features_av.py -- the real-world duration a 64-frame
 V-JEPA2 input was TRAINED to represent (64 frames uniformly sampled across
-a 10s clip). A shorter window puts ViT-L outside its trained input
-distribution; not an arbitrary pick.
+a 10s clip). A shorter WINDOW puts ViT-L outside its trained input
+distribution; not an arbitrary pick. StreamingConfig.n_vision_frames (Phase
+A, 2026-08-07) is a separate knob -- it reduces how many frames get
+subsampled OUT of this same 10s span (real, measured 2.3x win at 16 vs 64,
+see StreamingConfig's own comment), not the span itself. V-JEPA2's own
+published ablation evaluates at 16 frames too, so this stays within a
+real, measured operating point rather than untested territory.
 
 STRIDE_VISION_SEC = 2.0 (default, tunable -- Day 3 profiles this
 tradeoff): re-encode vision 5x within one window's span rather than every
@@ -78,7 +83,25 @@ class StreamingConfig:
                                         # Whisper/decision head), do not repurpose one for the other
     tick_interval_sec: float = 0.25
     audio_sr: int = 16000
-    video_fps: float = 6.4        # 64 frames / 10s -- matches CLIP_DURATION_S
+    video_fps: float = 6.4        # 64 frames / 10s -- matches CLIP_DURATION_S (buffer fill rate,
+                                   # unrelated to n_vision_frames below -- capture still fills the
+                                   # buffer at this rate; n_vision_frames controls how many of the
+                                   # buffered frames get subsampled OUT for the ViT-L forward pass)
+    # Phase A (2026-08-07): overrides the 2026-07-26 "LOCKED, no further
+    # latency tuning" note above -- that lock predates this session's
+    # finding that perception (ViT-L + WavJEPA encoding), not the decision
+    # path, is the real dominant cost (3.4s at n_vision_frames=64). Real,
+    # measured win from reducing this alone (scripts/
+    # jetson_frame_reduction_test2.py, Jetson hardware): 64->16 frames
+    # cuts feature-extraction from 2309ms to 1014ms (2.3x), World-State
+    # output stays healthy (non-degenerate std) throughout. 16 chosen to
+    # match V-JEPA2's own published 16-frame evaluation point (a real
+    # operating point the paper's authors measured), not a blind guess --
+    # 8 frames only saved another ~90ms over 16, diminishing returns.
+    # RollingVideoBuffer.get_window() already uniformly subsamples across
+    # the FULL buffered window (np.linspace), so this keeps the same
+    # 10s temporal span, just fewer frames within it -- not a truncation.
+    n_vision_frames: int = 16
     use_priority_decision_stream: bool = True   # LOCKED default (item 3): p95 786ms vs 1220ms
                                                  # without it (JETSON_PHASE4_2_3_RESULTS.json 4.2 vs 4.3)
 
@@ -106,10 +129,13 @@ class RollingAudioBuffer:
 
 
 class RollingVideoBuffer:
-    """Holds raw (C,H,W) frames; get_window() uniformly samples 64 frames
-    from whatever's currently buffered (same _uniform_frame_indices
-    pattern as scripts/extract_features_av.py, so a partially-filled
-    buffer still produces a valid V-JEPA2 input, not an error)."""
+    """Holds raw (C,H,W) frames; get_window() uniformly samples
+    n_frames_out frames from whatever's currently buffered (same
+    _uniform_frame_indices pattern as scripts/extract_features_av.py, so a
+    partially-filled buffer still produces a valid V-JEPA2 input, not an
+    error). n_frames_out defaults to 64 here but the real caller
+    (StreamingLoop) passes StreamingConfig.n_vision_frames (16 by
+    default as of Phase A, 2026-08-07) -- see module docstring."""
 
     def __init__(self, window_sec: float, fps: float, n_frames_out: int = 64):
         self.window_sec = window_sec
@@ -154,11 +180,37 @@ class StreamingLoop:
     def __init__(self, duplex_loop: DuplexLoop, cfg: StreamingConfig,
                  interruption_policy: Optional[InterruptionPolicy] = None,
                  vision_encoder=None, max_tdm_bins: int = 512,
-                 ambient_base_encoder=None, ambient_nat_encoder=None):
+                 ambient_base_encoder=None, ambient_nat_encoder=None,
+                 tts_engine=None, backchannel_inventory=None,
+                 thinking_filler_bank=None, perception_query_engine=None):
         self.loop = duplex_loop
         self.cfg = cfg
+        # Optional models.m5_perception_query.PerceptionQueryEngine. When attached, every
+        # vision refresh also publishes that tick's perception to the engine, so the
+        # thinker's `<tool_call name=look .../>` answers about what BMO is seeing NOW
+        # rather than a stale or absent scene. None-able and never on the response path:
+        # if it is absent, or if publishing raises, the loop behaves exactly as before.
+        self.perception_query_engine = perception_query_engine
+        self.perception_publish_logs: List[Dict] = []
         self.mic_gate = MicGate()
         self.interruption_policy = interruption_policy
+        # Phase B: real TTS (models/m5_tts.py). None-able for back-compat --
+        # existing simulation/CI callers with no audio hardware keep working
+        # via the wpm estimate below; passing a real TTSEngine switches the
+        # loop over to real synthesis + real playback duration everywhere.
+        self.tts_engine = tts_engine
+        self.backchannel_inventory = backchannel_inventory
+        # Task 137: optional models.m5_tts.PrebuiltVoiceBank (or anything
+        # with a play(category=..., blocking=...) method) -- fires a short
+        # "thinking_filler" clip (Hmm... / Well... / Let's see...) the
+        # instant a SPEAK decision is made, in parallel with generate_fn(),
+        # to mask real LLM/TTS latency (same pattern as the filler-audio
+        # techniques used in production voice agents -- see task 137's
+        # research notes). None-able for back-compat; only fires on the
+        # "speak" path below, never during "backchannel" (that path is
+        # already the fast one -- adding a filler there would just add
+        # latency to something already instant).
+        self.thinking_filler_bank = thinking_filler_bank
         self.vision_encoder = vision_encoder   # models.vision_encoder.VisionEncoder -- REAL ViT-L, not dummy features
         # NEW (2026-07-26, item 0 fix): WavJEPA-base/nat -- M2's actual audio
         # encoders. Whisper (via compute_speech_activity) is a DIFFERENT
@@ -169,7 +221,7 @@ class StreamingLoop:
         self.ambient_base_encoder = ambient_base_encoder
         self.ambient_nat_encoder = ambient_nat_encoder
         self.max_tdm_bins = max_tdm_bins
-        self.video_buf = RollingVideoBuffer(cfg.window_vision_sec, cfg.video_fps)
+        self.video_buf = RollingVideoBuffer(cfg.window_vision_sec, cfg.video_fps, n_frames_out=cfg.n_vision_frames)
         self.audio_buf = RollingAudioBuffer(cfg.window_audio_sec, cfg.audio_sr)              # Whisper/decision path
         self.ambient_buf = RollingAudioBuffer(cfg.window_ambient_sec, cfg.audio_sr)           # WavJEPA/World-State path -- separate buffer, separate consumer
         self._last_vision_refresh_t: Optional[float] = None
@@ -353,6 +405,23 @@ class StreamingLoop:
             t0b = time.perf_counter()
             ws = self.loop.compute_world_state(result.feats, result.tbins)
             fusion_lat = (time.perf_counter() - t0b) * 1000.0
+
+            # Publish THIS tick's perception to the query engine, from the SAME
+            # feats/tbins the world-state was just built from -- so "what do you see?"
+            # and the decision path can never disagree about which moment they describe.
+            # Wrapped: a failure here must never take down perception refresh, which the
+            # deployed decision path depends on.
+            pq_lat = None
+            if self.perception_query_engine is not None:
+                try:
+                    t0c = time.perf_counter()
+                    self.perception_query_engine.update_from_features(
+                        result.feats, result.tbins, self.loop)
+                    pq_lat = (time.perf_counter() - t0c) * 1000.0
+                except Exception as e:                      # noqa: BLE001 - never fatal
+                    print(f"[streaming] perception-query publish failed (non-fatal): {e!r}",
+                          flush=True)
+                    self.perception_publish_logs.append({"t": t, "error": repr(e)})
         finally:
             self._vision_busy.clear()
 
@@ -365,8 +434,13 @@ class StreamingLoop:
         # synchronously, so log it here instead -- vitl_forward_ms /
         # fusion_predictor_ms would otherwise silently vanish from every
         # results JSON, including the first real Jetson profiling run.
-        self.vision_logs.append({"t": t, "encoders_ms": encoders_lat, "fusion_predictor_ms": fusion_lat})
-        return ws, True, {"encoders_ms": encoders_lat, "fusion_predictor_ms": fusion_lat}
+        entry = {"t": t, "encoders_ms": encoders_lat, "fusion_predictor_ms": fusion_lat}
+        if pq_lat is not None:
+            entry["perception_query_publish_ms"] = pq_lat
+            self.perception_publish_logs.append({"t": t, "publish_ms": pq_lat})
+        self.vision_logs.append(entry)
+        # keep the returned dict's shape as it was (latency keys only, no "t")
+        return ws, True, {k: v for k, v in entry.items() if k != "t"}
 
     def _estimate_tts_duration_sec(self, text: str) -> float:
         n_words = max(1, len(text.split()))
@@ -442,14 +516,56 @@ class StreamingLoop:
 
         # currently-generating and a real interruption fires -> halt, run policy
         if self._halted_generation is None and label == "speak" and generate_fn is not None:
+            # Task 137: fire the thinking-filler clip BEFORE calling
+            # generate_fn(), non-blocking, so its ~0.5-1.6s playback
+            # overlaps with generation instead of adding to the critical
+            # path. Real-hardware caveat, not yet measured: on a single
+            # ReSpeaker output device the filler and the eventual TTS
+            # turn share one playback channel, so a generation faster than
+            # the filler's own duration would have its audio start queued
+            # behind the filler rather than truly parallel -- acceptable
+            # (still no worse than today's silence during generation) but
+            # worth re-checking once real mic/speaker hardware exists to
+            # test against (task 135's Jetson has neither right now).
+            if self.thinking_filler_bank is not None:
+                self.thinking_filler_bank.play(category="thinking_filler", blocking=False)
             t0 = time.perf_counter()
             result = generate_fn()
             latencies["generation_ms"] = (time.perf_counter() - t0) * 1000.0
             log.generation_text = result.text
-            # start simulated TTS playback + mic gate
-            dur = self._estimate_tts_duration_sec(result.text)
+            t_tts0 = time.perf_counter()
+            if self.tts_engine is not None:
+                # Phase B: real synthesis + real playback; dur is the ACTUAL
+                # audio length, not a wpm estimate.
+                # Emotion (2026-08-07): the fast tier attaches the homeostatic
+                # mood to its result; pass it as the <|MOOD|> voice control
+                # token so the SAME state that shaped the words shapes the
+                # delivery. Fallback keeps any legacy (non-emotion) engine working.
+                emotion = getattr(result, "mood", None)
+                try:
+                    synth = self.tts_engine.speak(result.text, emotion=emotion, blocking=False)
+                except TypeError:
+                    synth = self.tts_engine.speak(result.text, blocking=False)
+                dur = synth.duration_sec
+                latencies["tts_synth_ms"] = synth.synth_latency_sec * 1000.0
+            else:
+                dur = self._estimate_tts_duration_sec(result.text)
+            latencies["time_to_audio_ms"] = (time.perf_counter() - t_tts0) * 1000.0
             self.mic_gate.is_playing = True
             self._tts_playing_until = t + dur
+            log.latencies_ms = latencies
+
+        # Phase B (new path): backchannel decisions never call the LLM and
+        # never synthesize live -- pure playback from the pre-synthesized
+        # fixed inventory (models/m5_tts.py::BackchannelInventory), the
+        # fastest and most reliable path available by construction.
+        elif self._halted_generation is None and label == "backchannel" and self.backchannel_inventory is not None:
+            t0 = time.perf_counter()
+            synth = self.backchannel_inventory.play(blocking=False)
+            latencies["time_to_audio_ms"] = (time.perf_counter() - t0) * 1000.0
+            log.generation_text = None  # no LLM call -- nothing generated, just played
+            self.mic_gate.is_playing = True
+            self._tts_playing_until = t + synth.duration_sec
             log.latencies_ms = latencies
 
         return label, probs, log

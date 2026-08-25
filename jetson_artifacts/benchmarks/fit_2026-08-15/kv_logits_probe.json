@@ -1,0 +1,68 @@
+[
+  {
+    "cfg": "baseline (n_ctx=512, logits_all=True)",
+    "load_s": 0.6,
+    "load_MiB": 44.0,
+    "gen_MiB": 209.0,
+    "total_MiB": 253.0,
+    "mean_neg_logprob": 0.7932,
+    "n_tokens": 15,
+    "text": "I'm here, and I can hear the sighs of tired feet.",
+    "logprob_error": null
+  },
+  {
+    "cfg": "logits_all=False",
+    "load_s": 0.4,
+    "load_MiB": 2.0,
+    "gen_MiB": 70.0,
+    "total_MiB": 72.0,
+    "mean_neg_logprob": 11.0904,
+    "n_tokens": 15,
+    "text": "I'm here, and I can hear the sighs of tired feet.",
+    "logprob_error": null
+  },
+  {
+    "cfg": "logits_all=False + flash_attn",
+    "load_s": 0.4,
+    "load_MiB": 0.0,
+    "gen_MiB": 4.0,
+    "total_MiB": 4.0,
+    "mean_neg_logprob": 11.0904,
+    "n_tokens": 15,
+    "text": "I'm here, and I can hear the sighs of tiredness.",
+    "logprob_error": null
+  },
+  {
+    "cfg": "logits_all=False + FA + q8_0 KV",
+    "load_s": 0.4,
+    "load_MiB": 0.0,
+    "gen_MiB": 7.0,
+    "total_MiB": 7.0,
+    "mean_neg_logprob": 11.0904,
+    "n_tokens": 15,
+    "text": "I'm here, and I can hear the sighs of tired feet.",
+    "logprob_error": null
+  },
+  {
+    "cfg": "logits_all=False + FA + q4_0 KV",
+    "load_s": 0.4,
+    "load_MiB": 0.0,
+    "gen_MiB": 10.0,
+    "total_MiB": 10.0,
+    "mean_neg_logprob": 11.0904,
+    "n_tokens": 11,
+    "text": "They're both here, waiting for the next adventure.",
+    "logprob_error": null
+  },
+  {
+    "cfg": "n_ctx=256, logits_all=False + FA",
+    "load_s": 0.4,
+    "load_MiB": 0.0,
+    "gen_MiB": 3.0,
+    "total_MiB": 3.0,
+    "mean_neg_logprob": 11.0904,
+    "n_tokens": 15,
+    "text": "I'm here, and I can hear the sighs of tiredness.",
+    "logprob_error": null
+  }
+]

@@ -1,0 +1,178 @@
+{
+  "config": {
+    "rounds": 3,
+    "frames": 16,
+    "speak": false,
+    "query": "Describe the room and setting in detail.",
+    "rotate": 90,
+    "gain": 1.8,
+    "save_frame": "",
+    "out": "/home/bmo/jetson_describe_demo_results.json"
+  },
+  "stages": [
+    {
+      "tag": "00_start",
+      "used": 1515.51953125,
+      "avail": 6104.33984375,
+      "delta": 0.0
+    },
+    {
+      "tag": "01_cuda_context",
+      "used": 1534.67578125,
+      "avail": 6085.18359375,
+      "delta": 19.15625
+    },
+    {
+      "tag": "02_fast_tier_v2_gguf",
+      "used": 2387.1953125,
+      "avail": 5232.6640625,
+      "delta": 852.51953125
+    },
+    {
+      "tag": "04_vitl_int8",
+      "used": 3466.46875,
+      "avail": 4153.390625,
+      "delta": 1079.2734375
+    },
+    {
+      "tag": "05_wavjepa_base_int8",
+      "used": 4247.609375,
+      "avail": 3372.25,
+      "delta": 781.140625
+    },
+    {
+      "tag": "06_wavjepa_nat_int8",
+      "used": 4907.2109375,
+      "avail": 2712.6484375,
+      "delta": 659.6015625
+    },
+    {
+      "tag": "07_m2_predictor_int8",
+      "used": 5008.3828125,
+      "avail": 2611.4765625,
+      "delta": 101.171875
+    },
+    {
+      "tag": "08_embeddinggemma",
+      "used": 5103.578125,
+      "avail": 2516.28125,
+      "delta": 95.1953125
+    },
+    {
+      "tag": "09_query_predictor+bank",
+      "used": 5739.31640625,
+      "avail": 1880.54296875,
+      "delta": 635.73828125
+    }
+  ],
+  "rounds": [
+    {
+      "perception": "In this video segment, we observe a person interacting with their environment inside a building. Initially focused on an air conditioning unit mounted on the ceiling, the camera then shifts downward as the individual proceeds to open a nearby door. The movement suggests routine activity within a domestic or office space.",
+      "spoken": "The person is opening a door to collect air, while the window remains still for contrast.",
+      "latency": {
+        "capture_ms": 2166.5353775024414,
+        "perception_ms": 1731.5514087677002,
+        "m2_prepool_ms": 39.45136070251465,
+        "query_ms": 552.884578704834,
+        "llm_ms": 503.772497177124,
+        "total_ms": 4994.195222854614
+      }
+    },
+    {
+      "perception": "In this video, we observe a sequence focusing on the interaction between a person and a wooden wardrobe within a simple indoor setting. Initially, the wardrobe appears closed and unattended. Gradually, as time passes depicted through sequential frames, the wardrobe doors are approached and then opened to reveal its contents. This suggests either preparation for use or inspection of stored items.",
+      "spoken": "The wardrobe is being welcomed, its doors are being opened for a peek at the stored treasures.",
+      "latency": {
+        "capture_ms": 2144.49405670166,
+        "perception_ms": 1089.080572128296,
+        "m2_prepool_ms": 24.40810203552246,
+        "query_ms": 240.48614501953125,
+        "llm_ms": 393.6917781829834,
+        "total_ms": 3892.160654067993
+      }
+    },
+    {
+      "perception": "In this video clip, a smoke detector begins to beep persistently within an office space. The camera captures close-up shots of a desk cluttered with everyday work items such as a laptop, a drink cup, and packaged food. The surrounding area includes modern office furniture like chairs and shelves holding miscellaneous items. Large windows provide a view of a bustling urban landscape outside. The continuous beeping of the smoke detector underscores the urgency of addressing any potential safety concern.",
+      "spoken": "A glitchy smoke detector is ticking its time, and we're letting it run.",
+      "latency": {
+        "capture_ms": 2158.0395698547363,
+        "perception_ms": 1174.3121147155762,
+        "m2_prepool_ms": 25.7418155670166,
+        "query_ms": 275.42996406555176,
+        "llm_ms": 364.44687843322754,
+        "total_ms": 3997.9703426361084
+      }
+    }
+  ],
+  "fast_tier_load_s": 1.4902117252349854,
+  "perception_load_s": 16.607192039489746,
+  "query_engine_load_s": 5.681095838546753,
+  "avail_after_full_load_MiB": 1880.54296875,
+  "mem_log": [
+    {
+      "tag": "00_start",
+      "used": 1515.51953125,
+      "avail": 6104.33984375,
+      "delta": 0.0
+    },
+    {
+      "tag": "01_cuda_context",
+      "used": 1534.67578125,
+      "avail": 6085.18359375,
+      "delta": 19.15625
+    },
+    {
+      "tag": "02_fast_tier_v2_gguf",
+      "used": 2387.1953125,
+      "avail": 5232.6640625,
+      "delta": 852.51953125
+    },
+    {
+      "tag": "04_vitl_int8",
+      "used": 3466.46875,
+      "avail": 4153.390625,
+      "delta": 1079.2734375
+    },
+    {
+      "tag": "05_wavjepa_base_int8",
+      "used": 4247.609375,
+      "avail": 3372.25,
+      "delta": 781.140625
+    },
+    {
+      "tag": "06_wavjepa_nat_int8",
+      "used": 4907.2109375,
+      "avail": 2712.6484375,
+      "delta": 659.6015625
+    },
+    {
+      "tag": "07_m2_predictor_int8",
+      "used": 5008.3828125,
+      "avail": 2611.4765625,
+      "delta": 101.171875
+    },
+    {
+      "tag": "08_embeddinggemma",
+      "used": 5103.578125,
+      "avail": 2516.28125,
+      "delta": 95.1953125
+    },
+    {
+      "tag": "09_query_predictor+bank",
+      "used": 5739.31640625,
+      "avail": 1880.54296875,
+      "delta": 635.73828125
+    },
+    {
+      "tag": "10_camera_open",
+      "used": 5927.58984375,
+      "avail": 1692.26953125,
+      "delta": 188.2734375
+    },
+    {
+      "tag": "11_after_rounds",
+      "used": 6792.43359375,
+      "avail": 827.42578125,
+      "delta": 864.84375
+    }
+  ]
+}

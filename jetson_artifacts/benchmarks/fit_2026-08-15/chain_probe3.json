@@ -1,0 +1,32 @@
+[
+  {
+    "variant": "0_baseline_with_names",
+    "thought": "I see a person lying down, and I'm curious about them. Maybe they're resting or just want to be quiet - I should ask if they need anything while I can keep the mood bright for Finn and Jake.",
+    "said": "Finn, Jake - just how you like it!",
+    "grounded": false
+  },
+  {
+    "variant": "1_names_stripped",
+    "thought": "I see a person lying down, and I'm curious about them. Maybe they're resting or just want to be quiet - I should ask if they need anything while I can keep the mood bright for them and them.",
+    "said": "Finn, you look a bit tired - maybe I can queue a gentle lullaby while you rest.",
+    "grounded": true
+  },
+  {
+    "variant": "2_plan_only",
+    "thought": "I should ask if they need anything",
+    "said": "They might say 'no, just grateful' - simple, sweet, and leaves the door open for you.",
+    "grounded": false
+  },
+  {
+    "variant": "3_plan_only_names_stripped",
+    "thought": "I should ask if they need anything",
+    "said": "They might say 'no, just grateful' - simple, sweet, and leaves the door open for you.",
+    "grounded": false
+  },
+  {
+    "variant": "4_first_two_sentences",
+    "thought": "I see a person lying down, and I'm curious about them. Maybe they're resting or just want to be quiet - I should ask if they need anything while I can keep the mood bright for Finn and Jake.",
+    "said": "Finn, Jake - just how you like it!",
+    "grounded": false
+  }
+]
