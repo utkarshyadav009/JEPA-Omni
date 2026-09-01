@@ -122,7 +122,7 @@ class PerceptionQueryEngine:
 
     @torch.no_grad()
     def update_from_features(self, feats: Dict[str, Tensor], tbins: Dict[str, Tensor],
-                             duplex_loop) -> None:
+                             duplex_loop, scene: Optional[Tensor] = None) -> None:
         """LIVE equivalent of train_query_predictor.build_sources(), for the streaming
         loop: takes the SAME `feats`/`tbins` that world_state_builder produced this tick
         and assembles exactly the token streams this checkpoint was trained on.
@@ -154,6 +154,18 @@ class PerceptionQueryEngine:
             src["vision"] = feats["vision"].float()
         if "ambient" in names:
             src["ambient"] = feats["ambient"].float()
+        if "scene" in names:
+            # SigLIP2 scene stream. Kept OUT of world_state_builder deliberately: training
+            # also held it as a SEPARATE dict, not part of the frozen AV cache, precisely so
+            # adding it could not disturb the JEPA trunk (QueryClipDataset docstring,
+            # train_query_predictor.py:93-95). Construction is verified bit-for-bit against
+            # the cached vgg_shard*.pt features (worst cosine 0.999999, 3 clips).
+            # Shape: (1, K, 768) L2-normalised per frame, K=8 -- see
+            # scripts/extract_siglip2_scene_vgg.py:125-135.
+            if scene is None:
+                raise KeyError("'scene' stream requested but no SigLIP2 features were passed "
+                               "-- pass scene=<(1,K,768) tensor> to update_from_features()")
+            src["scene"] = scene.to(self.device).float()
         missing = [n for n in names if n not in src]
         if missing:
             raise KeyError(f"perception engine needs stream(s) {missing} that this tick "

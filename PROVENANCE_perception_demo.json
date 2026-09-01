@@ -1,0 +1,122 @@
+{
+  "device": "NVIDIA Jetson Orin Nano 8GB (bmo-desktop)",
+  "power_mode": "NV Power Mode: MAXN_SUPER\n2",
+  "gpu_clock_hz": "1020000000",
+  "cpu_governor": "schedutil",
+  "total_mem_mib": 7620,
+  "peak_used_mib": 4389,
+  "checkpoints": {
+    "m2": {
+      "path": "/home/bmo/bmo_production/pipeline/checkpoints/m2_run2_vggsound197k_ego4d134k_neg200/step19000.pt",
+      "sha256_16": "e1a8231ec9fbae6c"
+    },
+    "qp": {
+      "path": "/home/bmo/bmo_production/pipeline/checkpoints/qp_runD.pt",
+      "sha256_16": "85635302da4fd837"
+    },
+    "bank": {
+      "path": "/home/bmo/bmo_production/pipeline/checkpoints/candidates_siglip2_v3.pt",
+      "sha256_16": "60d7cfc67fdea849"
+    },
+    "qvec": {
+      "path": "/home/bmo/bmo_production/pipeline/checkpoints/query_vectors_siglip2_v2.pt",
+      "sha256_16": "f6876dbc4ea78b4e"
+    }
+  },
+  "encoders": {
+    "vision": "facebook/vjepa2-vitl-fpc64-256 (int8)",
+    "scene": "google/siglip2-base-patch16-224 (bf16)",
+    "ambient": "labhamlet/wavjepa-base (int8), audio_mode=base, nat NOT loaded"
+  },
+  "config": {
+    "window_sec": 10.0,
+    "n_vision_frames": 16,
+    "n_scene_frames": 8,
+    "buffer_res": [
+      448,
+      336
+    ],
+    "vjepa_res": 256,
+    "max_tdm_bins": 512,
+    "bank": "candidates_siglip2_v3.pt",
+    "n_tags": 382,
+    "n_categories": 12
+  },
+  "rounds_completed": 122,
+  "stages_ms": {
+    "decode": {
+      "n": 122,
+      "mean_ms": 23.11142893442414,
+      "p50_ms": 22.573679500965227,
+      "p95_ms": 24.996493798880692,
+      "max_ms": 29.302764000021853,
+      "min_ms": 22.232307001104346
+    },
+    "siglip2_8f": {
+      "n": 122,
+      "mean_ms": 93.83009495074668,
+      "p50_ms": 90.21628299979056,
+      "p95_ms": 93.90855334877415,
+      "max_ms": 451.0039870001492,
+      "min_ms": 89.17595200000505
+    },
+    "vjepa2_16f": {
+      "n": 122,
+      "mean_ms": 412.8412154508415,
+      "p50_ms": 411.59625649925147,
+      "p95_ms": 414.4964819500274,
+      "max_ms": 563.240555999073,
+      "min_ms": 408.45893699952285
+    },
+    "wavjepa_10s": {
+      "n": 122,
+      "mean_ms": 162.932586663955,
+      "p50_ms": 161.5946920001079,
+      "p95_ms": 162.5197911498617,
+      "max_ms": 323.48064899997553,
+      "min_ms": 160.30001000035554
+    },
+    "world_state_build": {
+      "n": 122,
+      "mean_ms": 626.344992516396,
+      "p50_ms": 623.0973520005136,
+      "p95_ms": 631.0400663998735,
+      "max_ms": 942.8676439983974,
+      "min_ms": 617.6339070007089
+    },
+    "m2_fusion": {
+      "n": 122,
+      "mean_ms": 72.6986449180764,
+      "p50_ms": 72.64633950035204,
+      "p95_ms": 73.54800724979214,
+      "max_ms": 79.71081000141567,
+      "min_ms": 71.249093998631
+    },
+    "query_predictor": {
+      "n": 122,
+      "mean_ms": 164.7642390656775,
+      "p50_ms": 162.6959254999747,
+      "p95_ms": 173.97755270003472,
+      "max_ms": 210.65582200026256,
+      "min_ms": 158.07781900002738
+    },
+    "retrieval_uncond": {
+      "n": 122,
+      "mean_ms": 1.3778423196869924,
+      "p50_ms": 1.0258974998578196,
+      "p95_ms": 1.2391025006763812,
+      "max_ms": 41.39133600074274,
+      "min_ms": 0.944895000429824
+    },
+    "ROUND": {
+      "n": 122,
+      "mean_ms": 983.161533090126,
+      "p50_ms": 974.5772710002711,
+      "p95_ms": 992.9901329502172,
+      "max_ms": 1760.4429790007998,
+      "min_ms": 965.5579149984987
+    }
+  },
+  "achieved_hz": 1.0260859038643861,
+  "timestamp": "2026-09-01T20:26:08"
+}
