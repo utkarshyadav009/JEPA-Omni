@@ -1,0 +1,12 @@
+{
+  "construction": "balanced 5-per-class from the OFFICIAL VGGSound test split (AV-JEPA gallery construction)",
+  "seed": 0,
+  "per_class": 5,
+  "n_classes": 309,
+  "n_clips": 1545,
+  "source_split": "data/test.csv (official VGGSound test, 15,446 clips, 309 classes)",
+  "video_dir": "/home/utkarsh/raid2-data/vggsound_raw/extracted/video",
+  "candidates_required_video_on_disk": true,
+  "test_clips_with_video": 15341,
+  "selection": "sorted(candidates) then random.Random(0).sample(...); output sorted"
+}
