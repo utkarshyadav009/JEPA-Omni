@@ -1,0 +1,75 @@
+{
+  "measured_by": "scripts/eval_checkpoint_gallery.py, this session (2026-09-06)",
+  "command": "python scripts/eval_checkpoint_gallery.py --ckpt checkpoints/m2_run2_vggsound197k_ego4d134k_neg200/step19000.pt --eval-subset <gallery> --cache-dir-override /home/utkarsh/raid2-data/feature_cache_vgg51k",
+  "checkpoint": "checkpoints/m2_run2_vggsound197k_ego4d134k_neg200/step19000.pt",
+  "checkpoint_sha256": "e1a8231ec9fbae6cf2b8288c89612ee1facd2dc6938781c22cf06295b31bedf8",
+  "cache_dir": "/home/utkarsh/raid2-data/feature_cache_vgg51k",
+  "note": "eval_checkpoint_gallery.py prints to stdout and writes no JSON; these values were read from its stdout during the session that produced docs/GALLERY_CONTAMINATION.md. clips_seen was asserted == dataset_len (1545) by the script itself on both runs.",
+  "galleries": {
+    "random_unstratified": {
+      "file": "data/vggsound_eval_1545.txt",
+      "md5": "e3376f57d932b075db58b59d94dfc3b8",
+      "n": 1545,
+      "classes_covered": 307,
+      "clips_per_class": "1-12",
+      "mean_same_class_distractors": 4.91,
+      "clips_in_m2_training": 0,
+      "ambient_to_vision": {
+        "R@1": 53.14,
+        "R@5": 81.81,
+        "R@10": 88.28
+      },
+      "vision_to_ambient": {
+        "R@1": 53.46,
+        "R@5": 80.39,
+        "R@10": 87.83
+      },
+      "matched_cos_sim": 0.7244,
+      "shuffled_cos_sim": 0.0293,
+      "documented_previously": {
+        "a2v_R@1": 53.27,
+        "v2a_R@1": 53.72,
+        "source": "docs/BASELINE_1545.md",
+        "delta_vs_rerun": "0.13 / 0.26 pts"
+      }
+    },
+    "balanced_5_per_class": {
+      "file": "data/vggsound_eval_1545_balanced.txt",
+      "md5": "2eeaceef6866895cf02bb4204fb63835",
+      "n": 1545,
+      "classes_covered": 309,
+      "clips_per_class": "exactly 5",
+      "mean_same_class_distractors": 4.0,
+      "clips_in_m2_training": 1404,
+      "contamination_pct": 90.9,
+      "ambient_to_vision": {
+        "R@1": 68.61,
+        "R@5": 94.69,
+        "R@10": 97.28
+      },
+      "vision_to_ambient": {
+        "R@1": 68.41,
+        "R@5": 94.17,
+        "R@10": 97.73
+      },
+      "matched_cos_sim": 0.772,
+      "shuffled_cos_sim": 0.0356,
+      "VALID": false,
+      "why_invalid": "90.9% of gallery clips were in M2's training corpus; reported only as a memorisation measurement, never as a retrieval result"
+    }
+  },
+  "delta_R1": {
+    "a2v": 15.47,
+    "v2a": 14.95,
+    "interpretation": "LOWER BOUND on the contamination effect: the balanced gallery is 90.9% contaminated (not 100%) and is also marginally easier on distractor density (4.00 vs 4.91). Both push the measured gap DOWN."
+  },
+  "m2_training_corpus": {
+    "cache_clips": 199007,
+    "excluded": 1545,
+    "trained_on": 197462,
+    "exclusion_mechanism": "train_m2.py:979 exclude_ids=eval_ids_set from data/vggsound_eval_1545.txt only",
+    "official_vggsound_test_split": 15446,
+    "test_split_clips_in_training": 13894,
+    "test_split_pct_in_training": 90.0
+  }
+}

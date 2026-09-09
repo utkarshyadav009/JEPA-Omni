@@ -1,0 +1,88 @@
+{
+  "seed": 0,
+  "epochs": 30,
+  "batch": 256,
+  "lr": 0.001,
+  "weight_decay": 0.0001,
+  "optimiser": "AdamW + CosineAnnealingLR",
+  "loss": "BCEWithLogitsLoss",
+  "num_classes": 527,
+  "n_train": 18683,
+  "n_eval": 10572,
+  "eval_leakage_excluded": 6569,
+  "m2_ckpt": "/home/utkarsh/JEPA-Omni/checkpoints/m2_run2_vggsound197k_ego4d134k_neg200/step19000.pt",
+  "vision_zeroed": true,
+  "attentive_arch": "1 learned query -> MultiheadAttention(8 heads) -> LayerNorm -> Linear",
+  "results": [
+    {
+      "probe": "linear",
+      "mAP": 8.69253427921763,
+      "mAUC": 87.59701975356461,
+      "dprime": 1.633523110203954,
+      "n_classes_scored": 498,
+      "dim": 768,
+      "seq_len": null,
+      "variant": "ambient (WavJEPA-base)"
+    },
+    {
+      "probe": "attentive",
+      "mAP": 18.314914070341448,
+      "mAUC": 92.00521765308868,
+      "dprime": 1.9875677175296897,
+      "n_classes_scored": 498,
+      "dim": 768,
+      "seq_len": 32,
+      "variant": "ambient (WavJEPA-base)"
+    },
+    {
+      "probe": "linear",
+      "mAP": 18.59126430853578,
+      "mAUC": 92.63531245979893,
+      "dprime": 2.0494174431698395,
+      "n_classes_scored": 498,
+      "dim": 1024,
+      "seq_len": null,
+      "variant": "world_state (vision ZEROED)"
+    },
+    {
+      "probe": "attentive",
+      "mAP": 19.99717002722279,
+      "mAUC": 93.9271043057333,
+      "dprime": 2.190168670551799,
+      "n_classes_scored": 498,
+      "dim": 1024,
+      "seq_len": 32,
+      "variant": "world_state (vision ZEROED)"
+    },
+    {
+      "probe": "linear",
+      "mAP": 0.5854722655871206,
+      "mAUC": 50.11613444429831,
+      "dprime": 0.004116864674961245,
+      "n_classes_scored": 498,
+      "dim": 1024,
+      "seq_len": null,
+      "variant": "CONTROL label-shuffled"
+    },
+    {
+      "probe": "attentive",
+      "mAP": 0.6170357725277497,
+      "mAUC": 49.42464230521965,
+      "dprime": -0.020396606332150007,
+      "n_classes_scored": 498,
+      "dim": 1024,
+      "seq_len": 32,
+      "variant": "CONTROL label-shuffled"
+    },
+    {
+      "probe": "linear",
+      "mAP": 0.5588650290247793,
+      "mAUC": 50.42153461713777,
+      "dprime": 0.014943291176232712,
+      "n_classes_scored": 498,
+      "dim": 1024,
+      "seq_len": null,
+      "variant": "CONTROL matched-stats random"
+    }
+  ]
+}
