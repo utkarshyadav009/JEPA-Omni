@@ -54,11 +54,28 @@ def main():
         log("  %s  train=%d eval=%d(kept from %d)  dim=%s  tokens=%s"
             % (m, len(tr["ids"]), len(keep), len(te["ids"]), tr.get("dim"),
                "yes" if "feat_tokens" in tr else "no"))
-        for kind, key in (("linear", "feat_mean"), ("attentive", "feat_tokens")):
+        # THREE variants, because "linear" is not one thing across models.
+        #   linear_native  : the tower's own pooled output, exactly as its retrieval script
+        #                    returns it. For CAV-MAE et al. that is an L2-NORMALISED CLS
+        #                    retrieval embedding (measured norm 1.0000), which is a different
+        #                    object from our raw token mean (norm 3.19) -- so this column is
+        #                    NOT comparable to ours and is reported for completeness only.
+        #   linear_tokmean : mean over the token sequence, matching how our own ambient_mean
+        #                    is built. THIS is the comparable linear column, and it only
+        #                    exists for towers that expose a real token sequence.
+        #   attentive      : over the token sequence, as for ours.
+        specs = [("linear", "feat_mean", "linear_native"),
+                 ("linear", "feat_tokens", "linear_tokmean"),
+                 ("attentive", "feat_tokens", "attentive")]
+        for kind, key, tag in specs:
             if key not in tr or key not in te:
-                log("    %-10s SKIP (tower exposes no token sequence)" % kind); continue
-            r = AP.run(tr[key], Ytr, te[key][keep], Yte, kind, log)
-            r["variant"] = m
+                log("    %-14s SKIP (tower exposes no token sequence)" % tag); continue
+            Xtr = tr[key]; Xte = te[key][keep]
+            if tag == "linear_tokmean":
+                Xtr = Xtr.float().mean(1).half(); Xte = Xte.float().mean(1).half()
+            r = AP.run(Xtr, Ytr, Xte, Yte, kind, log)
+            r["variant"] = m; r["column"] = tag
+            r["comparable_to_ours"] = tag in ("linear_tokmean", "attentive")
             r["preprocessing_source"] = tr.get("preprocessing_source")
             r["n_train"] = int(Ytr.shape[0]); r["n_eval"] = int(Yte.shape[0])
             res.append(r)
