@@ -1,0 +1,35 @@
+{
+  "n_clips": 1532,
+  "clips_requested": 1545,
+  "n_failed": 13,
+  "eval_list": "data/vggsound_eval_1545.txt",
+  "audio_to_visual": {
+    "R@1": 7.57,
+    "R@5": 20.82,
+    "R@10": 30.94
+  },
+  "visual_to_audio": {
+    "R@1": 10.31,
+    "R@5": 26.83,
+    "R@10": 38.45
+  },
+  "ckpt": {
+    "video": "/mnt/Raid-Storage-2/utkarsh-data/baseline_checkpoints/languagebind/cache_dir/models--LanguageBind--LanguageBind_Video_FT/snapshots/13f52c20ce666a7d017bcd00522039f4ab034a66/pytorch_model.bin",
+    "audio": "/mnt/Raid-Storage-2/utkarsh-data/baseline_checkpoints/languagebind/cache_dir/models--LanguageBind--LanguageBind_Audio_FT/snapshots/4820c496563c46acfb1ff9a486fae5319f16257e/pytorch_model.bin"
+  },
+  "ckpt_sha256": {
+    "video": "9c848bd467d20e44b5095a112a3dd946f352c29fcbf17ac08d08ee02a71b9385",
+    "audio": "b0fbb6a2703c1021d754262b5dde79e69f83b0b53763d327366e4d93efa15253"
+  },
+  "repo": "https://github.com/PKU-YuanGroup/LanguageBind",
+  "hf_repos": [
+    "LanguageBind/LanguageBind_Video_FT",
+    "LanguageBind/LanguageBind_Audio_FT"
+  ],
+  "params_millions": 709.3,
+  "pretrain_corpus": "VIDAL-10M (self-collected video/infrared/depth/audio/language pairs, language-anchored contrastive binding) \u2014 NOT VGGSound",
+  "contamination_flag": "HELD-OUT",
+  "preprocessing": "Video: decord backend, 8 uniformly-sampled frames (np.linspace over full clip length), resize short side to 224, center-crop 224, OpenAI CLIP mean/std normalisation; RandomHorizontalFlip(p=0.5) from the official train-time transform disabled for deterministic eval. Audio: torchaudio.load (ffmpeg backend, mp4 read directly) -> resample to 16kHz -> Kaldi fbank (num_mel_bins=112, frame_length=25ms, frame_shift=10ms, hanning, htk_compat, dither=0) -> pad/repeat to target_length=1036 frames -> tile to 3 identical channels (deterministic for our <=10s clips) -> normalise (mel + 4.2677393) / (4.5689974 * 2). All numeric constants read from each checkpoint's own vision_config, not hardcoded.",
+  "date_evaluated": "2026-09-02",
+  "eval_command": "conda activate langbind_eval && python scripts/languagebind_retrieval.py"
+}

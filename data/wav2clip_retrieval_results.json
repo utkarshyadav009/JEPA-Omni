@@ -1,0 +1,26 @@
+{
+  "n_clips": 1545,
+  "clips_requested": 1545,
+  "n_failed": 0,
+  "eval_list": "data/vggsound_eval_1545.txt",
+  "audio_to_visual": {
+    "R@1": 5.31,
+    "R@5": 12.94,
+    "R@10": 19.09
+  },
+  "visual_to_audio": {
+    "R@1": 6.47,
+    "R@5": 16.44,
+    "R@10": 23.11
+  },
+  "ckpt": "/mnt/Raid-Storage-2/utkarsh-data/baseline_checkpoints/wav2clip/hub/checkpoints/Wav2CLIP.pt",
+  "ckpt_sha256": "264f879658d2638c3941a5058917ce99d2217808130d11b2ddaee60b5a39b8d5",
+  "repo": "https://github.com/descriptinc/lyrebird-wav2clip",
+  "params_millions": 163.0,
+  "params_note": "audio ResNet18+MLP tower + full CLIP ViT-B/32 (image+text) both counted; only the image tower and audio tower are used at inference",
+  "pretrain_corpus": "VGGSound (audio tower distilled from frozen CLIP ViT-B/32; paper: ~200k 10s clips, official VGGSound training split)",
+  "contamination_flag": "HELD-OUT (verified: 0/1545 eval clip IDs present in data/train.csv, VGGSound's official 183,730-clip training split that Wav2CLIP's paper reports training on; all 1545 are in data/test.csv instead) -- caveat: same-dataset split, not de-duplicated against near-identical re-uploads, so treat as weaker than a cross-dataset held-out set",
+  "preprocessing": "Audio: raw 16kHz mono waveform (torchcodec AudioDecoder, channel-mean mixdown) fed directly into Wav2CLIP's own ResNet18 (wav2clip/model/resnet.py), which internally computes torchaudio.transforms.Spectrogram(n_fft=512, hop_length=353), log(x+1e-7), and global tensor mean/std normalisation, then the distilled 512-512-512 MLP head. Run at batch size 1 (the package's own single-clip usage pattern) because that internal normalisation is computed over the whole input tensor, not per-sample, so larger batches would leak stats across clips. Video: 10 frames sampled evenly across each clip, each resized/cropped/normalised with open_clip's official ViT-B/32 'openai' preprocessing, encoded with the frozen CLIP image tower, L2-normalised per-frame, mean-pooled to one 512-d clip embedding (matches the paper's own frame-mean-pooling retrieval-eval method; frame count reduced from the paper's 150 (30fps x 5s) for the 1545-clip eval time budget -- documented deviation, not a silent one).",
+  "date_evaluated": "2026-09-02",
+  "eval_command": "conda run -n jepa-omni python scripts/wav2clip_retrieval.py"
+}

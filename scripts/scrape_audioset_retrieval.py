@@ -11,7 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 OUT = "/mnt/Raid-Storage-2/utkarsh-data/audioset_scrape"
 LOG = "/mnt/Raid-Storage-2/utkarsh-data/audioset_scrape/progress.jsonl"
 TARGET = "/home/utkarsh/JEPA-Omni/data/audioset_retrieval_target.json"
-WORKERS = 8
+WORKERS = 16
 YTDLP = "/home/utkarsh/miniconda3/envs/jepa-omni/bin/yt-dlp"
 lock = threading.Lock()
 done = {"ok": 0, "fail": 0, "t0": time.time()}
@@ -32,7 +32,7 @@ def fetch(rec):
            "-f", "b[height<=360]/b",
            "-o", tmp, f"https://www.youtube.com/watch?v={ytid}"]
     try:
-        r = subprocess.run(cmd, capture_output=True, timeout=240)
+        r = subprocess.run(cmd, capture_output=True, timeout=90)
         ok = r.returncode == 0 and os.path.exists(tmp) and os.path.getsize(tmp) > 10000
         err = "" if ok else (r.stderr.decode()[-160:] if r.stderr else "no file")
         if ok:

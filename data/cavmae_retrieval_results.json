@@ -1,6 +1,6 @@
 {
   "n_clips": 1545,
-  "eval_list": "data/cavmae_eval_subset.txt",
+  "eval_list": "/home/utkarsh/JEPA-Omni/data/vggsound_eval_1545.txt",
   "audio_to_visual": {
     "R@1": 12.23,
     "R@5": 28.22,

@@ -133,3 +133,40 @@ here for time; only the cleaner "Base" (AudioSet-2M only, HELD-OUT) variant is i
   audioclip,wav2clip}_retrieval.py`
 - **Per-model run logs**: `logs/{cavmae_1545,cavmae_sync_1545,avsiam_base_1545,equiav_1545,
   imagebind_1545,languagebind_1545,audioclip_1545,wav2clip_1545}.log`
+
+---
+
+## RE-MEASURED 2026-09-09 — all 13 missing videos recovered, rows now 1545/1545
+
+The 13 gallery clips that previously had no local `.mp4` were recovered, so every row below
+except LanguageBind is measured on the **full 1,545 clips** rather than the 1,532-clip
+intersection. **These supersede the numeric cells in the table above**, which were measured at
+1532/1545. Each row is read directly from the artifact named in its last column; every value
+here was re-derived by the parent from that JSON, not transcribed from a report.
+
+| Model | a→v R@1 | a→v R@5 | a→v R@10 | v→a R@1 | v→a R@5 | v→a R@10 | N | artifact |
+|---|---|---|---|---|---|---|---|---|
+| AudioCLIP | 0.19 | 0.58 | 1.17 | 0.91 | 2.72 | 3.95 | 1545 | `data/audioclip_retrieval_results.json` |
+| AVSiam (Base) | 2.59 | 8.09 | 12.36 | 3.04 | 9.9 | 15.21 | 1545 | `data/avsiam_base_retrieval_results.json` |
+| CAV-MAE | 12.23 | 28.22 | 36.5 | 14.24 | 27.64 | 36.83 | 1545 | `data/cavmae_retrieval_results.json` |
+| CAV-MAE Sync | 2.01 | 7.38 | 11.46 | 4.92 | 13.4 | 19.55 | 1545 | `data/cavmae_sync_retrieval_results.json` |
+| EquiAV | 24.66 | 47.31 | 57.22 | 21.81 | 45.11 | 55.47 | 1545 | `data/equiav_retrieval_results.json` |
+| ImageBind | 29.45 | 55.99 | 66.54 | 29.64 | 58.06 | 68.61 | 1545 | `data/imagebind_retrieval_results.json` |
+| LanguageBind | 7.57 | 20.82 | 30.94 | 10.31 | 26.83 | 38.45 | 1532 | `data/languagebind_retrieval_results.json` |
+| Wav2CLIP | 5.31 | 12.94 | 19.09 | 6.47 | 16.44 | 23.11 | 1545 | `data/wav2clip_retrieval_results.json` |
+| **Ours (`m2_run2` step19000, LOCKED)** | **53.14** | **81.81** | **88.28** | **53.46** | **80.39** | **87.83** | 1545 | `docs/artifacts/gallery_contamination.json` |
+
+Our row is the re-run control from `docs/GALLERY_CONTAMINATION.md` (documented previously as
+53.27 / 53.72; the re-run reproduces it to within 0.13–0.26 pts). LanguageBind remains at
+1532/1545 — it was still running when its agent stopped and was not re-measured with the
+recovered clips.
+
+**Contamination in clips, not labels.** Wav2CLIP's training corpus *is* the official VGGSound
+train split (`data/train.csv`, 183,730 clips / 146,764 unique YouTube ids). Measured against
+our gallery: **exact-clip overlap 0/1545, and video-level overlap (same YouTube id, different
+10 s segment) also 0/1545.** So while the gallery is in-*domain* for Wav2CLIP, none of these
+specific clips — nor any other segment of the same videos — were in its training data. This
+closes the earlier caveat that the check was 'not de-duplicated against near-identical
+re-uploads'. CAV-MAE's AudioSet-2M training list was not obtained, so its flag remains
+corpus-level only and unquantified.
+

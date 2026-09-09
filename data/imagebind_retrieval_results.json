@@ -1,0 +1,26 @@
+{
+  "n_clips": 1545,
+  "clips_requested": 1545,
+  "clips_missing_video": 0,
+  "clips_failed_extraction": 0,
+  "eval_list": "data/vggsound_eval_1545.txt",
+  "audio_to_visual": {
+    "R@1": 29.45,
+    "R@5": 55.99,
+    "R@10": 66.54
+  },
+  "visual_to_audio": {
+    "R@1": 29.64,
+    "R@5": 58.06,
+    "R@10": 68.61
+  },
+  "ckpt": "/mnt/Raid-Storage-2/utkarsh-data/baseline_checkpoints/imagebind/imagebind_huge.pth",
+  "ckpt_sha256": "d6f6c22bedcc90708448d5d2fbb7b2db9c73f505dc89bd0b2e09b23af1b62157",
+  "repo": "https://github.com/facebookresearch/ImageBind",
+  "params_millions": 1200.8,
+  "pretrain_corpus": "Audio tower: AudioSet. Image/vision tower: web-scale image-text pairs (CLIP init) + naturally-paired video-audio web data. NOT trained on VGGSound per the ImageBind paper/authors.",
+  "contamination_flag": "HELD-OUT",
+  "preprocessing": "ImageBind's own defaults from imagebind/data.py, unmodified. Audio: torchaudio.load direct from mp4 -> resample 16kHz -> ConstantClipsPerVideoSampler(2s x 3 clips) -> kaldi fbank (128 mel bins, 10ms frame shift, target_length=204) -> normalise(mean=-4.268,std=9.138) -> mean-pooled over 3 clips by the model. Video: decord decode -> ConstantClipsPerVideoSampler (2s x 5 clips) -> UniformTemporalSubsample(2 frames/clip) -> ShortSideScale(224) -> NormalizeVideo(CLIP mean/std) -> SpatialCrop(224, 3 crops) -> 15 (2-frame,224x224) views, mean-pooled over the 15 views by the model's forward().",
+  "date_evaluated": "2026-09-02",
+  "eval_command": "conda run -n jepa-omni python scripts/imagebind_retrieval.py"
+}

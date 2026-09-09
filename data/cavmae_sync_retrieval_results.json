@@ -1,0 +1,25 @@
+{
+  "n_clips": 1545,
+  "clips_requested": 1545,
+  "eval_list": "data/vggsound_eval_1545.txt",
+  "failed_clips": 0,
+  "audio_to_visual": {
+    "R@1": 2.01,
+    "R@5": 7.38,
+    "R@10": 11.46
+  },
+  "visual_to_audio": {
+    "R@1": 4.92,
+    "R@5": 13.4,
+    "R@10": 19.55
+  },
+  "ckpt": "/mnt/Raid-Storage-2/utkarsh-data/baseline_checkpoints/cavmae_sync/cav_mae_sync.pth",
+  "ckpt_sha256": "a035b04cf615fe4c85d6aa1e74b26d8223a85945957664e66abea16e183629bd",
+  "repo": "https://github.com/edsonroteia/cav-mae-sync",
+  "params_millions": 190.66,
+  "pretrain_corpus": "AudioSet-2M + VGGSound (fine-grained sync fine-tuning of a CAV-MAE-initialized model; data-prep instructions explicitly reuse the original CAV-MAE AudioSet+VGGSound pipeline)",
+  "contamination_flag": "IN-DISTRIBUTION",
+  "preprocessing": "Audio: kaldi-compliance fbank (htk_compat=True, 128 mel bins, dither=0, 10ms frame shift, hanning window) over the full waveform, padded/cut to 1024 frames, then a 416-frame segment cropped per sync-frame via the model's own map_frame_to_spectrogram mapping, normalized with mean=-5.081/std=4.4849. Video: 16 frames at evenly-spaced bin centers across clip duration, Resize(224,bicubic)->CenterCrop(224)->ToTensor->ImageNet normalize. Model: CAVMAESync(audio_length=416, modality_specific_depth=11, num_register_tokens=8, cls_token=True, total_frame=16), CLS-token embedding, L2-normalized per sync-frame, diagonal_mean aggregation across the 16 frames.",
+  "date_evaluated": "2026-09-02",
+  "eval_command": "conda run -n jepa-omni python scripts/cavmae_sync_retrieval.py"
+}

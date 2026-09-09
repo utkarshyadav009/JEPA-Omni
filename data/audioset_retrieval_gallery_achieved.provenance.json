@@ -1,0 +1,8 @@
+{
+  "n": 925,
+  "classes": 185,
+  "per_class": 5,
+  "construction": "balanced 5-per-class from the leakage-cleaned AudioSet eval split, restricted to clips that SURVIVED scraping; rarest-class-first greedy, seed 0, NO padding",
+  "target_n": 2210,
+  "scraped_usable": 1614
+}
