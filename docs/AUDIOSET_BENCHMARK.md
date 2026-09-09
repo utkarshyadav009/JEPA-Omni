@@ -118,3 +118,45 @@ python scripts/audioset_extract_features.py --split eval      --out .../eval.pt
 python scripts/audioset_probe.py --train .../bal_train.pt --eval .../eval.pt \
     --clean-eval-ids /tmp/audioset_eval_clean_ids.json --out docs/artifacts/audioset_probe_ours.json
 ```
+
+---
+
+## Table 1b — baselines through the IDENTICAL probe (measured by us)
+
+`scripts/audioset_probe_baseline.py` imports `SEED/EPOCHS/BATCH/LR/WD` and `run()` directly
+from `scripts/audioset_probe.py`, so a baseline row cannot differ from ours in optimiser, LR,
+schedule, epochs, batch, seed or metric. Same n_train 18,683 / n_eval 10,572, same 498 scored
+classes, same leakage exclusion.
+
+> **`linear` is not one thing across models — read this before comparing.**
+> Each baseline's own retrieval script returns an **L2-normalised** embedding (measured norm
+> 1.0000 for both CAV-MAE and ImageBind), which is a *retrieval head*, not a pooled encoder
+> feature. Our `ambient_mean` is a **raw mean over the token sequence** (norm 3.1925);
+> cos(feat_mean, tokens.mean) = 0.5689 for CAV-MAE, i.e. genuinely different objects. Probing
+> the native embedding gives baselines mAP 1.05–2.48, barely above our 0.56 matched-stats
+> control — an artifact of the mismatch, **not** a property of the models. The comparable column
+> is `linear (matched)` = mean over tokens, built exactly as ours is. It exists only for towers
+> that expose a real token sequence; **AudioCLIP and Wav2CLIP do not, so they have no comparable
+> column at all** and are shown for completeness only.
+
+| model | dim | linear (native, NOT comparable) | linear (matched) | attentive |
+|---|---|---|---|---|
+| AudioCLIP | 1024 | 1.05 | — | — |
+| CAV-MAE | 768 | 1.27 | 12.48 | 18.30 |
+| ImageBind | 1024 | 2.48 | 10.81 | 15.96 |
+| Wav2CLIP | 512 | 1.55 | — | — |
+| **Ours — ambient (WavJEPA-base)** | 768 | n/a (raw pooled) | **8.69** | **18.31** |
+| **Ours — world-state (vision ZEROED)** | 1024 | n/a (raw pooled) | **18.59** | **20.00** |
+
+**Harness validation.** Our CAV-MAE attentive figure lands within **1.08 mAP** of MJEPA's
+published 19.38 for the same model under an attentive probe (their number is in Table 2 and is
+NOT re-measured here). That is independent evidence the probe harness is sound, obtained without
+a published number entering a measured table.
+
+**Cross-task inconsistency worth noting.** ImageBind is the *strongest* baseline on our VGGSound
+retrieval gallery (29.45 / 29.64 R@1, `docs/BASELINE_1545.md`) but mid-pack here. Retrieval
+quality and frozen-probe classification quality do not rank models the same way.
+
+Artifact: `docs/artifacts/audioset_probe_baselines.json` (each row carries `comparable_to_ours`
+and `preprocessing_source` with the exact file:line range reused).
+
