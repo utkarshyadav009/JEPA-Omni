@@ -1,17 +1,17 @@
 {
-  "n_clips": 1532,
+  "n_clips": 1545,
   "clips_requested": 1545,
-  "n_failed": 13,
+  "n_failed": 0,
   "eval_list": "data/vggsound_eval_1545.txt",
   "audio_to_visual": {
-    "R@1": 7.57,
-    "R@5": 20.82,
-    "R@10": 30.94
+    "R@1": 7.64,
+    "R@5": 20.78,
+    "R@10": 30.74
   },
   "visual_to_audio": {
-    "R@1": 10.31,
-    "R@5": 26.83,
-    "R@10": 38.45
+    "R@1": 10.29,
+    "R@5": 26.8,
+    "R@10": 38.38
   },
   "ckpt": {
     "video": "/mnt/Raid-Storage-2/utkarsh-data/baseline_checkpoints/languagebind/cache_dir/models--LanguageBind--LanguageBind_Video_FT/snapshots/13f52c20ce666a7d017bcd00522039f4ab034a66/pytorch_model.bin",
