@@ -152,14 +152,13 @@ here was re-derived by the parent from that JSON, not transcribed from a report.
 | CAV-MAE Sync | 2.01 | 7.38 | 11.46 | 4.92 | 13.4 | 19.55 | 1545 | `data/cavmae_sync_retrieval_results.json` |
 | EquiAV | 24.66 | 47.31 | 57.22 | 21.81 | 45.11 | 55.47 | 1545 | `data/equiav_retrieval_results.json` |
 | ImageBind | 29.45 | 55.99 | 66.54 | 29.64 | 58.06 | 68.61 | 1545 | `data/imagebind_retrieval_results.json` |
-| LanguageBind | 7.57 | 20.82 | 30.94 | 10.31 | 26.83 | 38.45 | 1532 | `data/languagebind_retrieval_results.json` |
+| LanguageBind | 7.64 | 20.78 | 30.74 | 10.29 | 26.8 | 38.38 | 1545 | `data/languagebind_retrieval_results.json` |
 | Wav2CLIP | 5.31 | 12.94 | 19.09 | 6.47 | 16.44 | 23.11 | 1545 | `data/wav2clip_retrieval_results.json` |
 | **Ours (`m2_run2` step19000, LOCKED)** | **53.14** | **81.81** | **88.28** | **53.46** | **80.39** | **87.83** | 1545 | `docs/artifacts/gallery_contamination.json` |
 
 Our row is the re-run control from `docs/GALLERY_CONTAMINATION.md` (documented previously as
-53.27 / 53.72; the re-run reproduces it to within 0.13–0.26 pts). LanguageBind remains at
-1532/1545 — it was still running when its agent stopped and was not re-measured with the
-recovered clips.
+53.27 / 53.72; the re-run reproduces it to within 0.13–0.26 pts). **All eight baselines are now
+measured on the full 1,545 clips** — LanguageBind was re-run after the 13 videos were recovered.
 
 **Contamination in clips, not labels.** Wav2CLIP's training corpus *is* the official VGGSound
 train split (`data/train.csv`, 183,730 clips / 146,764 unique YouTube ids). Measured against
