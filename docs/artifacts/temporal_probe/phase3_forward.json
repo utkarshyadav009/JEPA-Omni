@@ -1,0 +1,157 @@
+{
+  "script": "scripts/temporal_probe/phase3_forward.py",
+  "command": "/home/utkarsh/miniconda3/envs/jepa-omni/bin/python /home/utkarsh/JEPA-Omni/scripts/temporal_probe/phase3_forward.py --max-files 120 --out /home/utkarsh/JEPA-Omni/docs/artifacts/temporal_probe/phase3_forward.json",
+  "git_rev": "9d12c793a5bb9885d4a41c3d5000ed1a3681e88a",
+  "utc": "2026-09-11T23:08:16Z",
+  "ckpt": "checkpoints/m2_run2_vggsound197k_ego4d134k_neg200/step19000.pt",
+  "ckpt_sha256": "e1a8231ec9fbae6cf2b8288c89612ee1facd2dc6938781c22cf06295b31bedf8",
+  "n_files": 120,
+  "n_test_files": 36,
+  "split": "FILE-DISJOINT",
+  "seed": 0,
+  "stride_s": 10.0,
+  "caveat": "Tests whether the SPACE is predictable, not whether the MODEL predicts: RUN-2 trained with lam_pred=0.0 and has no term referencing any future window.",
+  "by_delta": {
+    "10s": {
+      "n_train_pairs": 5885,
+      "n_test_pairs": 2533,
+      "gallery_size": 2533,
+      "results": [
+        {
+          "method": "IDENTITY (copy W(t))",
+          "cosine_mean": 0.8569,
+          "cosine_std": 0.1354,
+          "R@1": 0.43,
+          "R@5": 29.37,
+          "gallery_size": 2533
+        },
+        {
+          "method": "corpus mean",
+          "cosine_mean": 0.2796,
+          "cosine_std": 0.1089,
+          "R@1": 0.04,
+          "R@5": 0.2,
+          "gallery_size": 2533
+        },
+        {
+          "method": "per-dim rescaled copy",
+          "cosine_mean": 0.8569,
+          "cosine_std": 0.1354,
+          "R@1": 0.43,
+          "R@5": 29.41,
+          "gallery_size": 2533
+        },
+        {
+          "method": "ridge",
+          "cosine_mean": 0.7733,
+          "cosine_std": 0.1294,
+          "R@1": 3.16,
+          "R@5": 16.98,
+          "gallery_size": 2533
+        },
+        {
+          "method": "2-layer MLP",
+          "cosine_mean": 0.7858,
+          "cosine_std": 0.1235,
+          "R@1": 3.43,
+          "R@5": 16.7,
+          "gallery_size": 2533
+        }
+      ]
+    },
+    "20s": {
+      "n_train_pairs": 5801,
+      "n_test_pairs": 2497,
+      "gallery_size": 2497,
+      "results": [
+        {
+          "method": "IDENTITY (copy W(t))",
+          "cosine_mean": 0.8161,
+          "cosine_std": 0.1665,
+          "R@1": 0.2,
+          "R@5": 15.38,
+          "gallery_size": 2497
+        },
+        {
+          "method": "corpus mean",
+          "cosine_mean": 0.2798,
+          "cosine_std": 0.1094,
+          "R@1": 0.04,
+          "R@5": 0.2,
+          "gallery_size": 2497
+        },
+        {
+          "method": "per-dim rescaled copy",
+          "cosine_mean": 0.8161,
+          "cosine_std": 0.1666,
+          "R@1": 0.2,
+          "R@5": 15.42,
+          "gallery_size": 2497
+        },
+        {
+          "method": "ridge",
+          "cosine_mean": 0.7078,
+          "cosine_std": 0.1484,
+          "R@1": 2.04,
+          "R@5": 9.05,
+          "gallery_size": 2497
+        },
+        {
+          "method": "2-layer MLP",
+          "cosine_mean": 0.7211,
+          "cosine_std": 0.1534,
+          "R@1": 1.64,
+          "R@5": 8.77,
+          "gallery_size": 2497
+        }
+      ]
+    },
+    "30s": {
+      "n_train_pairs": 5717,
+      "n_test_pairs": 2461,
+      "gallery_size": 2461,
+      "results": [
+        {
+          "method": "IDENTITY (copy W(t))",
+          "cosine_mean": 0.799,
+          "cosine_std": 0.1753,
+          "R@1": 0.45,
+          "R@5": 12.27,
+          "gallery_size": 2461
+        },
+        {
+          "method": "corpus mean",
+          "cosine_mean": 0.28,
+          "cosine_std": 0.1098,
+          "R@1": 0.04,
+          "R@5": 0.2,
+          "gallery_size": 2461
+        },
+        {
+          "method": "per-dim rescaled copy",
+          "cosine_mean": 0.7989,
+          "cosine_std": 0.1753,
+          "R@1": 0.41,
+          "R@5": 12.31,
+          "gallery_size": 2461
+        },
+        {
+          "method": "ridge",
+          "cosine_mean": 0.6808,
+          "cosine_std": 0.1628,
+          "R@1": 1.42,
+          "R@5": 7.27,
+          "gallery_size": 2461
+        },
+        {
+          "method": "2-layer MLP",
+          "cosine_mean": 0.6909,
+          "cosine_std": 0.1696,
+          "R@1": 1.3,
+          "R@5": 6.46,
+          "gallery_size": 2461
+        }
+      ]
+    }
+  }
+}

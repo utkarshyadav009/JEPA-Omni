@@ -1,0 +1,171 @@
+{
+  "script": "scripts/temporal_probe/phase2_persistence.py",
+  "command": "/home/utkarsh/miniconda3/envs/jepa-omni/bin/python scripts/temporal_probe/phase2_persistence.py --max-files 50 --out docs/artifacts/temporal_probe/phase2_persistence.json",
+  "git_rev": "9d12c793a5bb9885d4a41c3d5000ed1a3681e88a",
+  "utc": "2026-09-11T23:02:03Z",
+  "result": {
+    "deltas_seconds": [
+      0.0,
+      10.0,
+      20.0,
+      30.0,
+      60.0
+    ],
+    "curves": {
+      "world_state": {
+        "raw_cosine": {
+          "0.0": 1.0,
+          "10.0": 0.869876,
+          "20.0": 0.835338,
+          "30.0": 0.821658,
+          "60.0": 0.801969
+        },
+        "l2norm_cosine": {
+          "0.0": 1.0,
+          "10.0": 0.869876,
+          "20.0": 0.835338,
+          "30.0": 0.821658,
+          "60.0": 0.801969
+        },
+        "n_pairs": {
+          "0.0": 4491,
+          "10.0": 4441,
+          "20.0": 4391,
+          "30.0": 4341,
+          "60.0": 4191
+        },
+        "half_life_s_raw": null,
+        "half_life_s_l2norm": null,
+        "half_life_note": "None = cosine never fell to the midpoint between Delta=0 and the floor within the measured range (max Delta = 60s), so the half-life is BEYOND the measurable window, not absent."
+      },
+      "vision": {
+        "raw_cosine": {
+          "0.0": 1.0,
+          "10.0": 0.961224,
+          "20.0": 0.948891,
+          "30.0": 0.944987,
+          "60.0": 0.938694
+        },
+        "l2norm_cosine": {
+          "0.0": 1.0,
+          "10.0": 0.961224,
+          "20.0": 0.948891,
+          "30.0": 0.944987,
+          "60.0": 0.938694
+        },
+        "n_pairs": {
+          "0.0": 4491,
+          "10.0": 4441,
+          "20.0": 4391,
+          "30.0": 4341,
+          "60.0": 4191
+        },
+        "half_life_s_raw": null,
+        "half_life_s_l2norm": null,
+        "half_life_note": "None = cosine never fell to the midpoint between Delta=0 and the floor within the measured range (max Delta = 60s), so the half-life is BEYOND the measurable window, not absent."
+      },
+      "ambient": {
+        "raw_cosine": {
+          "0.0": 1.0,
+          "10.0": 0.947351,
+          "20.0": 0.935116,
+          "30.0": 0.929499,
+          "60.0": 0.92015
+        },
+        "l2norm_cosine": {
+          "0.0": 1.0,
+          "10.0": 0.947351,
+          "20.0": 0.935116,
+          "30.0": 0.929499,
+          "60.0": 0.92015
+        },
+        "n_pairs": {
+          "0.0": 4491,
+          "10.0": 4441,
+          "20.0": 4391,
+          "30.0": 4341,
+          "60.0": 4191
+        },
+        "half_life_s_raw": null,
+        "half_life_s_l2norm": null,
+        "half_life_note": "None = cosine never fell to the midpoint between Delta=0 and the floor within the measured range (max Delta = 60s), so the half-life is BEYOND the measurable window, not absent."
+      }
+    },
+    "floor": {
+      "world_state": {
+        "raw_cosine": 0.093719,
+        "l2norm_cosine": 0.093719,
+        "n_pairs": 2000
+      },
+      "vision": {
+        "raw_cosine": 0.781386,
+        "l2norm_cosine": 0.781386,
+        "n_pairs": 2000
+      },
+      "ambient": {
+        "raw_cosine": 0.731862,
+        "l2norm_cosine": 0.731862,
+        "n_pairs": 2000
+      }
+    },
+    "n_files": 50,
+    "min_run": 10,
+    "stride_s": 10.0,
+    "file_ids": [
+      "3c97245a-a598-445c-be00-61ff71313528",
+      "5fe81f9c-159c-4b83-807f-34866dd03a8b",
+      "aeadb544-fd9f-4bb8-bfbd-fbefd899ec8e",
+      "5eac2640-5ee2-44ae-b475-b6adf575a86e",
+      "473cb643-72ba-4a12-b78f-5f78ea888afb",
+      "1c2d34d7-249c-4426-ad55-77c9063a132e",
+      "7544f7c5-3823-439f-bc64-326a15d65406",
+      "c019e4c6-45f5-4e01-9e4f-6ec4712850ce",
+      "7dd6f14c-bdc0-45cc-86c1-a2af2b61d177",
+      "6ac1d2ed-1f6b-4828-a1ab-f81c40bd5e80",
+      "d42622c3-6b32-4e7f-9675-23bc73681843",
+      "3f6e7d56-6bf0-43d6-81cf-2bd11827455e",
+      "34af64b6-2135-43dc-9a33-2899d92a0c8e",
+      "d85f0f6d-ec7d-4dd6-b829-c540a1a41193",
+      "64cbbc59-e99c-404b-88ec-e3e4f057105f",
+      "e8283c8f-ecc0-448a-84d2-9f16160d7a4b",
+      "02877cad-35c5-423b-8e93-11cf79fe4b31",
+      "0e3ee603-7b9d-459d-9006-65285f3efd23",
+      "141e36da-2551-4fb5-aeff-021a3682c60a",
+      "a56c188b-0bb8-4285-bf1f-aed452dacc1e",
+      "45bf438d-0cbb-40b8-be95-58204bb3c6fe",
+      "a5a4777c-3874-478e-b183-69fc864d92d9",
+      "5f2be256-1298-4876-a310-cc9c7e80774a",
+      "0dd042a0-b5be-4057-b23e-13937480a759",
+      "9df7ece6-df68-4158-a294-06aa242c2b9d",
+      "18fc3782-9929-4df3-b6c9-40943de4c22d",
+      "9e0d303c-c450-4ed6-be3c-2f0a271e5fb4",
+      "71df0613-8aae-4951-adf9-678af774fcfb",
+      "5e9e692b-dd68-4618-bfa3-012a7934abc2",
+      "069eed38-e58d-466f-9188-7e6ec085fb1a",
+      "28d73c89-e96d-4296-876a-329f908aeac6",
+      "aa5c1090-05fd-41e7-86a8-1bc601226c51",
+      "773b6d5f-4ce9-49c4-8aa6-723ec19110f1",
+      "7f1794b5-49de-4782-adcb-497bd9e64f66",
+      "f57c99dc-02c7-4d3a-a4dc-893e74d523b1",
+      "430e5bad-ae28-4fb6-ab5d-d624b8e167d1",
+      "b05146ea-8397-492a-b140-791ceb1e2f75",
+      "412763ce-9a81-4bb7-b713-80fe2713e1a8",
+      "8762cf76-5526-43a2-b825-a0c396494c87",
+      "dfb7c390-7b36-46b6-8c6d-29d2f5d48bc6",
+      "8338763a-3f8c-47b1-a6e7-fa3af04cfbf3",
+      "99c22e25-31ba-4d1c-a339-257d329f0efc",
+      "8eac6789-726f-4d09-a713-b3ce6a45ac21",
+      "e0ff0f60-0e71-479a-85a5-864812e93d8e",
+      "5251b41e-91b1-4b87-9a18-c631b1d17e2e",
+      "6fea409b-159e-45cb-8fac-da7779d02309",
+      "49a37003-532c-4e24-ac2b-c2f81831fe09",
+      "02995fb6-f8ac-4168-a60d-8a0b1a7210bd",
+      "4258e010-c431-4598-9de7-9b366533365d",
+      "b785626b-2e72-4ee4-84de-16db332ecac6"
+    ],
+    "ckpt": "checkpoints/m2_run2_vggsound197k_ego4d134k_neg200/step19000.pt",
+    "ckpt_sha256": "e1a8231ec9fbae6cf2b8288c89612ee1facd2dc6938781c22cf06295b31bedf8",
+    "batch_size": 1,
+    "note": "Delta >= 10 s is a HARD FLOOR: the cache was extracted at a 10 s non-overlapping stride and the Ego4D raw video is gone."
+  }
+}

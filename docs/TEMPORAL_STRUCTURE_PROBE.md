@@ -1,7 +1,8 @@
 # TEMPORAL_STRUCTURE_PROBE — is the M2 fused latent a "world-state"?
 
-**Date:** 2026-09-11. **Status: Phase 1 only.** Phases 2 (persistence) and 3 (forward
-prediction) are specified but not yet run; §7 states exactly what that leaves open.
+**Date:** 2026-09-11. **Status: all three phases run**, with Phases 2 and 3 capped at
+Δ ≥ 10 s (see §7). Phase 1 = within-window temporal structure; Phase 2 = persistence across
+windows; Phase 3 = forward predictability of the space.
 
 **Checkpoint under test:** `checkpoints/m2_run2_vggsound197k_ego4d134k_neg200/step19000.pt`,
 sha256 `e1a8231ec9fbae6cf2b8288c89612ee1facd2dc6938781c22cf06295b31bedf8`, verified before
@@ -172,16 +173,104 @@ sensitivity, carried by one modality. It is not persistence, and it is not predi
 ambient-only temporal sensitivity as a measured property rather than implying the fused
 vector integrates time across both streams.
 
+---
+
+## 9. Phase 2 — persistence across windows
+
+**Question:** how long does information survive, and does the fusion add persistence beyond
+the window its input already spans?
+
+50 Ego4D files with runs of ≥10 **consecutive** windows, ~4,400 pairs per Δ, 2,000
+different-file floor pairs, **batch size 1** (a single clip cannot be padded, so E-1 cannot
+touch these numbers). `docs/artifacts/temporal_probe/phase2_persistence.json`.
+
+| stream | Δ=0 | Δ=10 s | Δ=20 s | Δ=30 s | Δ=60 s | floor (c) | half-life |
+|---|---|---|---|---|---|---|---|
+| **world-state** | 1.0000 | 0.8699 | 0.8353 | 0.8217 | 0.8020 | **0.0937** | beyond 60 s |
+| vision (reference a) | 1.0000 | 0.9612 | 0.9489 | 0.9450 | 0.9387 | 0.7814 | beyond 60 s |
+| ambient (reference b) | 1.0000 | 0.9474 | 0.9351 | 0.9295 | 0.9202 | 0.7319 | beyond 60 s |
+
+**Answer: the fusion adds no persistence of its own.** Three readings:
+
+1. **It is a plateau, not a decay.** From Δ=20 s to Δ=60 s the world-state moves
+   0.835 → 0.802 — essentially flat over 40 s. Windows are *non-overlapping* 10 s, so
+   Δ=10 s already means wholly disjoint content. A flat residual similarity between
+   disjoint windows of the same file is **scene identity** — same room, same wearer, same
+   microphone — not a decaying memory trace. Nothing is carried across windows.
+2. **Raw cosine flatters the references and must not be read directly.** Their floors are
+   **0.78 and 0.73**: two windows from *different files* are already that similar, the
+   anisotropy/cone effect. The world-state's floor is **0.094**, so SIGReg did make it
+   near-isotropic. Normalised by each stream's own dynamic range, retention at Δ=10 s is
+   world-state **0.857**, vision 0.823, ambient 0.804 — the same regime, no meaningful
+   advantage to the fused vector.
+3. **"Half-life beyond 60 s" for all three sounds impressive and is not** — it follows from
+   the plateau in (1), not from memory.
+
+**Methodological note, stated rather than hidden:** the raw and L2-normalised columns come
+out identical to four decimals, **necessarily** — cosine is scale-invariant, so normalising
+before taking cosine is a no-op. They are not two independent measurements. The distinction
+would matter only under a Euclidean metric.
+
+## 10. Phase 3 — forward prediction
+
+**What this tests: whether the SPACE is predictable, not whether the MODEL predicts.**
+RUN-2 trained with `lam_pred = 0.0` and contains no term referencing any future window
+(§2). A positive result says the latent space admits a learnable forward map; it says
+nothing about the architecture performing prediction.
+
+120 files, **file-disjoint** 84 train / 36 test, seed 0.
+`docs/artifacts/temporal_probe/phase3_forward.json`.
+
+| Δ | method | cosine | **R@1** | R@5 | R@1 gallery |
+|---|---|---|---|---|---|
+| **10 s** | IDENTITY (copy `W(t)`) | **0.8569** | 0.43 | **29.37** | 2,533 |
+| | corpus mean | 0.2796 | 0.04 | 0.20 | 2,533 |
+| | per-dim rescaled copy | 0.8569 | 0.43 | 29.41 | 2,533 |
+| | ridge | 0.7733 | 3.16 | 16.98 | 2,533 |
+| | 2-layer MLP | 0.7858 | **3.43** | 16.70 | 2,533 |
+| **20 s** | IDENTITY | **0.8161** | 0.20 | **15.38** | 2,497 |
+| | ridge | 0.7078 | **2.04** | 9.05 | 2,497 |
+| | 2-layer MLP | 0.7211 | 1.64 | 8.77 | 2,497 |
+| **30 s** | IDENTITY | **0.7990** | 0.45 | **12.27** | 2,461 |
+| | ridge | 0.6808 | **1.42** | 7.27 | 2,461 |
+| | 2-layer MLP | 0.6909 | 1.30 | 6.46 | 2,461 |
+
+**The result splits by metric, and the split is the finding.**
+
+* **By cosine, IDENTITY wins at every Δ.** The learned maps are strictly *worse* at landing
+  near `W(t+Δ)` in absolute terms.
+* **By R@1, the learned maps beat IDENTITY by ~8×** (3.43 vs 0.43 at Δ=10 s; chance on a
+  2,533 gallery is 0.04%).
+* **By R@5, IDENTITY wins again** (29.37 vs 16.70).
+
+The reconciling mechanism: copying `W(t)` produces a vector nearest to `W(t)` itself — and
+`W(t)` is *in the gallery*, as the future of the window d steps earlier. IDENTITY therefore
+retrieves a systematically **off-by-one** neighbour: close enough for R@5, wrong at rank 1.
+The learned maps shift the prediction forward along the trajectory, which buys rank-1
+discrimination at the cost of absolute proximity.
+
+**So there is real forward structure beyond slow change — and it is small.** 3.43% R@1 is
+~85× chance and still 96.6% wrong. Note also that the per-dimension rescaled copy is
+identical to IDENTITY to four decimals, i.e. the world-state is already well-scaled
+per-dimension — SIGReg doing its job, and one more baseline that the learned maps must and
+do beat at rank 1.
+
+**This does not rescue "world-state".** A space in which a ridge regression recovers a
+little forward information is not a model that maintains state. The model was never trained
+to predict anything, and Phase 2 shows it carries nothing between windows.
+
+---
+
 ## 7. What this does NOT show
 
-* **Nothing about persistence or prediction.** Phases 2 and 3 are not yet run. Every claim
-  above concerns structure *within* a single 10 s window. Whether `W(t)` resembles
-  `W(t+Δ)`, and whether `W(t)` carries information about the future beyond slow change, is
-  **unmeasured**.
-* **Phase 2 will be capped at Δ ≥ 10 s and cannot be finer.** The Ego4D feature cache was
+* **Phases 2 and 3 are capped at Δ ≥ 10 s and cannot be finer.** The Ego4D feature cache was
   extracted at a 10 s non-overlapping stride, and the raw video is gone from this machine
   (0 mp4 files survive), so Δ ∈ {1,2,5} s is unobtainable without re-acquiring the corpus.
-  See `docs/ERRATA_PROPOSED.md` E-8/E-9 and `docs/CORPUS_OPTIONS.md`.
+  See `docs/ERRATA_PROPOSED.md` E-8/E-9 and `docs/CORPUS_OPTIONS.md`. Sub-10-second
+  persistence and prediction are therefore **unmeasured**, and a faster-decaying component
+  below 10 s would not be visible to either phase.
+* **Phase 2/3 run on Ego4D only**, whose windows are long-form egocentric; the Phase 1
+  arms run on VGGSound. The two phases are not on the same corpus.
 * **The retrieval column does not measure the fused vector.** `encode_source_tokens` masks
   the other modality, so R@k describes a per-modality representation. A6/A7 act on ambient's
   real bins but reach the *vision* pass only through position-only mask tokens — a thinner
@@ -208,6 +297,11 @@ vector integrates time across both streams.
 > backwards has a slightly larger one, so the representation is not entirely blind to time;
 > but that sensitivity comes from the audio stream alone, and even then the fused vector
 > barely moves. On this evidence "world-state" overclaims, and we are renaming it an
-> audio-visual scene representation. We are separately measuring how long information
-> survives across windows and whether one window's vector predicts the next; those results
-> are not in yet, and we will report them whichever way they come out.
+> audio-visual scene representation. We also measured how long information survives across
+> windows and whether one window's vector predicts the next. It does not persist: the
+> similarity between windows ten seconds apart and sixty seconds apart is almost the same,
+> which is what you see when two clips merely come from the same room rather than when a
+> system is remembering anything. A simple regression can recover a little information
+> about the next window beyond just copying the current one, so the space is not entirely
+> static — but the effect is small, and the model was never trained to predict, so this is
+> a property of the representation rather than a capability of the architecture.
