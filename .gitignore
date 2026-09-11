@@ -25,3 +25,7 @@ jetson_artifacts/benchmarks/home/my_commands_backup.txt
 jetson_artifacts/benchmarks/home/cam_frame.jpg
 jetson_artifacts/benchmarks/home/cam_gst.jpg
 jetson_artifacts/benchmarks/home/demo_frame.jpg
+
+# Local GGUF builds: 241-678 MB each, over GitHub's 100 MB per-file limit.
+# Backed up in the RAID bundle instead (see docs/ERRATA_PROPOSED.md / P1.0).
+models_gguf/

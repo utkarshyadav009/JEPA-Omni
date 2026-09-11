@@ -93,7 +93,17 @@ def _state_prefix(state: dict) -> str:
 
 
 class BmoLineDataset(Dataset):
-    def __init__(self, examples: list[tuple[str, dict, str | None]], tokenizer, max_len: int = 96):
+    # max_len RAISED 96 -> 224, 2026-08-25. THE DIRECTIVE SLICE HAD NEVER TRAINED.
+    # __getitem__ builds cat([prompt, target, eos])[:max_len] and masks labels[:len(prompt)]
+    # with -100. Directive rows carry a six-category scene plus the directive, so their
+    # prompts measure median 119 / p90 151 / max 165 tokens -- ALL of them above 96. The
+    # target line was therefore sliced off entirely and every one of the 783 rows contributed
+    # ZERO loss. Measured: 783/783 targets lost, versus 0/800 for ordinary rows (median 64).
+    # This is why row count did not predict directive success, why correct-looking rows did
+    # not teach, and why v6/v7/v8 were statistically indistinguishable -- none of them ever
+    # saw a directive example. 224 covers p90+target with headroom; check this again if the
+    # scene format grows.
+    def __init__(self, examples: list[tuple[str, dict, str | None]], tokenizer, max_len: int = 224):
         self.examples = examples
         self.tokenizer = tokenizer
         self.max_len = max_len

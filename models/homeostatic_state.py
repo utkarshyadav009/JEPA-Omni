@@ -67,6 +67,10 @@ class HomeostaticParams:
     curiosity_fall_on_novelty: float = 0.4                    # single-tick drop on real novelty detection
     stress_rise_per_s_high_arousal: float = 1.0 / 10.0       # ~10s of loud/negative input -> stressed
     stress_decay_per_s: float = 1.0 / 60.0                    # calm decay, ~1min to unwind
+    # pleasure rises FAST (a compliment should land immediately -- the whole point is
+    # expressiveness) and decays slowly enough to colour the next few turns.
+    pleasure_rise_per_s_positive: float = 1.0 / 2.0           # ~2s of warm input -> visibly happy
+    pleasure_decay_per_s: float = 1.0 / 45.0                  # ~45s to return to baseline
 
 
 @dataclass
@@ -86,11 +90,21 @@ class HomeostaticState:
     # novelty. recent_novelty spikes on real detected drift and decays
     # back down, independent of the boredom-driven curiosity level.
     recent_novelty: float = 0.0
+    # ADDED 2026-08-25. Until now there was NO positive-valence input anywhere in this state.
+    # `input_arousal_signal` fed exactly one variable -- stress -- so a warm interaction
+    # ("what a cute jumper", "I finally finished my project!") either did nothing or, if it was
+    # high-arousal, made BMO STRESSED. The appraisal mapping computes valence as
+    #   0.3 - 0.6*social_need - 0.5*stress + 0.1*energy - 0.2*curiosity
+    # i.e. every meaningful term is negative and nothing can raise it. `pleasure` is the
+    # missing input side: it rises on positive interaction and decays like the other drives,
+    # and it is wired into the valence coefficients so a good moment actually shows on the face.
+    pleasure: float = 0.35
     params: HomeostaticParams = field(default_factory=HomeostaticParams)
     _last_update_t: float = field(default_factory=time.perf_counter)
 
     def update(self, dt_s: float, *, user_speaking: bool, user_present: bool,
                scene_embedding_drift: float, input_arousal_signal: float,
+               input_valence_signal: float = 0.0,
                is_idle_rest: bool = False) -> None:
         """One tick. All inputs are things the existing pipeline already
         computes or can compute cheaply:
@@ -134,6 +148,18 @@ class HomeostaticState:
             self.recent_novelty = min(1.0, max(self.recent_novelty, scene_embedding_drift))
 
         # stress: rises with high-arousal negative input, decays otherwise
+        # pleasure: rises on positive input, decays otherwise. Signed [-1,1] so a hostile turn
+        # can pull it DOWN as well as leaving stress to rise -- being insulted should not just
+        # add stress, it should also cost the good mood.
+        if input_valence_signal > 0.0:
+            self.pleasure = min(1.0, self.pleasure
+                                + p.pleasure_rise_per_s_positive * dt_s * input_valence_signal)
+        elif input_valence_signal < 0.0:
+            self.pleasure = max(0.0, self.pleasure
+                                + p.pleasure_rise_per_s_positive * dt_s * input_valence_signal)
+        else:
+            self.pleasure = max(0.0, self.pleasure - p.pleasure_decay_per_s * dt_s)
+
         if input_arousal_signal > 0.5:
             self.stress = min(1.0, self.stress + p.stress_rise_per_s_high_arousal * dt_s * input_arousal_signal)
         else:
@@ -149,7 +175,8 @@ class HomeostaticState:
     def as_dict(self) -> Dict[str, float]:
         return {"energy": self.energy, "social_need": self.social_need,
                 "curiosity": self.curiosity, "stress": self.stress,
-                "recent_novelty": self.recent_novelty}
+                "recent_novelty": self.recent_novelty,
+                "pleasure": self.pleasure}
 
 
 def homeostatic_to_mood_state(state: HomeostaticState) -> Dict[str, object]:
@@ -182,6 +209,12 @@ def homeostatic_to_mood_state(state: HomeostaticState) -> Dict[str, object]:
         mood = "curious"
     elif state.energy < 0.25:
         mood = "tired"
+    elif state.pleasure > 0.75 and state.stress < 0.4:
+        # a genuinely good moment just happened -- this branch did not exist before and is why
+        # a compliment could never make BMO look pleased.
+        mood = "excited" if state.pleasure > 0.9 and state.energy > 0.5 else "happy"
+    elif state.pleasure > 0.55 and state.stress < 0.4:
+        mood = "content"
     elif state.energy > 0.75 and state.stress < 0.2 and state.social_need < 0.3:
         mood = "excited" if state.energy > 0.85 else "happy"
     else:

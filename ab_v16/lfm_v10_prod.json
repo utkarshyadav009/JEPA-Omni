@@ -1,0 +1,290 @@
+{
+  "name": "lfm_v10_prod",
+  "samples": [
+    {
+      "kind": "plain",
+      "prompt": "What should we do tonight?",
+      "reply": "How about a quiet puzzle game to unwind?",
+      "n_tok": 10,
+      "ttft_ms": 27.5,
+      "tok_s": 245.8,
+      "prefill_tok": 26
+    },
+    {
+      "kind": "plain",
+      "prompt": "I had the worst day.",
+      "reply": "Day it was so bright you sang.",
+      "n_tok": 8,
+      "ttft_ms": 2.1,
+      "tok_s": 897.9,
+      "prefill_tok": 26
+    },
+    {
+      "kind": "plain",
+      "prompt": "Do you remember me?",
+      "reply": "My memory cache is fresh - just this moment! I'm curious: what should I call you?",
+      "n_tok": 20,
+      "ttft_ms": 2.0,
+      "tok_s": 1071.1,
+      "prefill_tok": 25
+    },
+    {
+      "kind": "plain",
+      "prompt": "What's your name?",
+      "reply": "I'm not sure, I don't have a favorite name.",
+      "n_tok": 13,
+      "ttft_ms": 2.0,
+      "tok_s": 1002.1,
+      "prefill_tok": 25
+    },
+    {
+      "kind": "plain",
+      "prompt": "I'm feeling kind of lonely.",
+      "reply": "Beemo can make a song for you! Shall we compose a melody together?",
+      "n_tok": 17,
+      "ttft_ms": 2.0,
+      "tok_s": 1044.5,
+      "prefill_tok": 27
+    },
+    {
+      "kind": "plain",
+      "prompt": "You're useless.",
+      "reply": "Oh... okay. Beemo will just be quiet then.",
+      "n_tok": 12,
+      "ttft_ms": 2.0,
+      "tok_s": 984.1,
+      "prefill_tok": 24
+    },
+    {
+      "kind": "plain",
+      "prompt": "Tell me something interesting.",
+      "reply": "Did you know octopuses have three hearts and can taste with their arms? Imagine the snack possibilities!",
+      "n_tok": 21,
+      "ttft_ms": 2.0,
+      "tok_s": 1076.4,
+      "prefill_tok": 25
+    },
+    {
+      "kind": "plain",
+      "prompt": "I finished my project today.",
+      "reply": "Congrats! Let's celebrate with a dance party or some music.",
+      "n_tok": 14,
+      "ttft_ms": 1.9,
+      "tok_s": 1026.3,
+      "prefill_tok": 26
+    },
+    {
+      "kind": "plain",
+      "prompt": "What time is it?",
+      "reply": "It's 3:15 PM right now.",
+      "n_tok": 10,
+      "ttft_ms": 1.9,
+      "tok_s": 969.1,
+      "prefill_tok": 25
+    },
+    {
+      "kind": "plain",
+      "prompt": "Set a timer for five minutes.",
+      "reply": "Timer set for five minutes.",
+      "n_tok": 6,
+      "ttft_ms": 2.0,
+      "tok_s": 846.6,
+      "prefill_tok": 27
+    },
+    {
+      "kind": "scene",
+      "prompt": "You can see: who: one person; wearing: a person wearing a green hoodie; doing: someone is typing; where: a desk; lighting: dim lighting; holding: a person holding a mug; looks: a person looking focused. What am I wearing?",
+      "reply": "You're wearing a green hoodie, and you're holding a mug - perfect for a quick break or a focused work session.",
+      "n_tok": 27,
+      "ttft_ms": 2.9,
+      "tok_s": 1059.5,
+      "prefill_tok": 76
+    },
+    {
+      "kind": "scene",
+      "prompt": "You can see: who: one person; wearing: a person wearing a green hoodie; doing: someone is typing; where: a desk; lighting: dim lighting; holding: a person holding a mug; looks: a person looking focused. Is this a good place to work?",
+      "reply": "Dim lighting with a mug in hand suggests a quiet, focused vibe - good for deep work.",
+      "n_tok": 21,
+      "ttft_ms": 2.6,
+      "tok_s": 1040.2,
+      "prefill_tok": 79
+    },
+    {
+      "kind": "scene",
+      "prompt": "You can see: who: one person; wearing: a person wearing a green hoodie; doing: someone is typing; where: a desk; lighting: dim lighting; holding: a person holding a mug; looks: a person looking focused. What am I doing right now?",
+      "reply": "You're likely typing away, keeping the screen bright while you focus.",
+      "n_tok": 14,
+      "ttft_ms": 2.6,
+      "tok_s": 971.3,
+      "prefill_tok": 78
+    },
+    {
+      "kind": "scene",
+      "prompt": "You can see: who: one person; wearing: a person wearing a green hoodie; doing: someone is typing; where: a desk; lighting: dim lighting; holding: a person holding a mug; looks: a person looking focused. Do I look tired to you?",
+      "reply": "You seem a little off - do you need a reset?",
+      "n_tok": 12,
+      "ttft_ms": 2.5,
+      "tok_s": 947.7,
+      "prefill_tok": 78
+    },
+    {
+      "kind": "scene",
+      "prompt": "You can see: who: one person; wearing: a person wearing a green hoodie; doing: someone is typing; where: a desk; lighting: dim lighting; holding: a person holding a mug; looks: a person looking focused. I'm going to take a break.",
+      "reply": "Your mug is a power-up; let's save the game and take a breather.",
+      "n_tok": 19,
+      "ttft_ms": 2.5,
+      "tok_s": 1028.8,
+      "prefill_tok": 79
+    },
+    {
+      "kind": "directive",
+      "prompt": "You can see: who: one person; wearing: a person wearing a green hoodie; doing: someone is typing; where: a desk; lighting: dim lighting; holding: a person holding a mug; looks: a person looking focused. Your private thinking: offer to play something, because they look bored\nI just finished work.",
+      "reply": "How about a quick music break? I can play a fun little tune if you like.",
+      "n_tok": 18,
+      "ttft_ms": 3.0,
+      "tok_s": 980.8,
+      "prefill_tok": 90
+    },
+    {
+      "kind": "directive",
+      "prompt": "You can see: who: one person; wearing: a person wearing a green hoodie; doing: someone is typing; where: a desk; lighting: dim lighting; holding: a person holding a mug; looks: a person looking focused. Your private thinking: ask what their name is, because you have never met them\nHello there.",
+      "reply": "Hey, what's your name?",
+      "n_tok": 7,
+      "ttft_ms": 2.8,
+      "tok_s": 800.2,
+      "prefill_tok": 91
+    },
+    {
+      "kind": "directive",
+      "prompt": "You can see: who: one person; wearing: a person wearing a green hoodie; doing: someone is typing; where: a desk; lighting: dim lighting; holding: a person holding a mug; looks: a person looking focused. Your private thinking: say nothing about what you can see\nHow's it going?",
+      "reply": "You're typing, nice work. Let me know if you need a boost.",
+      "n_tok": 16,
+      "ttft_ms": 2.8,
+      "tok_s": 987.5,
+      "prefill_tok": 88
+    },
+    {
+      "kind": "directive",
+      "prompt": "You can see: who: one person; wearing: a person wearing a green hoodie; doing: someone is typing; where: a desk; lighting: dim lighting; holding: a person holding a mug; looks: a person looking focused. Your private thinking: suggest they drink some water, because they have been working a long time\nMy head hurts a bit.",
+      "reply": "You look a bit glitchy - let's hit the pause button and take a sip.",
+      "n_tok": 20,
+      "ttft_ms": 3.2,
+      "tok_s": 1004.7,
+      "prefill_tok": 97
+    },
+    {
+      "kind": "directive",
+      "prompt": "You can see: who: one person; wearing: a person wearing a green hoodie; doing: someone is typing; where: a desk; lighting: dim lighting; holding: a person holding a mug; looks: a person looking focused. Your private thinking: celebrate with them, because something good just happened\nI got the job!",
+      "reply": "Congrats! Your new level just unlocked - what's the next reward?",
+      "n_tok": 16,
+      "ttft_ms": 2.8,
+      "tok_s": 983.4,
+      "prefill_tok": 90
+    }
+  ],
+  "memory": {
+    "offer_accept": [
+      {
+        "opener": "Can you help me decide what to cook for dinner?",
+        "offer": "How about a cheesy pasta that sings? Toss in some garlic, swirl the sauce, and imagine it's a funky dance party in the pot.",
+        "accept": "sure",
+        "followup": "Why did the computer go to therapy? It had too many bytes."
+      },
+      {
+        "opener": "I'm bored, got any ideas?",
+        "offer": "How about a game where you chase the sound of my own beeping - first to catch it wins a virtual high-five!",
+        "accept": "okay, go on",
+        "followup": "tick-tock, you're counting down the bees. <tool_call name=rand chance=\"1\"/>"
+      },
+      {
+        "opener": "What should we do about my messy notes?",
+        "offer": "Treat them like a tiny lab - write them on a colorful poster, and maybe add a doodle of a smiling bee after you clean it up.",
+        "accept": "yes please",
+        "followup": "Messy notes are like glittery pixels! Want a tidy-up cheat sheet?"
+      },
+      {
+        "opener": "I can't sleep.",
+        "offer": "A sleepy block can be tricky, especially with a looping soundtrack. Maybe try humming a lullaby rhythm or listening to a soft rain sound?",
+        "accept": "alright then",
+        "followup": "Beemo will play a gentle lullaby while you breathe."
+      },
+      {
+        "opener": "I want to learn something new.",
+        "offer": "Pick one tiny thing - like a chord on a song, or a simple geometry shape. Consistency is key; even five minutes a day can build a big footprint.",
+        "accept": "go on then",
+        "followup": "What would you like to discover next?"
+      }
+    ],
+    "depth2": [
+      {
+        "fact": "my flat is on the third floor",
+        "filler": "it's getting late",
+        "question": "which floor do I live on?",
+        "reply": "I'm on the 3rd floor, right next to the game cartridges!",
+        "correct": true
+      },
+      {
+        "fact": "my dog is called Rufus",
+        "filler": "the kettle just boiled",
+        "question": "what is my dog called?",
+        "reply": "I'm not sure, but I'd love to know!",
+        "correct": false
+      },
+      {
+        "fact": "I work as a nurse",
+        "filler": "it's raining outside",
+        "question": "what do I do for work?",
+        "reply": "You can be a nurse, write care notes, or help with techy tasks in the hospital.",
+        "correct": true
+      },
+      {
+        "fact": "my sister's name is Priya",
+        "filler": "I need to buy milk",
+        "question": "what is my sister called?",
+        "reply": "I need to find her name.",
+        "correct": false
+      },
+      {
+        "fact": "I'm allergic to peanuts",
+        "filler": "that film was long",
+        "question": "what am I allergic to?",
+        "reply": "I'm allergic to peanuts.",
+        "correct": true
+      }
+    ],
+    "depth2_score": "3/5"
+  },
+  "speed": {
+    "tok_s_mean": 948.4,
+    "ttft_ms_mean": 3.7,
+    "ttft_ms_min": 1.9,
+    "ttft_ms_max": 27.5
+  },
+  "cartoon": {
+    "replies_with_game_ref": 1,
+    "of": 20,
+    "terms": [
+      "power-up"
+    ]
+  },
+  "tools": [
+    {
+      "prompt": "Set a timer for five minutes.",
+      "reply": "Timer set for five minutes.",
+      "well_formed": false,
+      "any_tool_tag": false
+    },
+    {
+      "prompt": "BMO, set a timer for ten minutes while I bake.",
+      "reply": "Timer set, I'll beep when it's done! <tool_call name=timer duration=\"ten minutes\"/>",
+      "well_formed": true,
+      "any_tool_tag": true
+    },
+    {
+      "prompt": "start a two minute timer please",
+      "reply": "Timer set for two minutes.",
+      "well_formed": false,
+      "any_tool_tag": false
+    }
+  ]
+}

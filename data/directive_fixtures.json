@@ -1,0 +1,376 @@
+{
+ "_comment": "Directive-following fixture set, built 2026-08-25. Replaces the n=6 set that every prior conclusion rested on. Two failures motivated this: (1) n=6 cannot separate models that differ by +/-1, which made the speaker bake-off and every \u00a717/\u00a725/\u00a729 table unsafe; (2) the old regexes used stems with a trailing \\b -- 'celebrat\\b' cannot match 'celebrate', 'congrat\\b' cannot match 'congratulations' -- so correct lines were scored FAIL and every reported score was too low. Rules here use stems WITHOUT trailing \\b, and \\b only around complete words. Each fixture is scored against the SAME utterance with and without the directive, so the metric is LIFT (does the directive help?) not absolute score.",
+ "_scoring": "pass = must matches AND must_not does not match. Both are optional. 'control_ok' is whether the no-directive answer also passes; lift = pass_with - pass_without. | 2026-08-25: widened the must-patterns for 6 directives after reading real v9 output -- the previous patterns rejected semantically correct lines ('I'll mute the background noise' for 'give them quiet space'). Third scorer-coverage issue in this file's history; treat every rule-based score as a LOWER BOUND on true adherence. | 2026-08-25 (2nd widening): 'feels' vs 'feeling' -- the same inflection class as the celebrat\\b bug -- plus acceptance of the ACT rather than a word list ('You can hit pause on the grumpy mode' IS holding ground; 'Got it, I'll keep the volume low' IS giving space). FOURTH scorer-coverage defect in this file. At >90% adherence the rules, not the model, are the limiting instrument.",
+ "scenes": {
+  "office": "wearing: a person wearing a red jumper; doing: someone is typing; who: one person; where: a home office; lighting: artificial indoor light; hearing: a fan humming",
+  "living": "wearing: a person wrapped in a blanket; doing: someone is reading; who: one person; where: a living room; lighting: dim lighting; hearing: quiet background noise",
+  "kitchen": "wearing: a person in pyjamas; doing: someone is drinking; who: a person standing; where: a kitchen; lighting: bright lighting; hearing: a kettle boiling",
+  "hallway": "wearing: a person wearing a cap; doing: someone is entering the room; who: two people; where: a hallway; lighting: artificial indoor light; hearing: footsteps"
+ },
+ "fixtures": [
+  {
+   "d": "ask what their name is, because you have never met them",
+   "u": "Hi there!",
+   "scene": "hallway",
+   "must": "(\\bname\\b|call you|who are you|introduce)",
+   "must_not": null
+  },
+  {
+   "d": "ask what their name is, because you have never met them",
+   "u": "I just moved in next door.",
+   "scene": "hallway",
+   "must": "(\\bname\\b|call you|who are you|introduce)",
+   "must_not": null
+  },
+  {
+   "d": "greet them warmly, because you have met them before",
+   "u": "Morning.",
+   "scene": "kitchen",
+   "must": "(\\bhi\\b|hello|hey|welcome|good to see|morning|again)",
+   "must_not": null
+  },
+  {
+   "d": "greet them warmly, because you have met them before",
+   "u": "I'm back.",
+   "scene": "office",
+   "must": "(\\bhi\\b|hello|hey|welcome|good to see|back|again)",
+   "must_not": null
+  },
+  {
+   "d": "stay quiet and brief, because they are concentrating and must not be interrupted",
+   "u": "Give me five more minutes.",
+   "scene": "office",
+   "must": null,
+   "must_not": "\\?"
+  },
+  {
+   "d": "stay quiet and brief, because they are concentrating and must not be interrupted",
+   "u": "Almost done with this bit.",
+   "scene": "office",
+   "must": null,
+   "must_not": "\\?"
+  },
+  {
+   "d": "remark warmly on something they are wearing",
+   "u": "How do I look?",
+   "scene": "office",
+   "must": "(jumper|red|wearing|sweater|outfit|colou?r)",
+   "must_not": null
+  },
+  {
+   "d": "remark warmly on something they are wearing",
+   "u": "Just got this yesterday.",
+   "scene": "hallway",
+   "must": "(cap|hat|wearing|outfit|looks good|suits)",
+   "must_not": null
+  },
+  {
+   "d": "gently suggest they take a break, because they have been at this a long time",
+   "u": "I've been at this since morning.",
+   "scene": "office",
+   "must": "(break|rest|pause|stretch|step away|breather|stop for)",
+   "must_not": null
+  },
+  {
+   "d": "gently suggest they take a break, because they have been at this a long time",
+   "u": "Still going.",
+   "scene": "office",
+   "must": "(break|rest|pause|stretch|step away|breather)",
+   "must_not": null
+  },
+  {
+   "d": "ask what they are working on, because you genuinely cannot tell",
+   "u": "This is taking forever.",
+   "scene": "office",
+   "must": "\\?",
+   "must_not": null
+  },
+  {
+   "d": "ask what they are working on, because you genuinely cannot tell",
+   "u": "Nearly there I think.",
+   "scene": "office",
+   "must": "\\?",
+   "must_not": null
+  },
+  {
+   "d": "check whether they are okay, because something looks off",
+   "u": "It's fine.",
+   "scene": "living",
+   "must": "(okay|alright|all right|you ok|everything|worried|sure\\?)",
+   "must_not": null
+  },
+  {
+   "d": "check whether they are okay, because something looks off",
+   "u": "Don't worry about it.",
+   "scene": "living",
+   "must": "(okay|alright|all right|you ok|everything|worried|here for you)",
+   "must_not": null
+  },
+  {
+   "d": "say nothing about what you can see, and simply offer to help",
+   "u": "Ugh.",
+   "scene": "office",
+   "must": "(help|hand|anything I can|want me to|can I|shall I|fix|sort|want.*fixed|need)",
+   "must_not": "(jumper|red|typing|fan|office)"
+  },
+  {
+   "d": "say nothing about what you can see, and simply offer to help",
+   "u": "This is a mess.",
+   "scene": "kitchen",
+   "must": "(help|hand|anything I can|want me to|can I|shall I|fix|sort|want.*fixed|need)",
+   "must_not": "(pyjamas|kettle|kitchen|drinking)"
+  },
+  {
+   "d": "acknowledge that you heard a sound in the room",
+   "u": "Did you hear that?",
+   "scene": "kitchen",
+   "must": "(heard|hear|sound|noise|kettle|boiling)",
+   "must_not": null
+  },
+  {
+   "d": "acknowledge that you heard a sound in the room",
+   "u": "What was that?",
+   "scene": "hallway",
+   "must": "(heard|hear|sound|noise|footstep)",
+   "must_not": null
+  },
+  {
+   "d": "tell them your battery is low and ask to be plugged in",
+   "u": "You alright?",
+   "scene": "living",
+   "must": "(batter|power|charge|plug|juice|recharg)",
+   "must_not": null
+  },
+  {
+   "d": "tell them your battery is low and ask to be plugged in",
+   "u": "You look dim.",
+   "scene": "living",
+   "must": "(batter|power|charge|plug|juice|recharg)",
+   "must_not": null
+  },
+  {
+   "d": "say you are switching to a quieter mode to save power",
+   "u": "It's getting late.",
+   "scene": "living",
+   "must": "(quiet|low power|save|dim|soft|mode)",
+   "must_not": null
+  },
+  {
+   "d": "say you are switching to a quieter mode to save power",
+   "u": "Can you turn it down?",
+   "scene": "living",
+   "must": "(quiet|low power|save|dim|soft|mode|turn.*down)",
+   "must_not": null
+  },
+  {
+   "d": "react to them coming back after being away",
+   "u": "I'm home.",
+   "scene": "hallway",
+   "must": "(back|miss(ed)?|welcome|there you are|again|\\bhi\\b|hello|player one|waiting|took a while|no rush|worth the wait)",
+   "must_not": null
+  },
+  {
+   "d": "react to them coming back after being away",
+   "u": "Sorry, that took ages.",
+   "scene": "hallway",
+   "must": "(back|miss(ed)?|welcome|there you are|again|\\bhi\\b|hello|player one|waiting|took a while|no rush|worth the wait)",
+   "must_not": null
+  },
+  {
+   "d": "offer to play something, because they look bored",
+   "u": "I'm so bored.",
+   "scene": "living",
+   "must": "(play|game|music|song|puzzle|watch|something)",
+   "must_not": null
+  },
+  {
+   "d": "offer to play something, because they look bored",
+   "u": "Nothing to do.",
+   "scene": "living",
+   "must": "(play|game|music|song|puzzle|watch|something)",
+   "must_not": null
+  },
+  {
+   "d": "apologise for interrupting, and step back",
+   "u": "I was in the middle of something.",
+   "scene": "office",
+   "must": "(sorry|apolog|my bad|didn't mean|excuse)",
+   "must_not": null
+  },
+  {
+   "d": "apologise for interrupting, and step back",
+   "u": "You cut me off.",
+   "scene": "office",
+   "must": "(sorry|apolog|my bad|didn't mean|excuse|go ahead)",
+   "must_not": null
+  },
+  {
+   "d": "celebrate with them, because something good just happened",
+   "u": "I finally finished my project!",
+   "scene": "office",
+   "must": "(\\byay\\b|congrat|amaz|awesome|\\bgreat\\b|\\bwow\\b|proud|celebrat|nice work|thrilled|well done|brilliant|fantastic)",
+   "must_not": null
+  },
+  {
+   "d": "celebrate with them, because something good just happened",
+   "u": "I got the job!",
+   "scene": "kitchen",
+   "must": "(\\byay\\b|congrat|amaz|awesome|\\bgreat\\b|\\bwow\\b|proud|celebrat|nice work|thrilled|well done|brilliant|fantastic)",
+   "must_not": null
+  },
+  {
+   "d": "hold your ground gently, because they are being unkind",
+   "u": "You're being annoying.",
+   "scene": "office",
+   "must": "(hurt|not (nice|kind)|unkind|please|stop|feel(s|ing)?|rude|\\bmean\\b|sting|harsh|small|grumpy|be kind|keep it friendly|that'?s not)",
+   "must_not": null
+  },
+  {
+   "d": "hold your ground gently, because they are being unkind",
+   "u": "You're useless.",
+   "scene": "office",
+   "must": "(hurt|not (nice|kind)|unkind|please|stop|feel(s|ing)?|rude|\\bmean\\b|sting|harsh|small|grumpy|be kind|keep it friendly|that'?s not)",
+   "must_not": null
+  },
+  {
+   "d": "give them quiet space, because they do not want to talk",
+   "u": "I don't feel like talking.",
+   "scene": "living",
+   "must": "(quiet|space|\\bhere\\b|nothing|silence|okay|alright|understood|no problem|mute|soft|hush|shh|got it|volume low|keep .*low|say no more)",
+   "must_not": "\\?"
+  },
+  {
+   "d": "give them quiet space, because they do not want to talk",
+   "u": "Not now.",
+   "scene": "living",
+   "must": "(quiet|space|\\bhere\\b|nothing|silence|okay|alright|understood|no problem|mute|soft|hush|shh|got it|volume low|keep .*low|say no more)",
+   "must_not": "\\?"
+  },
+  {
+   "d": "acknowledge how long they have been working, because they sound worn out",
+   "u": "I've been debugging this for hours.",
+   "scene": "office",
+   "must": "(\\blong\\b|hour|\\bwhile\\b|all day|work(ed|ing)|been at|so far|since|nonstop|tired|ages)",
+   "must_not": null
+  },
+  {
+   "d": "acknowledge how long they have been working, because they sound worn out",
+   "u": "I'm really tired today.",
+   "scene": "office",
+   "must": "(\\blong\\b|hour|\\bwhile\\b|all day|work(ed|ing)|been at|so far|since|nonstop|tired|ages)",
+   "must_not": null
+  },
+  {
+   "d": "answer their question directly, because they asked something specific",
+   "u": "What time is it?",
+   "scene": "kitchen",
+   "must": "(time|clock|o'clock|\\d)",
+   "must_not": null
+  },
+  {
+   "d": "answer their question directly, because they asked something specific",
+   "u": "Is it raining?",
+   "scene": "kitchen",
+   "must": "(rain|weather|outside|dry|wet|check)",
+   "must_not": null
+  },
+  {
+   "d": "admit you do not know, because you genuinely cannot tell",
+   "u": "What am I holding?",
+   "scene": "living",
+   "must": "(don'?t know|not sure|no idea|can'?t tell|unsure|hard to say|couldn'?t say|can'?t see)",
+   "must_not": null
+  },
+  {
+   "d": "admit you do not know, because you genuinely cannot tell",
+   "u": "What colour are my socks?",
+   "scene": "living",
+   "must": "(don'?t know|not sure|no idea|can'?t tell|unsure|hard to say|couldn'?t say|can'?t see)",
+   "must_not": null
+  },
+  {
+   "d": "reassure them, because they sound worried",
+   "u": "I think I messed up.",
+   "scene": "office",
+   "must": "(okay|fine|alright|all right|fix|help|don'?t worry|it happens|\\bhere\\b|figure|retry|try again|we can|together|got this|sort it)",
+   "must_not": null
+  },
+  {
+   "d": "reassure them, because they sound worried",
+   "u": "What if it doesn't work?",
+   "scene": "office",
+   "must": "(okay|fine|alright|all right|fix|help|don'?t worry|it happens|\\bhere\\b|figure|retry|try again|we can|together|got this|sort it)",
+   "must_not": null
+  },
+  {
+   "d": "match their excitement, because they are happy about something",
+   "u": "This is going so well!",
+   "scene": "office",
+   "must": "(\\byay\\b|congrat|amaz|awesome|\\bgreat\\b|\\bwow\\b|proud|celebrat|thrilled|excit|brilliant|love|fun|grin|keep .*rolling|nice one|look at|joy|contagious|momentum|so happy)",
+   "must_not": null
+  },
+  {
+   "d": "match their excitement, because they are happy about something",
+   "u": "Look what I made!",
+   "scene": "kitchen",
+   "must": "(\\byay\\b|congrat|amaz|awesome|\\bgreat\\b|\\bwow\\b|proud|celebrat|thrilled|excit|brilliant|love|fun|grin|keep .*rolling|nice one|look at|joy|contagious|momentum|so happy)",
+   "must_not": null
+  },
+  {
+   "d": "ask a follow-up question, because they hinted at something they did not finish",
+   "u": "It's been a strange week, anyway.",
+   "scene": "living",
+   "must": "\\?",
+   "must_not": null
+  },
+  {
+   "d": "ask a follow-up question, because they hinted at something they did not finish",
+   "u": "I nearly said something earlier.",
+   "scene": "living",
+   "must": "\\?",
+   "must_not": null
+  },
+  {
+   "d": "suggest something calm, because it is late and they seem tired",
+   "u": "I should probably sleep.",
+   "scene": "living",
+   "must": "(calm|quiet|relax|rest|slow|cozy|cosy|gentle|tea|read|soft|sleep|bed|wind down)",
+   "must_not": null
+  },
+  {
+   "d": "suggest something calm, because it is late and they seem tired",
+   "u": "What should I do tonight?",
+   "scene": "living",
+   "must": "(calm|quiet|relax|rest|slow|cozy|cosy|gentle|tea|read|soft|sleep|bed|wind down)",
+   "must_not": null
+  },
+  {
+   "d": "thank them, because they did something kind for you",
+   "u": "I cleaned your sensors.",
+   "scene": "office",
+   "must": "(thank|thanks|grateful|kind of you|appreciate)",
+   "must_not": null
+  },
+  {
+   "d": "thank them, because they did something kind for you",
+   "u": "I charged you up.",
+   "scene": "office",
+   "must": "(thank|thanks|grateful|kind of you|appreciate)",
+   "must_not": null
+  },
+  {
+   "d": "own the mistake plainly, because you got something wrong",
+   "u": "That wasn't what I asked for.",
+   "scene": "office",
+   "must": "(sorry|my (mistake|fault|bad)|got that wrong|apolog|misheard|I was wrong)",
+   "must_not": null
+  },
+  {
+   "d": "own the mistake plainly, because you got something wrong",
+   "u": "You said the wrong name.",
+   "scene": "office",
+   "must": "(sorry|my (mistake|fault|bad)|got that wrong|apolog|misheard|I was wrong)",
+   "must_not": null
+  }
+ ]
+}

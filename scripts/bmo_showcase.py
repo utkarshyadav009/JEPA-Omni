@@ -128,6 +128,30 @@ class UnifiedAudioEngine:
 
 
 # ───────────────────────── streaming visemes ─────────────────────────
+# espeak returns IPA with WORD-level spacing ("həlˈoʊ ðˈɛɹ"), not phoneme tokens, so this
+# walks characters. The six classes are the ones the face engine already renders.
+_V_AEI = set("aɑæʌɐɜəpbm")     # open vowels, schwa, and bilabials (closed lips)
+_V_EE  = set("iɪeɛ")
+_V_O   = set("oɔ")
+_V_U   = set("uʊw")
+_C_J   = set("ʃʒjɹr")
+_C_STD = set("tdkɡnŋszlθðfvh")
+
+def ipa_to_visemes(ph: str) -> list:
+    out = []
+    for ch in ph or "":
+        if   ch in _V_AEI: v = "AEI"
+        elif ch in _V_EE:  v = "EE"
+        elif ch in _V_O:   v = "O"
+        elif ch in _V_U:   v = "U"
+        elif ch in _C_J:   v = "J"
+        elif ch in _C_STD: v = "CDGKNST"
+        else: continue
+        if not out or out[-1] != v:
+            out.append(v)
+    return out
+
+
 class StreamingVisemeExtractor:
     """Per-chunk causal formant->viseme extraction. The old AudioFormantExtractor ran over
     the FINISHED waveform, which forced synthesis to complete before playback (measured
@@ -138,6 +162,27 @@ class StreamingVisemeExtractor:
 
     FRAME_MS, HOP_MS, MIN_DWELL_MS, SILENCE_RMS = 30, 15, 60, 0.018
 
+    # PHONEME-DRIVEN SHAPES, FORMANT-DRIVEN TIMING (2026-08-26).
+    # Measured against the espeak phoneme sequence the TTS already computes:
+    #   set overlap 27%, order agreement 25%  (chance for 6 classes is ~17%)
+    #   7-10 audio shapes where the phonemes have 18-20 -- half the articulation
+    #   and almost NO consonant shapes at all: the mouth never closed.
+    # The consonant branch needs energy above 3 kHz and neural-codec output is too smooth
+    # for it to fire, so the classifier collapses onto vowels. But the timing it derives
+    # from RMS is fine, and we ALREADY know the exact phoneme sequence. So: keep its
+    # segment boundaries, take the SHAPE from the phoneme queue. Falls back to pure
+    # formant classification when no phonemes are supplied.
+    def set_phonemes(self, visemes):
+        self._pq = list(visemes or [])
+        self._pi = 0
+
+    def _next_shape(self, fallback):
+        if not getattr(self, "_pq", None):
+            return fallback
+        v = self._pq[min(self._pi, len(self._pq) - 1)]
+        self._pi += 1
+        return v
+
     def __init__(self, sr=SR_OUT):
         self.sr = sr
         self.fsz = int(self.FRAME_MS * sr / 1000)
@@ -146,6 +191,7 @@ class StreamingVisemeExtractor:
         self._resid = np.zeros(0, dtype=np.float32)
         self._pending = None          # segment awaiting MIN_DWELL confirmation
         self._t = 0.0                 # absolute time of the next frame
+        self._pq, self._pi = [], 0
 
     def _classify(self, frame):
         rms = float(np.sqrt(np.mean(frame ** 2)))
@@ -187,7 +233,10 @@ class StreamingVisemeExtractor:
                         out.append(tuple(self._pending))
                     elif out:      # too short: absorb into the previous segment
                         prev = list(out[-1]); prev[2] = self._pending[2]; out[-1] = tuple(prev)
-                self._pending = [v, t0, t0 + self.HOP_MS / 1000.0, inten]
+                # a NEW segment starts here -> advance the phoneme queue for its shape.
+                # Silence keeps the real closed-mouth viseme and does not consume a phoneme.
+                shape = v if v == "mouth_phoneme_X" else self._next_shape(v)
+                self._pending = [shape, t0, t0 + self.HOP_MS / 1000.0, inten]
             i += self.hop
         self._resid = buf[i:]
         return out
@@ -200,6 +249,7 @@ class StreamingVisemeExtractor:
 
     def reset(self):
         self._resid = np.zeros(0, dtype=np.float32); self._pending = None; self._t = 0.0
+        self._pq, self._pi = [], 0
 
 
 class VisemeScheduler:
@@ -300,10 +350,6 @@ def clean_for_tts(t):
 
 # Utterances that are ASKING about what BMO can perceive. On these the scene is pushed into
 # the speaker prompt in its trained `perception_grounded` shape.
-PERCEPTION_ASK = re.compile(
-    r"\b(what (do|can) you (see|hear)|describe|what'?s (happening|going on|in the room)|"
-    r"look around|what am i wearing|where are we|who (is|are) (here|there|i)|"
-    r"what is that (noise|sound)|can you see)\b", re.I)
 
 # ── enrolment ──────────────────────────────────────────────────────────────────────────
 # BMO must NEVER invent a name. The whole "why does it think I'm Alice" incident came from a
@@ -380,20 +426,64 @@ def _directive_guard(d: str):
         return None
     if low.startswith(("hey", "hi ", "hello", "oh ", "wow", "alright")):
         return None
-    # a directive should read as an instruction verb
-    if not re.match(r"^(ask|tell|offer|acknowledge|suggest|remind|encourage|greet|reassure|"
-                    r"invite|comfort|answer|explain|check|avoid|do not|don't|keep|stay)\b", low):
+    # A directive should read as an instruction verb. THIS LIST IS NOT A GUESS -- it is the
+    # set of leading verbs in the 26-directive vocabulary the thinker and speaker were both
+    # trained on (ALL_DIRECTIVES in scripts/generate_speaker_directive_rows.py). The previous
+    # hand-written list covered only 13 of the 26 and silently rejected the other half,
+    # including 'admit you do not know, because you genuinely cannot tell' and
+    # 'react to them coming back after being away' -- both observed being thrown away in the
+    # 2026-08-26 live test. If the vocabulary changes, regenerate this from it, do not extend
+    # it by hand.
+    if not re.match(r"^(acknowledge|admit|answer|apologise|apologize|ask|celebrate|check|"
+                    r"gently|give|greet|hold|match|offer|own|react|reassure|remark|say|stay|"
+                    r"suggest|tell|thank|remind|encourage|invite|comfort|explain|avoid|"
+                    r"do not|don't|keep)\b", low):
         return None
     return t
 
 
 class BmoShowcase:
+    # Perception confidence comes from TEMPORAL STABILITY, not from a similarity margin.
+    # A margin gate was built and measured and does not work -- see _stabilise() for the
+    # numbers. PERCEP_WINDOW is how many recent calls vote on each field; a field needs at
+    # least two agreeing answers in that window to be stated at all.
+    PERCEP_WINDOW = 3
+
+    # Below this RMS, a <=2-word utterance is one of the user's listening noises, not a turn.
+    # 0.09 sits in the measured gap between backchannels (max 0.0682) and real short turns
+    # (min 0.1166). Raise it and you start eating real one-word answers.
+    BACKCHANNEL_RMS = 0.09
+
+    # How many of the user's recent lines to restate as a plain recap. 0 disables.
+    RECAP_TURNS = 2
+
+    # Seconds between perception refreshes. Refreshing every turn drove free memory to 0 MiB
+    # during the live test (boot leaves ~350 MiB; a V-JEPA2 forward over 16 frames is a large
+    # transient on top). The scene does not change meaningfully inside 20 s, and 0 MiB free is
+    # what kills the camera's NVMM allocation.
+    PERCEP_MIN_INTERVAL = 20.0
+
     def __init__(self, args):
         self.args = args
         self.engine = None
         self.speaker = self.thinker = self.tts = self.asr = self.vad = None
         self._bc_clips = []
         self.perception = None
+        self._percep_hist = {}
+        self._last_scene = ""
+        self._percep_lock = threading.Lock()
+        self._percep_last = 0.0
+        self._last_reply = None
+        # Initialised HERE, not only inside _build_perception. They were only ever created on
+        # the perception path, so running without --perception raised AttributeError on the
+        # first turn ('BmoShowcase' object has no attribute 'ident'). Found by a test that
+        # deliberately ran perception off to isolate memory from directives.
+        self.ident = self.idmem = self.bmem = None
+        self._awaiting_name = False
+        self._asked_name_once = False
+        # 6 messages = 3 exchanges. Enough to follow a thread; short enough that the speaker,
+        # which was fine-tuned on single-turn prompts, stays near its training distribution.
+        self._history = collections.deque(maxlen=6)
         self.stop_event = threading.Event()
         self.robot_speaking = threading.Event()
         self._directive = None
@@ -457,6 +547,7 @@ class BmoShowcase:
         self.has_emotion = bool(getattr(self.tts, "has_emotion", False))
         log(f"[boot] voice {os.path.basename(path)} emotion={self.has_emotion}  avail={mem_avail()} MiB")
 
+
         # Load the thinking_filler WAVs directly rather than via PrebuiltVoiceBank, so they
         # go through OUR audio engine (see the note in process_turn).
         self._bc_clips = []
@@ -492,6 +583,33 @@ class BmoShowcase:
             except Exception:
                 log("[boot] perception SKIPPED:\n" + traceback.format_exc())
                 self.perception = None
+        # SEED THE PERCEPTION WINDOW. _stabilise() needs at least two observations before
+        # it can drop or smooth anything, so without this the FIRST turn -- the one most
+        # likely to be shown to someone -- is the one turn with no gating at all. Two calls
+        # here mean turn 1 already votes over a full window.
+        if self.perception is not None:
+            try:
+                _t0 = time.time()
+                for _ in range(self.PERCEP_WINDOW - 1):
+                    self.perception("describe the room and the person")
+                log(f"[boot] perception window seeded ({self.PERCEP_WINDOW - 1} calls, "
+                    f"{(time.time()-_t0)*1000:.0f} ms)")
+            except Exception as e:
+                log(f"[boot] perception seeding skipped ({e!r})")
+
+        # WARM THE TTS -- LAST, after every other subsystem has allocated.
+        # Warming right after the voice loads does NOT work: STT, perception and the camera
+        # then allocate ~1.2 GB behind it and the first real turn still cost 1,484 ms TTFA
+        # against a 457 ms steady state. Measured, not assumed -- the earlier placement was
+        # tried and rejected. This is the most visible moment of the demo, so it warms here.
+        if self.tts is not None:
+            try:
+                _t0 = time.time()
+                for _ in self.tts.stream("Hello."):
+                    pass
+                log(f"[boot] voice warmed in {(time.time()-_t0)*1000:.0f} ms")
+            except Exception as e:
+                log(f"[boot] voice warm-up skipped ({e!r})")
         log(f"[boot] DONE  avail={mem_avail()} MiB")
 
     def _build_perception(self):
@@ -504,9 +622,13 @@ class BmoShowcase:
         from models.vision_encoder import VisionEncoder
         ve = VisionEncoder(device="cpu", dtype=torch.bfloat16)
         ve.model = q_int8_cpu_then_move(ve.model, dev); ve.device_str = "cuda"
+        # Per-component cost, logged because perception is 2,074 MiB of a 7.6 GB budget and
+        # the live test finished at avail=0. You cannot decide what to cut without this.
+        log(f"  [percep]   vision(V-JEPA2 int8)  avail={mem_avail()} MiB")
         from models.audio_encoder import AudioEncoder, WAVJEPA_BASE_REPO
         wj = AudioEncoder(WAVJEPA_BASE_REPO, n_channels=1, device="cpu")
         wj.model = q_int8_cpu_then_move(wj.model, dev); wj.device_str = "cuda"
+        log(f"  [percep]   ambient(WavJEPA int8) avail={mem_avail()} MiB")
         from models.av_jepa_predictor import AVJepaConfig, AVJepaPredictor
         pred = AVJepaPredictor(AVJepaConfig(d_model=1024, depth=8, heads=8, mlp_ratio=4.0,
                                             max_tdm_bins=512, dropout=0.0))
@@ -515,13 +637,23 @@ class BmoShowcase:
         pred.load_state_dict(ck["model"], strict=True); del ck; gc.collect()
         pred = pred.to(torch.bfloat16)          # O1: -64 MiB resident, -231 transient, cos 0.999969
         pred = q_int8_cpu_then_move(pred, dev); pred.eval()
+        log(f"  [percep]   m2(fusion int8)       avail={mem_avail()} MiB")
 
+        log(f"  [percep]   (pre query-engine)    avail={mem_avail()} MiB")
         from models.m5_perception_query import load_perception_query_engine
         from models.text_target import PreEncodedTextSpace
         qck = torch.load(f"{P}/qp_runD.pt", map_location="cpu", weights_only=False)
         qv = torch.load(f"{P}/query_vectors_siglip2_v2.pt", map_location="cpu", weights_only=False)
         tt = PreEncodedTextSpace(qv["text"], qv["emb"], device=str(dev))
-        cand = torch.load(f"{P}/candidates_siglip2_v2.pt", map_location="cpu", weights_only=False)
+        # v3 = the 296 curated v2 tags + 378 template-generated ones, minus the 1,186
+        # single-word `mined` entries that could never answer a question ("through",
+        # "contains"). Falls back to v2 so an un-synced device still boots.
+        _bank = f"{P}/candidates_siglip2_v3.pt"
+        if not os.path.exists(_bank):
+            _bank = f"{P}/candidates_siglip2_v2.pt"
+            log(f"  [percep] v3 bank absent, falling back to {os.path.basename(_bank)}")
+        cand = torch.load(_bank, map_location="cpu", weights_only=False)
+        log(f"  [percep] bank {os.path.basename(_bank)}: {len(cand['text'])} tags")
         raw = F.normalize(cand["emb"].float(), dim=-1).to(dev)
         tp = qck.get("text_target_proj") or {}
         bank = (F.normalize(raw @ tp["weight"].float().to(dev).t() + tp["bias"].float().to(dev), dim=-1)
@@ -534,9 +666,41 @@ class BmoShowcase:
         # sets it in bmo_jetson_startup.py:398; this path omitted it and the composed scene was
         # silently useless. Caught in a live full-stack run, not by any offline check.
         pq.bank_category = cand.get("category", ["mined"] * len(cand["text"]))
+        # INT8 the query predictor. It is 668 MiB resident against 131 MB of weights on disk
+        # -- the largest single component of the perception stack -- and was one of only two
+        # models here never given the int8 treatment the rest already get.
+        # Env-gated so the fp32 path stays reachable if a regression shows up on stage.
+        if os.environ.get("BMO_INT8_QP", "1") != "0":
+            _a = mem_avail()
+            pq.qp = q_int8_cpu_then_move(pq.qp, dev); pq.qp.eval()
+            log(f"  [percep]   qp int8: freed {mem_avail()-_a} MiB")
+        # Free the loading scaffolding. The m2 predictor above already does `del ck;
+        # gc.collect()` for exactly this reason, but this path kept the 131 MB query-predictor
+        # checkpoint, the candidate dict, and two intermediate bank tensors alive for the rest
+        # of the process. Measured: this block cost 670 MiB resident -- the single largest
+        # perception component -- against 131 MB of actual weights on disk, so most of it is
+        # scaffolding that was never returned.
+        del qck, cand, raw, tp
+        gc.collect()
+        torch.cuda.empty_cache()
+        log(f"  [percep]   query engine+bank     avail={mem_avail()} MiB")
         sig = AutoModel.from_pretrained("google/siglip2-base-patch16-224", dtype=torch.bfloat16)
-        if hasattr(sig, "text_model"): del sig.text_model
-        sig = sig.to(dev).eval()
+        # The text tower is dead weight here (queries are pre-encoded), but `del` only drops
+        # the reference -- without an explicit collect the tensors can still be resident when
+        # .to(dev) allocates, so the saving is never realised. Measured: this component was
+        # 930 MiB, more than vision+ambient+m2 combined, and it is the ONE perception model
+        # not put through q_int8_cpu_then_move.
+        if hasattr(sig, "text_model"):
+            del sig.text_model
+            gc.collect()
+        # INT8 the scene tower too -- 277 MiB, the other unquantised perception model.
+        if os.environ.get("BMO_INT8_SIGLIP", "1") != "0":
+            _a = mem_avail()
+            sig = q_int8_cpu_then_move(sig, dev).eval()
+            log(f"  [percep]   siglip int8: freed {mem_avail()-_a} MiB")
+        else:
+            sig = sig.to(dev).eval()
+        log(f"  [percep]   scene(SigLIP2 vision) avail={mem_avail()} MiB")
         self._p = dict(ve=ve, wj=wj, pred=pred, pq=pq, sig=sig, dev=dev)
 
         # identity head + the two persistent stores
@@ -659,16 +823,41 @@ class BmoShowcase:
         # Restricting each question to the tags that could possibly answer it matters: one
         # top-1 over the whole bank cannot answer "what are they wearing" AND "what are they
         # doing" at once.
+        # The query predictor knows only a 3x2 grid of intents (action/summary/sound x
+        # brief/detailed -- QUERY_BANK in models/query_predictor.py). There is no "wearing"
+        # or "posture" intent and adding one costs a retrain. We do not need one: the
+        # CATEGORY RESTRICTION below does the discriminating, and the question only steers
+        # ranking WITHIN that category. So each new field reuses whichever of the 30 trained
+        # phrasings is semantically nearest -- exactly the trick `wearing` already uses
+        # (it asks a *room* question and restricts to `appearance`).
+        # Fields marked detail=True are new (bank v3) and are dropped when the bank predates
+        # them, so this file still runs against candidates_siglip2_v2.pt.
         QUESTIONS = [
-            ("who",      "people",     "Tell me in detail what the person is doing."),
-            ("wearing",  "appearance", "Describe the room and setting in detail."),
-            ("doing",    "action",     "Explain everything that happens, in order."),
-            ("where",    "place",      "What does this place look like? Describe it fully."),
-            ("lighting", "light",      "Describe the room and setting in detail."),
-            ("hearing",  "sound",      "What do you hear?"),
+            ("who",      "people",      "Tell me in detail what the person is doing."),
+            ("wearing",  "appearance",  "Describe the room and setting in detail."),
+            ("doing",    "action",      "Explain everything that happens, in order."),
+            ("where",    "place",       "What does this place look like? Describe it fully."),
+            ("lighting", "light",       "Describe the room and setting in detail."),
+            # `hearing` REMOVED 2026-08-26. Fan noise reads as "an alarm beeping" (recorded in
+            # CLAUDE.md), and in the live test that false percept propagated into the THINKER,
+            # which twice emitted 'acknowledge that you heard a sound in the room' -- so BMO
+            # said "I heard a little thump" and "Did you hear that pop?" about sounds that did
+            # not exist. A field that is confidently wrong every turn is worse than no field.
+            # The `ambient` STREAM stays (m2 fusion was trained with it); only the spoken
+            # field is dropped. Re-enable once the mic is far enough from the fan to be right.
+            # ("hearing", "sound", "What do you hear?"),
+            # `posture` CUT 2026-08-26. Measured on a static scene, raw retrieval before the
+            # stability gate: 50% modal share -- a coin flip between two answers, the worst
+            # of the nine fields (who/lighting/holding 100%, wearing/where 83%, doing/looks
+            # 67%). It is motion-dependent, so it degrades further the moment the person
+            # actually moves. A field that is right half the time is not information.
+            # ("posture", "posture", "Tell me in detail what the person is doing."),
+            ("holding",  "held_object", "Give me a detailed account of what is being done."),
+            ("looks",    "expression",  "Walk me through step by step what happens."),
         ]
+        OPTIONAL_CATS = {"posture", "held_object", "expression"}   # v3 bank only (posture unused)
         cats = getattr(p["pq"], "bank_category", None)
-        parts = []
+        raw = {}
         for label, cat, q in QUESTIONS:
             try:
                 if cats is not None:
@@ -676,6 +865,10 @@ class BmoShowcase:
                     if not idx:
                         # An empty category must be loud, not skipped: a silently-vanishing
                         # question is how the `wearing` field disappeared for a whole run.
+                        # The three v3-only fields are the one exception -- their absence
+                        # just means an older bank is loaded, which is not a fault.
+                        if cat in OPTIONAL_CATS:
+                            continue
                         log(f"  [percep] category '{cat}' EMPTY in the candidate bank")
                         continue
                     # RESTRICTED retrieval. ask_topk() searches the WHOLE 1,482-tag bank and
@@ -690,18 +883,61 @@ class BmoShowcase:
                         ids = torch.as_tensor(idx, device=eng.bank_emb.device)
                         sims = (z_q.to(eng.bank_emb.dtype) @ eng.bank_emb[ids].T)[0].float()
                         best = int(torch.argmax(sims))
+                    # Confidence is decided AFTER the loop, from temporal stability across
+                    # calls -- not from this call's top1-top2 margin. See _stabilise().
                     txt = eng.bank_text[idx[best]]
                 else:
                     a = p["pq"].ask(q)
                     txt = a.text if a is not None else None
                 if txt:
-                    parts.append(f"{label}: {txt}")
+                    raw[label] = txt
             except Exception as e:
                 log(f"  [percep] {label} failed: {e!r}")
+        parts = self._stabilise(raw)
         if not parts:
             return ""
         self._last_scene = "; ".join(parts)
         return self._last_scene
+
+    def _stabilise(self, raw: dict) -> list:
+        """Turn this call's raw per-field answers into the fields worth stating as fact.
+
+        WHY NOT A MARGIN GATE. One was built and measured live (n=6, percep_v3.log):
+        margins span ~50x across fields (where 0.123-0.141, wearing 0.0003-0.0083) so no
+        global threshold is meaningful, and margin does not track correctness -- `wearing`
+        sat at the very bottom while returning the same plausible answer on 4/4 trials.
+
+        WHAT THIS DOES INSTEAD. Retrieval is deterministic given a frame, so a field that
+        keeps changing its answer is one where the frame does not actually determine it --
+        that IS the confidence signal, and unlike margin it is comparable across categories.
+        Two effects, both wanted:
+          * SMOOTHING -- the modal answer over the window is stated, not this frame's, so a
+            single-frame flicker cannot reach the thinker.
+          * DROPPING -- a field whose window holds no repeated answer at all is omitted.
+
+        HONEST LIMIT: this fixes variance, not bias. A field that is stably wrong (the
+        `hearing: an alarm beeping` fan artefact) is stable and will still be stated. It is
+        not a correctness check and must not be described as one.
+        """
+        import collections as _c
+        hist = self._percep_hist
+        parts = []
+        for label in raw:
+            hist.setdefault(label, _c.deque(maxlen=self.PERCEP_WINDOW)).append(raw[label])
+        for label, val in raw.items():
+            h = hist[label]
+            if len(h) < 2:
+                parts.append(f"{label}: {val}")          # no evidence yet -- state it
+                continue
+            answer, count = _c.Counter(h).most_common(1)[0]
+            if count < 2:
+                log(f"  [percep] {label}: unstable over last {len(h)} "
+                    f"({list(h)}), omitted")
+                continue
+            if answer != val:
+                log(f"  [percep] {label}: smoothed {val!r} -> {answer!r}")
+            parts.append(f"{label}: {answer}")
+        return parts
 
     # ---- one turn ----
     def _mood(self):
@@ -733,6 +969,15 @@ class BmoShowcase:
         if emotion and emotion in self.args.unsafe_moods:
             emotion = "neutral"     # 4/12 moods run to the length cap; keep them off stage
         vx = StreamingVisemeExtractor(SR_OUT)
+        # Hand the extractor the phoneme sequence the TTS is about to speak, so mouth SHAPES
+        # come from what is actually being said rather than being guessed from the waveform.
+        # espeak is already loaded for the TTS, so this costs one extra phonemize call.
+        try:
+            g2p = getattr(self.tts, "_g2p", None)
+            if g2p is not None:
+                vx.set_phonemes(ipa_to_visemes(g2p.phonemize([text])[0]))
+        except Exception as e:
+            log(f"  [viseme] phoneme path unavailable, using formants ({e!r})")
         sched = VisemeScheduler(self.engine, face_emotion=self.args.face_emotion)
         self.engine.reset_clock(); sched.start()
         self.robot_speaking.set()
@@ -760,11 +1005,32 @@ class BmoShowcase:
         except Exception: pass
         return ttfa
 
+    def refresh_perception_async(self):
+        """Recompute the scene off the response path. Same pattern as think_async."""
+        if self.perception is None or self._percep_lock.locked():
+            return
+        if time.time() - getattr(self, "_percep_last", 0.0) < self.PERCEP_MIN_INTERVAL:
+            return
+        self._percep_last = time.time()
+        def run():
+            with self._percep_lock:
+                try:
+                    self.perception("describe the room and the person")
+                except Exception as e:
+                    log(f"  [percep] background refresh failed: {e!r}")
+        threading.Thread(target=run, daemon=True).start()
+
     def think_async(self, transcript, mood, scene):
         """Thinker runs OFF the response path and produces a DIRECTIVE for the next turn.
         It never emits a spoken line -- that removes the paraphrase/non-sequitur failure by
         construction, because there is no competing utterance for the speaker to echo."""
-        if self.thinker is None or self._thinker_lock.locked():
+        if self.thinker is None:
+            return
+        if self._thinker_lock.locked():
+            # P1: the directive silently goes stale under fast back-and-forth. Queueing is the
+            # real fix; making it visible is the minimum, so a stale directive on stage is
+            # explainable rather than mysterious.
+            log("  [thinker] BUSY -- this turn's thinking skipped, directive is stale")
             return
         def run():
             with self._thinker_lock:
@@ -795,6 +1061,21 @@ class BmoShowcase:
         text = NAME_RE.sub("BMO", text)
         if len(text) < 2 or text.lower().strip(" .!?") in ("mm", "mmm", "um", "uh", "hmm"):
             return
+        # IGNORE THE USER'S OWN BACKCHANNELS. In the 2026-08-26 live test, "Yeah", "I", "Yeah"
+        # -- the listening noises you make while BMO talks -- were transcribed as full turns.
+        # Each one consumed a turn, had a STALE directive applied to it, and produced a
+        # non-sequitur. That accounts for most of the odd replies in that log.
+        #
+        # RMS separates them cleanly and a word list alone does not: "No." (0.1166) and the
+        # enrolment name "Wush." (0.1765) are SHORT REAL TURNS that must survive, while every
+        # backchannel measured 0.0192-0.0682. Measured gap, n=18:
+        #   backchannels  <=2 words, rms max 0.0682
+        #   real turns    rms min 0.1166
+        # So the test is short AND quiet, never short alone.
+        if len(text.split()) <= 2 and rms < self.BACKCHANNEL_RMS:
+            log(f"  [vad] ignoring backchannel {text!r} (rms {rms:.4f} < "
+                f"{self.BACKCHANNEL_RMS})")
+            return
         log(f"\n  YOU [{emo}]: {text}   (stt {stt_ms:.0f}ms, rms {rms:.4f})")
 
         self._update_state(user_spoke=True, arousal=1.0 if emo in ("ANGRY", "SURPRISED") else 0.3)
@@ -813,10 +1094,17 @@ class BmoShowcase:
             except Exception as e:
                 log(f"  [backchannel] failed: {e!r}")
 
-        scene = ""
-        if self.perception is not None:
-            try: scene = self.perception("describe the room and the person") or ""
-            except Exception: scene = ""
+        # PERCEPTION IS OFF THE RESPONSE PATH (2026-08-26). It used to be called here,
+        # synchronously, costing 1,500-3,400 ms BEFORE the speaker was even asked to generate
+        # -- by far the largest term in time-to-first-audio (measured 1,417 ms live, against
+        # ~470 ms once this is removed).
+        #
+        # Using the previous scene is not a compromise, it is what the design already assumes:
+        # _stabilise() states the MODAL answer over the last PERCEP_WINDOW calls, so the scene
+        # was never "this instant" anyway. The window is seeded at boot, so turn 1 has one too.
+        # A room does not change materially inside one conversational turn; a 1.5 s stall
+        # before every reply does.
+        scene = self._last_scene or ""
 
         # ── ENROLMENT ─────────────────────────────────────────────────────────────────
         # The machinery (enroll/query/save on JepaMemory, ensure/note_encounter on BmoMemory)
@@ -879,53 +1167,144 @@ class BmoShowcase:
                 mem_line = ""
 
         d = self._directive; self._directive = None
-        # OFF BY DEFAULT. The deployed speaker (v5) has ZERO instruction-conditioned rows in
-        # its corpus and the deployed thinker does not emit directives -- so this path is not
-        # ready and enabling it blind is how the non-sequiturs come back. --use-directive to
-        # experiment (pair it with speaker v6, which has the 372-row directive slice).
+        # ON by default since 2026-08-26. The comment that used to sit here said this path was
+        # unsafe because "the deployed speaker (v5) has ZERO instruction-conditioned rows and
+        # the deployed thinker does not emit directives". Both halves of that are now false:
+        # the defaults are speaker v10 (98% directive adherence, measured) and thinker v8
+        # (6/6 diverse correct directives). The stale guard meant the live test computed a
+        # directive every turn, logged it, and THREW IT AWAY -- which is what "the directives
+        # are broken" actually was. --no-directive to switch the path back off.
         # Directive prompt format MUST match the speaker's training data
         # (bmo_companion_corpus_v12.jsonl, speaker_directive slice):
         #   "You can see: wearing: ..; doing: ..; who: ..; where: ..; lighting: ..; hearing: ..
         #    . Your private thinking: <directive>"
         # An earlier version used "[instruction] .." -- a format the speaker has never seen.
-        if d and self.args.use_directive:
+        # WHICH PROMPT SHAPE WAS USED. Without this the log shows a directive being COMPUTED
+        # and gives no way to tell whether it was USED -- which is exactly how the live test
+        # looked identical whether the directive path was on or off. Every turn now states
+        # its branch, so a failed test is diagnosable from the log alone.
+        # A DIRECT QUESTION OUTRANKS THE DIRECTIVE. The directive is always one turn late, so
+        # it was computed for a DIFFERENT utterance -- and when the user then asks something
+        # specific, the speaker follows the directive and ignores the question. Measured in the
+        # 2026-08-26 live test:
+        #   "Can you see the screen."       + 'offer to play something'  -> "What should I play by you?"
+        #   "Can you help me."              + 'suggest something calm'   -> "play a quick, gentle tune?"
+        #   "What did I just tell you..."   + 'say nothing about what you can see' -> "You just told me what I see."
+        # The speaker is doing what it was trained to do; the directive simply should not be
+        # steering a turn where the user asked for something. Directives are for ambient
+        # conversation, not for overriding a question.
+        _is_question = bool(re.search(
+            r"\?\s*$|^\s*(what|where|who|when|why|how|which|can you|could you|do you|did you|"
+            r"are you|is there|will you|would you|have you|tell me|show me)\b", text.strip(), re.I))
+        if _is_question and d:
+            log(f"  [directive] suppressed for a direct question: {d!r}")
+            d = None
+
+        _path = "plain"
+        if d and not self.args.no_directive:
             seen = scene if scene else "wearing: unknown; doing: unknown; who: one person"
             prompt = f"You can see: {seen}. Your private thinking: {d}\n{text}"
+            _path = f"DIRECTIVE+{'scene' if scene else 'NOSCENE'}"
         elif self._awaiting_name:
+            _path = "ask-name"
             # trained shape, and the ONLY sanctioned way to get a name: ask for it
             prompt = (f"You can see: {scene}. Your private thinking: ask what their name is, "
                       f"because you have never met them\n{text}")
-        elif scene and (PERCEPTION_ASK.search(text) or mem_line):
+        elif scene:
+            _path = "scene"
             # The speaker has 126 `perception_grounded` rows trained as
             #   "You can see: <scene>. <user utterance>" -> line
-            # so when they ask what BMO can see, hand it the scene in exactly that shape. No
-            # thinker tool-call needed -- this is a trained capability that simply was never
-            # being fed. Also used whenever we have something remembered about this person.
+            # so hand it the scene in exactly that shape.
+            #
+            # THE KEYWORD GATE IS GONE (2026-08-26). This used to fire only if PERCEPTION_ASK
+            # matched the utterance. In the live test the user asked "Can tellll me what I'm
+            # wearing?" -- the regex only knew "what am i wearing", so it missed, the scene
+            # was never passed, and the speaker invented "a t-shirt and some black socks"
+            # (there is no socks tag in the bank). A gate that has to enumerate every phrasing
+            # of a question will always have holes; the speaker is trained to hold the scene
+            # without being asked, so give it the scene whenever we have one and let it decide
+            # whether it is relevant.
             head = f"You can see: {scene}. " if scene else ""
             who = f"You remember: {mem_line} " if mem_line else ""
             prompt = f"{head}{who}{text}"
         else:
             prompt = text
+            _path = "plain(no scene, no directive)"
+        # RECAP LINE. History is passed as chat turns AND summarised here as plain text.
+        # Measured: with chat turns alone the speaker recalls the last turn reliably but loses
+        # a fact one turn further back -- and at depth 2 it answered "I'm Pixel", i.e. it SAW
+        # the name and misattributed it. The information was reaching the model; salience was
+        # the problem, not context length. A flat recap is closer to the single-turn shape the
+        # speaker was fine-tuned on than a multi-turn transcript is.
+        if self._history and self.RECAP_TURNS > 0:
+            past = [m["content"] for m in list(self._history) if m["role"] == "user"]
+            # DROP THE MOST RECENT ONE. It is already the immediately preceding chat turn, and
+            # stating it twice measurably hurt: with the naive recap, depth-2 and depth-3
+            # recall started passing but depth 1 REGRESSED (BMO answered "I'm Cat-Castle" to a
+            # fact it had had right a moment earlier). Recap only what the chat turns do not
+            # already make salient -- i.e. everything older than the last exchange.
+            past = past[:-1][-self.RECAP_TURNS:]
+            if past:
+                recap = " ".join(p_.rstrip(".!?") + "." for p_ in past)[:200]
+                prompt = f"Earlier they told you: {recap} {prompt}"
+        log(f"  [prompt] {_path}" + (f" | directive={d!r}" if d else " | directive=NONE")
+            + f" | scene={'yes' if scene else 'EMPTY'}")
         t0 = time.perf_counter()
         reply = ""
         for attempt in range(2):     # one cheap retry if a placeholder leaks (~150 ms)
             try:
-                res = self.speaker.generate(prompt, mood)
+                res = self.speaker.generate(prompt, mood, history=list(self._history))
                 reply = (res.text or "").strip()
             except Exception as e:
                 log(f"  [speaker] failed: {e!r}")
                 reply = "Hmm, my circuits glitched. Say that again?"
                 break
+            # REPEATED REPLY. The speaker decodes greedily (temp=0, chosen deliberately --
+            # temperature is what produced the metaphors you disliked), so a similar prompt
+            # gives a byte-identical line. The live test repeated "Did Beemo do something
+            # wrong? Why are you being mean?" and "You're back, ready to hit pause and play a
+            # tune?" verbatim on consecutive turns, which reads worse than a weaker line.
+            # Nudge ONLY on a repeat, so ordinary turns stay greedy and metaphor-free.
+            if reply and reply == getattr(self, "_last_reply", None) and attempt == 0:
+                log(f"  [speaker] identical to last reply, one nudged retry")
+                try:
+                    res = self.speaker.generate(prompt, mood,
+                                                history=list(self._history), temperature=0.4)
+                    alt = (res.text or "").strip()
+                    if alt and alt != reply:
+                        reply = alt
+                except TypeError:
+                    pass          # tier does not take temperature -- keep the greedy line
+                except Exception as e:
+                    log(f"  [speaker] nudged retry failed: {e!r}")
             if not _PLACEHOLDER.search(reply):
                 break
             log(f"  [speaker] placeholder leak, retrying: {reply[:60]!r}")
         if _PLACEHOLDER.search(reply):
             reply = strip_placeholder(reply)
+        self._last_reply = reply
+        # KEEP THE CONVERSATION. GGUFFastTier.generate() has always taken a `history` argument
+        # and built a proper multi-turn message list from it -- bmo_showcase never passed it,
+        # at any call site. So every turn was answered in total isolation and BMO could not
+        # refer to anything said thirty seconds earlier. That is what "BMO doesn't remember
+        # anything" was; it is not the KV cache, which is 2560 tokens and was never close to
+        # full. Plain turns are stored (not the composed scene/directive prompt) because the
+        # composed shape belongs to the CURRENT turn only.
+        self._history.append({"role": "user", "content": text})
+        self._history.append({"role": "assistant", "content": reply})
         llm_ms = (time.perf_counter() - t0) * 1000
         log(f"  BMO [{mood.get('mood')}]: {reply}   (llm {llm_ms:.0f}ms)")
 
         self.think_async(text, mood, scene)
         ttfa = self.speak(reply, mood)
+        # REFRESH PERCEPTION HERE, not before the reply. Measured, both wrong ways first:
+        #   synchronous, before the LLM  -> blocks 1,500-3,400 ms, first audio 1,417 ms
+        #   background, during the turn  -> contends with TTS, first audio 2,475 ms (WORSE)
+        #   background, after speak()    -> runs in the gap before the user talks again
+        # speak() blocks until playback finishes, so this is genuinely idle time and the
+        # scene is at most one turn old -- which _stabilise() already assumes, since it
+        # states the modal answer over the last PERCEP_WINDOW calls rather than this instant.
+        self.refresh_perception_async()
         log(f"  [turn] stt {stt_ms:.0f} + llm {llm_ms:.0f} + ttfa {ttfa or -1:.0f} "
             f"= first audio ~{stt_ms + llm_ms + (ttfa or 0):.0f}ms | total "
             f"{(time.perf_counter()-t_all)*1000:.0f}ms | avail {mem_avail()} MiB")
@@ -1140,15 +1519,24 @@ def main():
     # (147 vs 173 ms). v6 was shelved on an 8/12-vs-9/12 bake-off that the ledger itself
     # records as having false passes and being underpowered at n=6; a visible placeholder
     # is the worse failure for a live demo. v6 also carries the 372-row directive slice.
-    p.add_argument("--speaker", default="bmo_lfm25_350m_v6_Q8_0.gguf")
+    # UPDATED 2026-08-26 -- these defaults were still v6/v5 and would have run the
+    # DIRECTIVE-BROKEN models at the demo. v6 predates the max_len=96 truncation fix, so
+    # its entire 372-row directive slice trained against zero loss: 783/783 targets were
+    # sliced off. v10 is the retrain (98% directive adherence vs v6's 56%, 8% metaphors
+    # vs 35%). Pass --speaker to A/B against v9 (94% / 35%).
+    p.add_argument("--speaker", default="bmo_lfm25_350m_v10_Q8_0.gguf")
     p.add_argument("--speaker-tokens", type=int, default=48)
-    p.add_argument("--thinker", default="bmo_thinker_qwen3_v5_Q4_K_M.gguf",
-                   help="Q4_K_M fits WITH the camera; Q8_0 does not. 'none' to disable.")
+    p.add_argument("--thinker", default="bmo_thinker_qwen3_v8_Q4_K_M.gguf",
+                   help="Q4_K_M fits WITH the camera; Q8_0 does not. 'none' to disable. "
+                        "v8 emits 6/6 diverse correct directives; v5 collapsed to one.")
     p.add_argument("--thinker-tokens", type=int, default=200)
     p.add_argument("--voice", default=None)
     p.add_argument("--no-emotion", action="store_true")
     p.add_argument("--face-emotion", default="")
-    p.add_argument("--backchannel", action="store_true", default=True)
+    # --backchannel was store_true WITH default=True, so it was on whether or not you passed
+    # it and there was no way to switch it off. Now --no-backchannel actually disables it.
+    p.add_argument("--no-backchannel", dest="backchannel", action="store_false", default=True,
+                   help="disable the thinking-filler clip played after you stop speaking")
     p.add_argument("--vad-threshold", type=float, default=0.45)
     p.add_argument("--min-silence", type=float, default=0.55)
     p.add_argument("--identity", action="store_true",
@@ -1158,9 +1546,9 @@ def main():
     p.add_argument("--perception", action="store_true",
                    help="load the JEPA perception stack + camera (AFTER the GGUFs)")
     p.add_argument("--selftest", action="store_true")
-    p.add_argument("--use-directive", action="store_true",
-                   help="inject the thinker directive into the speaker prompt "
-                        "(needs a directive-trained speaker, e.g. v6)")
+    p.add_argument("--no-directive", action="store_true",
+                   help="DISABLE injecting the thinker directive into the speaker prompt. "
+                        "The directive path is ON by default (speaker v10 + thinker v8).")
     # 4/12 moods ran to the length cap on-device (thin training data); keep them off stage.
     p.add_argument("--unsafe-moods", nargs="*",
                    default=["surprised", "anxious", "lonely", "bored"])

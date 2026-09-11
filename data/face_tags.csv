@@ -1,0 +1,49 @@
+name,valence,arousal,control,novelty,obstruct
+# Rebuilt 2026-08-25. The original face_tags.csv (32 rows) lived in ~/bmo_fresh, which was
+# deleted as a stale duplicate -- taking with it both the 5-value tags AND the source of the
+# clamp ranges in models/homeostatic_appraisal_mapping.json. nearest_face() therefore had no
+# table to search and the appraisal->face path was dead.
+#
+# Tags below cover all 30 faces actually present in face_database.txt (verified by grep, not
+# assumed). Conventions match the mapping file: valence in [-1,1]; arousal/control/novelty/
+# obstruct in [0,1].
+#   valence  : pleasant (+1) .. unpleasant (-1)
+#   arousal  : calm (0) .. activated (1)
+#   control  : helpless (0) .. in command (1)
+#   novelty  : expected (0) .. surprising (1)
+#   obstruct : nothing blocking (0) .. goal blocked (1)
+#
+# REASONED, NOT CALIBRATED -- same standing caveat as the mapping file. These are a defensible
+# first pass from the face semantics; they have never been checked against how the faces
+# actually read on the panel. Re-tag by looking at the rendered PNGs (~/rendered_face_*.png)
+# before trusting them for anything subtle.
+face_happy_standard,0.75,0.45,0.70,0.20,0.00
+face_happy_closed_eyes,0.80,0.35,0.75,0.10,0.00
+face_happy_talking,0.70,0.60,0.70,0.25,0.00
+face_pixel_smile,0.60,0.30,0.65,0.10,0.00
+face_text_happy_D,0.65,0.40,0.65,0.15,0.00
+face_excited_stars,0.90,0.90,0.65,0.70,0.00
+face_sparkle_stars,0.85,0.80,0.65,0.65,0.00
+face_kawaii_sparkle,0.85,0.70,0.65,0.55,0.00
+face_love_hearts,0.95,0.75,0.60,0.45,0.00
+face_kissy_face,0.85,0.55,0.65,0.30,0.00
+face_blush,0.70,0.55,0.40,0.45,0.05
+face_silly_tongue,0.70,0.65,0.70,0.40,0.00
+face_smug,0.45,0.40,0.90,0.15,0.00
+face_pixel_blank,0.00,0.10,0.50,0.05,0.00
+face_look_side,0.05,0.30,0.45,0.40,0.05
+face_skeptical,-0.15,0.35,0.60,0.45,0.20
+face_hypnotized,0.10,0.55,0.15,0.75,0.30
+face_pixel_annoyed,-0.40,0.45,0.55,0.15,0.45
+face_wincing,-0.45,0.60,0.35,0.35,0.55
+face_worried_teary,-0.55,0.60,0.25,0.40,0.60
+face_sad_standard,-0.60,0.25,0.30,0.10,0.45
+face_sad_frown,-0.65,0.30,0.30,0.10,0.50
+face_text_sad_D,-0.55,0.25,0.35,0.10,0.40
+face_tired_droopy,-0.25,0.05,0.35,0.05,0.30
+face_crying_tears,-0.80,0.55,0.15,0.30,0.70
+face_crying_wail,-0.90,0.85,0.10,0.35,0.80
+face_shocked_pale,-0.35,0.95,0.15,0.95,0.55
+face_angry_growl,-0.70,0.80,0.65,0.25,0.85
+face_angry_shout,-0.80,0.95,0.70,0.30,0.90
+face_dead_x,-0.70,0.05,0.05,0.20,0.95

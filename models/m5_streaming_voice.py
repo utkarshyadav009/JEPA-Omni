@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import ctypes
 import gc
+import os
 import re
 import time
 from dataclasses import dataclass
@@ -140,6 +141,41 @@ def _linear_overlap_add(frames, stride: int, power: float = 1.0):
 class StreamingVoice:
     CHUNK, LOOKFWD, LOOKBACK, OVERLAP, HOP = 25, 5, 50, 1, 480
     TEMP, TOP_K, MAX_TOK = 0.7, 50, 2000
+    # REPEAT_PENALTY. 1.0 = off, which is what shipped and what produced the
+    # "heyyyyyyyy" failure: 4 of 12 emotion moods never emitted EOS on an
+    # identical 34-char line and ran to the length cap as one stuck vowel.
+    # These are CODEC tokens, not text -- a sustained vowel legitimately repeats
+    # tokens, so this is calibrated by listening/f0, never raised on principle.
+    # MEASURED, not chosen (tts_grid.log, n=36 per cell, 2026-08-26):
+    #   temp .7 rp 1.00  26/36 ok (9 cap, 1 short)   <- what shipped
+    #   temp .7 rp 1.05  31/36 ok (3 cap, 2 short)   <- this
+    #   temp .6 rp 1.05  32/36 ok  |  temp .5 rp 1.00  19/36 ok
+    # LOWERING TEMPERATURE MAKES IT WORSE (17/36 cap at temp .5), which is the
+    # codec-loops-when-greedy behaviour already recorded in CLAUDE.md showing up as
+    # a gradient -- do not \"stabilise\" this model by cooling it.
+    # The penalty has its own cost: it induces premature EOS (0.4-0.9s clips for a
+    # ~3s line), absent at rp=1.0. 1.05 is the point where cap-hits fall 9->3 before
+    # truncation grows. Both tails must be scored when re-tuning; counting only
+    # cap-hits makes rp=1.05 look like a clean sweep.
+    REPEAT_PENALTY = 1.05
+
+    # DEGENERATE-LOOP GUARD. repeat_penalty alone plateaus at ~86% good clips; the residual
+    # includes the worst-sounding failures, where the model locks into an exact periodic
+    # cycle of codec tokens and drones to the length cap (\"heyyyyyyyyyy\").
+    #
+    # Detected as the longest run of sp[i] == sp[i-L] over periods L in [MIN,MAX]. This is
+    # PERIODICITY, not diversity: an earlier guard measured unique-tokens-in-window and had
+    # to be abandoned because a sustained vowel legitimately has low diversity, so healthy
+    # and looping clips overlapped. Periodicity separates them.
+    #
+    # Measured over 216 clips (tts_minp_records.json): healthy median 1, p90 4, MAX 22;
+    # looping median 11, max 209. LOOP_RUN=23 sits above every healthy clip observed --
+    # 0/162 false positives -- and still catches 24% of loops, including all three of the
+    # longest (90, 114, 209). Lower thresholds catch more but start truncating real speech
+    # (t=10 -> 59% caught but 1.9% of healthy clips cut), which trades one audible defect
+    # for another. Do not lower it without re-measuring the false-positive rate.
+    LOOP_RUN = 23
+    LOOP_PERIOD_MIN, LOOP_PERIOD_MAX = 3, 40
     # Length-cap calibration, MEASURED on-device 2026-08-23 (n=36 utterances,
     # Air v5 + Nano v1, 3 lines x 6 stochastic samples each). A pure
     # tokens-per-char model is WRONG for this voice: short utterances carry
@@ -237,7 +273,17 @@ class StreamingVoice:
         import onnxruntime as _ort
         from huggingface_hub import hf_hub_download
 
-        _onnx_path = hf_hub_download("neuphonic/neucodec-onnx-decoder-int8", "model.onnx")
+        # LOCAL REQUANTISED DECODER, preferred over the HF int8 build.
+        # The published neucodec-onnx-decoder-int8 was produced with quantize_dynamic,
+        # which emits ConvInteger -- an op with NO CPU kernel in onnxruntime, so every
+        # Conv silently fell back to fp32 and the \"int8\" model ran at fp32 cost.
+        # Requantised here with quantize_static + QuantFormat.QOperator, which emits
+        # QLinearConv (implemented): 312 -> 215 MB on disk, 426 -> 334 MiB resident,
+        # 28% faster decode, cosine 0.9916 against the original. Listening test passed.
+        _local = os.path.join(os.path.expanduser("~"), "bmo_production", "models_onnx",
+                              "neucodec_decoder_qlinear_int8.onnx")
+        _onnx_path = _local if os.path.exists(_local) else \
+            hf_hub_download("neuphonic/neucodec-onnx-decoder-int8", "model.onnx")
         _so = _ort.SessionOptions()
         _so.enable_cpu_mem_arena = False          # the 413 MiB line
         _sess = _ort.InferenceSession(_onnx_path, sess_options=_so,
@@ -331,13 +377,30 @@ class StreamingVoice:
         self.last_token_count = 0
         self.last_tok_cap = tok_cap
         sp, cache = [], []
+        _runs: dict = {}          # period -> current consecutive-match run (loop guard)
         nt = ns = 0
-        for tid in self.llm.generate(toks, temp=self.TEMP, top_k=self.TOP_K):
+        for tid in self.llm.generate(toks, temp=self.TEMP, top_k=self.TOP_K,
+                                     repeat_penalty=self.REPEAT_PENALTY):
             if tid == self._end:
                 self.last_exit_reason = "EOS_TOKEN"
                 break
             if self._sp0 <= tid <= self._sp_hi:
                 sp.append(tid - self._sp0)
+                # incremental periodicity check: O(periods) per token, no rescan
+                if len(sp) > self.LOOP_PERIOD_MIN:
+                    hit = False
+                    for _L in range(self.LOOP_PERIOD_MIN,
+                                    min(self.LOOP_PERIOD_MAX, len(sp) - 1) + 1):
+                        if sp[-1] == sp[-1 - _L]:
+                            _r = _runs.get(_L, 0) + 1
+                            _runs[_L] = _r
+                            if _r >= self.LOOP_RUN:
+                                hit = True
+                        else:
+                            _runs[_L] = 0
+                    if hit:
+                        self.last_exit_reason = "LOOP_DETECTED"
+                        break
             if len(sp) - nt >= self.CHUNK + self.LOOKFWD:
                 ts = max(nt - self.LOOKBACK - self.OVERLAP, 0)
                 te = nt + self.CHUNK + self.LOOKFWD + self.OVERLAP

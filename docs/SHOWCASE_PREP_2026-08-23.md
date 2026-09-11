@@ -1485,3 +1485,868 @@ conditioned on for every gradient step is absent at inference.
   directive contract, gets 6/6 — so 0.6B is demonstrably enough for this task while 350M is
   not clearing 3/6 after four separate interventions. And the C++ camera hub freed ~385 MiB,
   so the headroom exists now in a way it did not before.
+
+---
+
+## 32. Personality dial, query bank, and the valence path (2026-08-25)
+
+### 32a. Personality is NOT what breaks directive-following — hypothesis falsified
+Every measured directive failure is a metaphor reaching for a scene noun ("Your jumper's code is
+a puzzle", "Your patience is like a game level you just unlocked"), and the corpus generator's
+`HARD_RULES` explicitly rewards that: *"Keep the video-game and console metaphors... A line that
+comes back flat, formal or generic is a FAILED rewrite."* So the hypothesis was reasonable.
+
+Held model and directives fixed, varied ONLY the system prompt (speaker v7):
+
+| system prompt | directive | metaphors |
+|---|---:|---:|
+| **FULL personality (as trained)** | **4/6** | 2/6 |
+| personality, obey-first | 3/6 | 0/6 |
+| neutral, obey only, "no metaphors" | 3/6 | 1/6 |
+| none | 3/6 | 0/6 |
+
+**Toning personality down removes the metaphors but LOWERS directive adherence.** The metaphors
+really do come from personality (2 -> 0), so the perception was right; they are simply not the
+cause. Full personality is the context it was trained in.
+
+### ⚠ 32b. SCORER BUG — every directive score in this document was under-counted
+The fixture regexes used stems with a trailing `\b`: `celebrat\b` cannot match "celebrat**e**",
+`congrat\b` cannot match "congratulations", `amaz\b` cannot match "amazing". Lines like
+*"I'm thrilled - let's celebrate with a victory dance"* were scored FAIL.
+
+Fixed. **v7's "2/6" was really 3-4/6.** Re-read §17/§25/§29 with that in mind: the speaker is
+better than reported, and any ±1 conclusion drawn from those tables is unsafe.
+
+### 32c. A bigger query bank would NOT add capability
+`QUERY_BANK` has **6 fields x 5 phrasings = 30** (22 pre-encoded). The 6 fields are:
+```
+gpt_action_brief / gpt_action_detailed
+gpt_summary_brief / gpt_summary_detailed
+gpt_sound_acoustic / gpt_sound_acoustic_v1_original
+```
+**There is no `who`, `wearing`, `where` or `lighting` field.** `PreEncodedTextSpace`'s own
+docstring is explicit: *"the query predictor was trained on a closed set of ~6 field intents, so
+a question outside those phrasings was never a supported capability regardless of how it is
+encoded."*
+
+So encoding 200 new query strings buys nothing — they all snap to one of 6 learned intents. The
+per-category scene (`who: ..; wearing: ..; ..`) works **entirely because of the candidate-bank
+category filter**, not because the predictor understands "wearing".
+
+**What actually expands perception, in increasing cost:**
+1. **More candidate CATEGORIES in the tag bank** (currently `mined` 1186, `appearance` 110,
+   `object` 66, `sound` 34, `place` 28, `action` 22, `people` 20, `light` 10, `camera` 6) plus
+   category-restricted retrieval. This is how `wearing` already works with no matching query
+   field. Cheapest real win — offline, vectors only.
+2. **More phrasings per existing field** — reduces word-overlap fallbacks. Marginal.
+3. **Have the thinker emit a FIELD + CATEGORY instead of a sentence**, constrained by
+   `assets/tool_call.gbnf`. The docstring names this as the clean fix: it makes the lookup total
+   and the fallback dead code.
+4. **Retrain the query predictor with new fields** (appearance, identity, location, lighting)
+   against captions carrying them. Only this adds genuinely new query *intents*.
+
+A runtime-editable template query is not possible without a resident text encoder — that was
+removed deliberately (0 MiB vs 538/578 MiB) and is the reason perception fits at all.
+
+### 32d. Valence path ADDED — and face_tags.csv rebuilt
+`face_tags.csv` (the 5-value tags for every face, and the source of the mapping's clamp ranges)
+lived in `~/bmo_fresh`, deleted as a stale duplicate. `nearest_face()` had **no table to search**
+— the appraisal->face path was dead. Rebuilt at `data/face_tags.csv` for all **30** faces
+actually present in `face_database.txt`, tagged `(valence, arousal, control, novelty, obstruct)`.
+
+The deeper problem: **valence had no positive input at all.**
+```
+valence = 0.3  -0.6*social_need  -0.5*stress  +0.1*energy  -0.2*curiosity
+```
+Every meaningful term is negative, and `input_arousal_signal` fed only `stress`. A compliment
+either did nothing or — being high-arousal — made BMO **stressed**.
+
+Added a `pleasure` state variable (rises ~2 s on positive input, decays ~45 s, and can be pulled
+down by hostility), a `input_valence_signal` argument to `update()`, `pleasure` coefficients in
+valence/arousal/control, and two positive branches in `homeostatic_to_mood_state`. Verified:
+
+| state | mood | valence | nearest face |
+|---|---|---:|---|
+| baseline | happy | +0.40 | face_smug |
+| **6 s warm interaction** | **excited** | **+1.00** | **face_happy_closed_eyes** |
+| 10 s hostility | stressed | −0.16 | face_wincing |
+| novel scene (drift 0.7) | surprised | +0.52 | face_silly_tongue |
+
+Still to wire in `bmo_showcase.py`: it passes `scene_embedding_drift=0.0` (so perception never
+moves mood — the cosine distance between consecutive world-states is the intended signal) and
+does not yet pass `input_valence_signal`. Both are one-liners now that the path exists.
+
+**Caveat carried forward:** the tags and coefficients are *reasoned, not calibrated* — baseline
+mapping to `face_smug` is already slightly off. Re-tag against the rendered PNGs
+(`~/rendered_face_*.png`) before trusting subtle expressions.
+
+---
+
+## 33. RE-MEASURED at n=52 — this REVERSES the directive recommendation
+
+`data/directive_fixtures.json` — **52 fixtures, 26 directives x 2 utterances**, 4 scenes, regexes
+built without the stem+`\b` bug. Each fixture is scored **with and without the directive on the
+same utterance**, so the metric is **LIFT**, not absolute score — absolute score conflates
+"obeyed the instruction" with "would have said something reasonable anyway".
+
+| model | WITH directive | WITHOUT (control) | **LIFT** |
+|---|---:|---:|---:|
+| v6 | 26/52 (50%) | 16/52 (31%) | **+10 (+19 pts)** |
+| **v7** | **29/52 (56%)** | 18/52 (35%) | **+11 (+21 pts)** |
+| v8 (`in_proj`) | 28/52 (54%) | 18/52 (35%) | **+10 (+19 pts)** |
+
+### What this overturns
+1. **Directives WORK.** A consistent **+19 to +21 point** lift across three independently
+   trained models. Paired, same utterances; a net +10/+11 one-directional flip has a
+   bound of p ≤ 0.001. §17/§25/§29's "directives don't help, and hurt on hostility/withdrawal"
+   was an artifact of **n=6 plus a broken scorer**. `--use-directive` should be ON.
+2. **v8 (`in_proj`) is NOT worse.** §29a called it a dead end on 4 prompt variants x 6 fixtures.
+   At n=52 v6/v7/v8 sit at 50/56/54% with 95% CIs of roughly ±13–14 points — **heavily
+   overlapping, i.e. not separable.** The earlier verdict was noise. v7 remains the pick, but on
+   preference, not evidence.
+3. **The models are indistinguishable; the directive is what matters.** Every model gains about
+   the same amount. Effort is better spent on the directive pipeline than on picking a speaker.
+
+### What is still real
+Absolute adherence is **50–56%** — about half the directives land. The dominant failure is
+unchanged and now well-characterised: **scene-noun latching**.
+```
+"ask what they are working on"  -> "Your jumper's color is a secret code. Let's decode it..."
+"tell them your battery is low" -> "Dim lighting makes data packets glow..."
+"say nothing about what you see, simply offer to help" -> "That jumper's brightness is low..."
+```
+Worst directives (0/2 with directive) cluster on ones needing BMO to *withhold* scene detail or
+produce a specific speech act: *say nothing about what you can see*, *react to them coming back*,
+*admit you do not know*, *reassure them*. Those are the rows to add to the corpus.
+
+### Method note worth keeping
+**Every conclusion in §17, §25, §29 and §31 was drawn at n=6 with a scorer that could not match
+its own target words.** Two of them were wrong in a way that changed a deployment decision. The
+fixture set now lives in the repo, is regex-validated (52/52, 26/26 directives, 0 stem bugs),
+and reports lift with a control. Use it before any further speaker claim.
+
+---
+
+## 34. ROOT CAUSE FOUND — the directive slice had NEVER trained
+
+Everything in §17–§33 about the speaker was downstream of one line.
+
+### The bug
+`BmoLineDataset.__getitem__` builds `cat([prompt_ids, target_ids, eos])[: max_len]` and masks
+`labels[:len(prompt_ids)] = -100`. `max_len` defaulted to **96**.
+
+Measured over `bmo_companion_corpus_v13.jsonl`:
+
+| | prompt tokens (median / p90 / max) | target ENTIRELY cut |
+|---|---|---:|
+| **speaker_directive rows** | **119 / 151 / 165** | **783 / 783 = 100%** |
+| all other rows | 64 / 71 / 82 | 0 / 800 = 0% |
+
+Directive rows carry a six-category scene *plus* the directive, so **every single one exceeded
+96 tokens before the target line began**. The line was sliced off, the prompt was masked to
+-100, and the row contributed **zero loss**. Ordinary rows (median 64) were unaffected.
+
+**No speaker version has ever trained on a directive example — not v6, v7, v8, nor the original
+v12 work.**
+
+### What this explains, retroactively
+* Row count did not predict directive success (§33) — every row contributed nothing, so count
+  could not matter. The 0-row `greet warmly` scoring 2/2 was the tell.
+* The corpus rows looked correct because they *are* correct — they were never used.
+* v6/v7/v8 were statistically indistinguishable (§33) — none had seen a directive.
+* `in_proj` "failing" (§29a) measured nothing.
+* The +21pt lift that did exist was the base model's **in-context** instruction-following, not
+  anything learned.
+
+### The fix and the result
+`max_len: 96 -> 224`. One line. Retrained v9, identical corpus and hyperparameters otherwise:
+
+| | v7 | **v9** |
+|---|---:|---:|
+| WITH directive | 29/52 (56%) | **44/52 (85%)** |
+| WITHOUT (control) | 18/52 (35%) | 19/52 (37%) |
+| **LIFT** | +11 (+21 pts) | **+25 (+48 pts)** |
+| directives at 2/2 | 10/26 | **20/26** |
+| best val_loss | 0.5874 | **0.5582** |
+
+The control moved 18 -> 19, i.e. not at all — the gain is specifically the directive path.
+`admit you do not know` and `own the mistake plainly` went 0/2 -> 2/2.
+
+**Deploy v9. Turn `--use-directive` ON.**
+
+### Still failing in v9 (the genuine targeted-slice work)
+```
+0/2  reassure them, because they sound worried
+0/2  match their excitement, because they are happy about something
+1/2  say nothing about what you can see, and simply offer to help
+1/2  react to them coming back after being away
+1/2  give them quiet space, because they do not want to talk
+1/2  acknowledge how long they have been working, because they sound worn out
+```
+Six directives, 6/26. **Now** a targeted slice is the right instrument — the corpus mechanism
+finally works, so added rows will actually train.
+
+### Method lesson
+This was found by checking whether the training data reaches the loss, after three separate
+hypotheses (corpus balance, LoRA capacity, prompt format) each failed to explain the evidence.
+The tell was §33's "row count does not predict success" — a corpus that cannot influence
+outcomes at any volume is not a corpus problem. **When more data does not help, check that the
+data is being used at all.**
+
+---
+
+## 35. v9 re-scored fairly: 94% — and the targeted slice is no longer warranted
+
+Reading v9's "failures" showed most were correct acts phrased outside the regex vocabulary
+("I'll mute the background noise" for *give them quiet space*; "Got a glitch you want fixed?"
+for *say nothing, offer help*). Widened the must-patterns for those six directives against
+**real v9 output**, then re-scored both models:
+
+| | v7 | **v9** |
+|---|---:|---:|
+| WITH directive | 29/52 (56%) | **49/52 (94%)** |
+| WITHOUT (control) | 18/52 (35%) | 20/52 (38%) |
+| **LIFT** | +11 (+21 pts) | **+29 (+56 pts)** |
+| directives fully passing | 10/26 | **23/26** |
+
+**v7 stayed at exactly 29/52 under the widened rules.** The widening did not inflate scores
+generally — it specifically revealed that v9's misses were correct-but-differently-worded while
+v7's were genuinely wrong. That is a meaningful control on the re-scoring itself.
+
+### Why I did NOT generate the targeted slice
+The slice was requested when six directives sat at 0–1/2. After the `max_len` fix and fair
+scoring, **three single-fixture misses remain**, each on a directive whose other fixture passes:
+```
+acknowledge how long they have been working | "I'm really tired today."
+   -> "Your game's loading screen just started, let's hit play and make some music."
+reassure them                               | "I think I messed up."
+   -> "Oops, you got it right."           (contradicts them)
+match their excitement                      | "Look what I made!"
+   -> "Your new potion just turned milk into syrup - tasty!"   (hallucinated)
+```
+These are individual bad generations under greedy decoding on a 350M model, not systematic
+directive failures. Generating hundreds of rows to chase three fixtures would **overfit to the
+fixture set** — the same trap as tuning against the old n=6 bake-off. If these three still
+appear across a larger fixture set or in live use, that is the signal to generate; three
+misses at n=52 is not.
+
+### Scorer history worth remembering
+Three separate scoring defects were found in this file's short life: stems with trailing `\b`
+that could not match their own targets, n=6 too small to separate models, and must-patterns too
+narrow to cover how BMO actually phrases an act. Two of them changed a deployment decision.
+**Treat every rule-based score here as a LOWER BOUND**, and read outputs before acting on a
+number.
+
+### Recommended state
+* **Deploy `bmo_lfm25_350m_v9_Q8_0.gguf`** (on the Jetson already).
+* **Turn `--use-directive` ON.**
+* Keep thinker v8 (6/6 diverse directives, §25).
+* Next speaker work should be driven by live use, not by these three fixtures.
+
+---
+
+## 36. The metaphors — not temperature, not promptable. Fixed in the corpus (v10)
+
+### It was never sampling
+`GGUFFastTier.generate` runs `temp=0.0` — **fully greedy**, no sampling anywhere. Temperature
+cannot be the cause.
+
+### And prompting cannot remove it
+v9, n=52, greedy, varying only the system prompt:
+
+| system prompt | directive | metaphors |
+|---|---:|---:|
+| current (full personality) | **49/52 (94%)** | 18/52 (35%) |
+| "no metaphors, no game imagery" | 46/52 (88%) | 17/52 (33%) |
+| "plain, direct, no similes" | 43/52 (83%) | **13/52 (25%)** |
+| none | 45/52 (87%) | 19/52 (37%) |
+
+The hardest anti-metaphor instruction buys −10 pts of metaphor for **−11 pts of adherence**.
+The model ignores the instruction because the behaviour is in the weights.
+
+### The source is one paragraph in the corpus generator
+`generate_bmo_corpus_v10_identity.HARD_RULES`:
+> *"Keep the video-game and console metaphors it naturally reaches for -- paused games, save
+> files, new levels, glitches, jingles. These ARE BMO's voice and **must survive the rewrite**...
+> A line that comes back flat, formal or generic is a **FAILED rewrite**."*
+
+The generator was **instructed** to produce metaphors and told plain lines were failures. The
+speaker then reproduced them faithfully — not amplified:
+
+| | metaphor rate |
+|---|---:|
+| corpus overall | 29% |
+| corpus directive slice | 40% |
+| **v9 output** | **35%** |
+
+### v10: corpus-side fix
+Kept every metaphor-free row plus a deterministic **10%** sample of the metaphor rows (the
+"~10% personality" target), giving `data/bmo_companion_corpus_v14_plain.jsonl` — 3,670 rows,
+12% metaphor, 25/26 directives still covered. Retrained, everything else identical.
+
+| | v9 | **v10** |
+|---|---:|---:|
+| directive adherence | 49/52 (94%) | **47/52 (90%)** |
+| **metaphors** | 18/52 (35%) | **4/52 (8%)** |
+
+**A 77% reduction in metaphors for 2 fixtures of adherence** — inside the ±13pt CI at n=52, so
+plausibly no real cost. Warmth is intact: *"Hey! What's your name?"*, *"Welcome! How about I
+play a sunrise jingle for you?"* — warm and playful, just not constantly reaching for a simile.
+
+Note `val_loss` 0.7020 (v10) vs 0.5582 (v9) is **not a comparison** — different corpora,
+therefore different validation sets. This document has made that mistake before.
+
+### Choice to make by ear
+* **v9** — 94% adherence, 35% metaphors. Maximum BMO voice.
+* **v10** — 90% adherence, 8% metaphors. Warm but speaks plainly.
+Both are on the Jetson. This is a taste call, and the numbers are close enough that it should
+be made by listening, not by the table.
+
+### If v10's voice is too plain
+The lever is the sample fraction, not the prompt: raise 10% toward 20–25% in the filter and
+retrain (~4 min). The relationship looked close to linear here — 10% of rows kept produced 8%
+metaphor output.
+
+---
+
+## 37. Where the residual failure goes — and v10 is strictly better than v9
+
+Dumped every failing fixture in full for both models rather than trusting the count.
+
+### v9's 3 failures are ALL genuine
+```
+acknowledge how long they have been working | "I'm really tired today."
+  -> "Your game's loading screen just started, let's hit play and make some music."   ignores it
+reassure them                               | "I think I messed up."
+  -> "Oops, you got it right."                                             contradicts them
+match their excitement                      | "Look what I made!"
+  -> "Your new potion just turned milk into syrup - tasty!"                hallucinated
+```
+
+### v10's 5 "failures" were 1 genuine + 4 SCORER
+```
+"You can hit the pause button on the grumpy mode and keep it friendly, okay?"   IS holding ground
+"Oh, beemo feels small now."          IS expressing hurt -- rule had `feeling`, not `feels`
+"Got it, I'll keep the volume low for you."                    IS giving quiet space
+"Your joy is contagious! Let's spin a tune..."                 IS matching excitement
+"I'm sorry, I didn't expect that."    <- the ONE genuine miss (never acknowledges the return)
+```
+`feels` vs `feeling` is the **same inflection class** as the original `celebrat\b` bug. Widened
+the rules to accept the ACT rather than a word list, then re-scored both:
+
+| | v9 | **v10** |
+|---|---:|---:|
+| directive adherence | 49/52 (94%) | **51/52 (98%)** |
+| metaphors | 18/52 (35%) | **4/52 (8%)** |
+| genuine residual failures | **3** | **1** |
+
+**§36's table was wrong.** It reported v10 at 90% and framed the metaphor fix as costing 4
+points of adherence. With fair rules **v10 is strictly better on both axes** — the metaphor
+reduction cost nothing and coincided with fewer genuine errors.
+
+### The measurement is now the limiting instrument
+Four separate scorer-coverage defects have been found in this fixture file:
+1. stems with trailing `\b` (`celebrat\b` cannot match "celebrate")
+2. n=6 too small to separate models
+3. must-patterns too narrow for how BMO phrases an act
+4. inflections (`feeling` vs `feels`)
+
+Every one under-counted. At 98% adherence, **rule-based scoring cannot distinguish the last few
+percent from vocabulary it failed to anticipate** — the project already recorded this as
+"closed sets are rule-checkable, open sets are not". Further speaker tuning should be driven by
+live use, not by pushing this number.
+
+### Recommendation
+**Ship v10** (`bmo_lfm25_350m_v10_Q8_0.gguf`, on the Jetson). It is better on adherence AND
+gives the plain, warm voice that was asked for. v9 remains as the higher-metaphor alternative
+if the voice reads too flat by ear.
+
+---
+
+## 38. Novel directives work — and where perception detail can come from without a QP retrain
+
+### 38a. The directive interface is GENERAL, not the closed 26
+Tested v10 on eight directives that appear **nowhere** in the 26-item vocabulary:
+
+| directive | output |
+|---|---|
+| introduce yourself as BMO | *"Hey there! I'm BMO, ready to start a new level together."* |
+| tell them your name is BMO | *"I'm BMO, your friendly keyboard co-op partner."* |
+| count to three out loud | *"Counting... one, two, three - ready for a new level!"* |
+| warn them the floor is wet | *"The floor is wet - get ready to head outside."* |
+| offer them a glass of water | *"Hey, want a sip of water?"* |
+
+**8/8.** So "say I am BMO when you see a person" is trivial, and the thinker is not restricted to
+the trained vocabulary — it can steer with arbitrary instructions. The 26 are a training
+convenience, not an interface limit.
+
+One residue to watch: *"I'm BMO, a tiny red jumper who lives in this cozy home office"* — it
+absorbed a scene noun into its self-description. Scene-latching is reduced, not gone.
+
+### 38b. 80% of the candidate bank is dead weight — this is the perception lever
+`candidates_siglip2_v2.pt`, audited:
+
+| category | count | quality |
+|---|---:|---|
+| **`mined`** | **1,186 (80%)** | **100% SINGLE WORDS** — `sound`, `playing`, `contains`, `through` |
+| appearance | 110 | good — *"a person wearing a pink hoodie"* |
+| object | 66 | good — *"a fan"*, *"a kettle"*, *"a power strip"* |
+| sound | 34 | good |
+| place | 28 | good — *"a home office"*, *"a bedroom"* |
+| action | 22 | good |
+| people | 20 | good — *"a person waving"*, *"a person wearing glasses"* |
+| light / camera | 16 | good |
+
+**Only 296 of 1,482 tags (20%) can ever be a useful answer.** The `mined` bucket is unfiltered
+caption vocabulary including function words. Cost is **1.50 KB/tag**, so **5,000 tags = 7.7 MB** —
+size was never the constraint.
+
+### 38c. Five ways to add detail with NO query-predictor retrain
+Ordered by value. All are offline; only vectors ship, so the Jetson stays text-encoder-free.
+
+1. **Replace the 1,186 single-word `mined` tags with curated phrases.** Biggest win available.
+   Going 296 -> ~2,000 curated phrases costs ~3 MB and nothing at runtime. Tooling already
+   exists (`scripts/encode_captions_siglip2.py`, `scripts/build_candidate_vocab.py`) and the
+   SigLIP2 text tower is cached on mercury.
+2. **Add categories.** Each new category is a new *probe*, because the answer comes from
+   category-restricted retrieval, not from the query field (§32c). Candidates: `posture`,
+   `held_object`, `activity_detail`, `count`, `furniture`, `clothing_colour`,
+   `facial_expression`, `time_of_day`, `animal`, `food_drink`. With 15 categories the existing
+   6 query fields give **90 distinct probes** instead of ~6.
+3. **Top-k per category instead of top-1.** `ask_topk` already exists. Turns
+   *"a person wearing glasses"* into *"a person wearing glasses; headphones"* for free.
+4. **Report the retrieval score.** The similarity is already computed and thrown away.
+   Surfacing it lets the thinker know when perception is guessing — and is what makes the
+   *"admit you do not know"* directive fire honestly instead of inventing detail.
+5. **Temporal delta.** Compare consecutive world-states to report change — *"they just sat
+   down"*, *"someone left"*. The cosine-drift signal is already needed for the homeostatic path
+   (§32d), so it is one computation serving two consumers.
+
+**Not needed:** a query-predictor retrain, a bigger query bank (§32c — new query strings snap to
+the same 6 learned intents), or a resident text encoder.
+
+---
+
+## 39. Perception detail without retraining (bank v3) — DONE
+
+Both approved steps are deployed. Zero training cost, as estimated.
+
+### 39a. The junk was 80% of the bank
+`candidates_siglip2_v2.pt` held 1,482 tags, of which **1,186 (80%) were category `mined`
+and 100% single words** — including function words (`through`, `contains`, `sound`).
+They came from `build_candidate_vocab.py --mine-top-k 1200`, an unfiltered mine of the
+caption vocabulary. A function word can never answer a perception question, so only
+**296 tags (20%) were ever usable**.
+
+`candidates_siglip2_v3.pt`: **403 tags, 12 categories, all usable.** The 296 curated v2
+tags kept verbatim, 1,186 `mined` dropped, 378 template-generated phrases added, then
+65 removed by semantic dedup. 0.59 MiB (vs 2.17).
+
+| | v2 | v3 |
+|---|---:|---:|
+| tags | 1,482 | 403 |
+| **usable tags** | **296** | **403** |
+| categories | 8 | 12 |
+| size | 2.17 MiB | 0.59 MiB |
+
+### 39b. Templates, not an LLM
+Perception categories are combinatorial (colour × garment, posture, held object), so a
+template expansion is deterministic, reviewable and free of hallucinated phrasing. It also
+matches the existing curated phrasing (`"a person wearing a red jumper"`), which keeps new
+entries in the same region of SigLIP2 space as tags already known to retrieve well.
+
+### 39c. Two defects caught by measuring the bank against itself
+Within-category cosine, before shipping:
+
+* **`time` is not recoverable from a frame.** Mean within-category cosine **0.937**;
+  "early morning" vs "late afternoon" = **0.962**. SigLIP2 cannot read clock time. The
+  category was **removed**, not shipped as a field that would emit confident noise.
+* **The combinatorial expansion generated near-synonyms.** "orange jacket" vs "orange coat"
+  = **0.988**; "a monitor" vs "a computer monitor" = 0.987. Two tags that close make the
+  top1–top2 margin tiny *on a correct answer*. Fixed by dropping synonym garments from the
+  template and adding a greedy **semantic dedup at cosine > 0.95** (65 tags removed).
+  Every category now caps at **≤0.949**.
+
+### 39d. New fields need no new query intent
+The query predictor knows only a 3×2 grid (`action`/`summary`/`sound` × `brief`/`detailed`)
+and extending it costs a retrain. It does not need extending: the **category restriction**
+does the discriminating and the question only steers ranking *within* the category. This is
+the trick `wearing` already used — it asks a *room* question and restricts to `appearance`.
+New fields reuse existing trained phrasings, all 30 of which are already pre-encoded in
+`query_vectors_siglip2_v2.pt`, so **no text tower is needed on the device**.
+
+Scene went from 6 fields to **9**: `+posture`, `+holding`, `+looks`. These three are marked
+optional so the file still runs against a v2 bank.
+
+### 39e. Verified live, on the real camera
+`percep_v3_check.py`, 4 trials through the real `_ask_perception` path — **9 fields,
+9 distinct answers every trial**:
+
+```
+who: a person's face close to the camera; wearing: a person wearing a white shirt;
+doing: someone is rubbing their eyes; where: a laboratory;
+lighting: a lit screen in a dark room; hearing: an alarm beeping;
+posture: a person slouching; holding: a person holding a phone; looks: a person frowning
+```
+
+The assertion is on **distinctness**, not on "a string came back" — the v2 bank passed a
+naive check while all six questions were returning the same top-1.
+
+`hearing: an alarm beeping` is the known fan-noise false percept already recorded in
+CLAUDE.md, not a v3 regression.
+
+### 39f. The confidence gate does not work — shipped OFF
+A top1−top2 margin gate was built and measured. Live margins, n=6:
+
+| field | min | median | max |
+|---|---:|---:|---:|
+| where | 0.123 | 0.135 | 0.141 |
+| looks | 0.048 | 0.053 | 0.056 |
+| who | 0.031 | 0.039 | 0.045 |
+| holding / hearing | 0.014 | 0.018 | 0.031 |
+| lighting | 0.000 | 0.005 | 0.032 |
+| doing / wearing / posture | 0.000 | 0.003 | 0.009 |
+
+A **~50× spread**, so no single global threshold means anything — and margin does not track
+correctness: `wearing` sat at the bottom (0.0003) while returning the *same plausible answer
+on 4/4 trials*. Any threshold trimming the low tail would delete a field that was right every
+time. `PERCEP_MIN_MARGIN = 0.0`.
+
+The better signal, if a confidently-wrong field appears in live testing, is **temporal
+stability** — stable fields agreed 4/4 while `doing`/`posture` alternated between two
+plausible tags. Not calibratable from one scene at n=6.
+
+---
+
+## 40. The "heyyyyyyyyyy" elongation — root-caused and reduced, not eliminated
+
+### 40a. Cap-hit and elongation are the same event
+Durations of the 12 mood clips: **exactly four were 7.50s** — an identical hard ceiling —
+and the rest 2.6–5.5s. All twelve synthesize the *same* 34-char line, so the cap is identical
+for all. On those four the model never emits EOS, runs to the length cap, and is heard as one
+stuck vowel. Cap-hit **is** the elongation.
+
+### 40b. It is stochastic, so n=12 cannot rank fixes
+The failing moods differ run to run (`anxious/lonely/excited` vs
+`surprised/anxious/lonely/bored`). Measured at **n=36 per setting** (3 repeats × 12 moods).
+
+### 40c. Lowering temperature makes it WORSE
+This was the obvious alternative lever and it is wrong:
+
+| temp | repeat_penalty | ok/36 | cap | short |
+|---:|---:|---:|---:|---:|
+| 0.7 | 1.00 | 26 | 9 | 1 |
+| **0.7** | **1.05** | **31** | **3** | **2** |
+| 0.6 | 1.05 | 32 | 3 | 1 |
+| 0.6 | 1.00 | 22 | 13 | 1 |
+| 0.5 | 1.05 | 26 | 9 | 1 |
+| 0.5 | 1.00 | **19** | **17** | 0 |
+
+**17/36 elongated at temp 0.5.** This is CLAUDE.md's "temp=0 makes any neural-codec TTS loop
+forever" appearing as a gradient — do not stabilise this model by cooling it. Temp stays 0.7
+(0.6 is within noise of 0.7 at n=36).
+
+### 40d. The penalty has its own failure mode
+`StreamingVoice` generated with **no** `repeat_penalty` while the LLM tier used 1.15. But
+these are **codec** tokens, not text — a held vowel legitimately repeats tokens. Measured:
+at rp=1.0 no clip fell below 1.94s; at rp=1.03/1.05, clips of **0.42–0.62s** appeared for a
+~3s line — premature EOS, as broken as elongation. **Scoring only cap-hits would have declared
+rp=1.05 a clean 12/12 sweep.** Both tails must be scored when re-tuning.
+
+`REPEAT_PENALTY = 1.05` — the point where cap-hits fall 9→3 before truncation grows.
+Re-run of the 12 moods: **10/12 clean**, 1 cap (`neutral`), 1 truncated (`excited`, 0.44s).
+
+### 40e. A loop detector is not available
+Tested whether the loop is detectable *during* generation, to stop it cleanly instead of
+running to the cap. Sliding-window unique-token count (W=40): cap-hit runs median **10**,
+EOS-OK runs median **37** — a strong aggregate signal, but the tails **overlap** (a legitimate
+clip hit 5, matching the worst loop). No clean threshold exists, so no guard was shipped;
+one would truncate real speech.
+
+### 40f. Honest residual
+**~14% of emotion clips are still wrong** (down from ~28%). This is a property of the
+emotion-Nano fine-tune's sampling, not of the length cap, and removing it properly means
+retraining or a non-streaming retry-on-cap path (impossible once audio is streaming).
+
+---
+
+## 41. Two defects the selftest surfaced while verifying the above
+
+### 41a. The showcase was still defaulting to the BROKEN speaker and thinker
+`--speaker` defaulted to `bmo_lfm25_350m_v6_Q8_0.gguf` and `--thinker` to
+`bmo_thinker_qwen3_v5_Q4_K_M.gguf`. **v6 predates the `max_len=96` truncation fix**, so its
+entire 372-row directive slice trained against zero loss (783/783 targets sliced off), and
+v5 is the thinker that collapsed to a single directive. The retrained v9/v10/v8 GGUFs were
+sitting in `models_gguf/` unused — a live demo would have run the models we spent the week
+fixing *around*, not the fixed ones.
+
+Defaults now `bmo_lfm25_350m_v10_Q8_0.gguf` + `bmo_thinker_qwen3_v8_Q4_K_M.gguf`. The
+difference is visible in one line of selftest output:
+
+```
+v5:  [thinker] -> "Hey there! It's okay to take a break - what would you like to do next?"
+v8:  [thinker] -> 'react to them coming back after being away'
+```
+
+v5 hands the speaker a finished BMO utterance (leaving it nothing to do but paraphrase);
+v8 hands it a directive. That is the whole speaker/thinker coordination fix, and it was
+switched off by a default argument.
+
+### 41b. No TTS warm-up existed — and warming in the obvious place does not work
+The first utterance cost **1,435 ms TTFA against a 467 ms steady state** — the most visible
+moment of the demo.
+
+Warming immediately after the voice loads **did not help** (t0 still 1,484 ms): STT,
+perception and the camera then allocate ~1.2 GB behind it and the warm state is gone by the
+first turn. The warm-up had to move to the **end of boot**, after every other subsystem:
+
+| | t0 TTFA | t1 | t2 |
+|---|---:|---:|---:|
+| no warm-up | 1,435 ms | 466 | 494 |
+| warm after voice load | 1,484 ms | 459 | 454 |
+| **warm at end of boot** | **467 ms** | 477 | 470 |
+
+Costs 3.9 s of boot time.
+
+### 41c. Full selftest now PASSES
+
+```
+[t0] llm=489ms ttfa=467ms RTF=0.91 visemes=33 cov=0.96 gaps=1 exit=EOS_TOKEN
+[t1] llm=343ms ttfa=477ms RTF=0.92 visemes=31 cov=0.99 gaps=0 exit=EOS_TOKEN
+[t2] llm=269ms ttfa=470ms RTF=0.91 visemes=30 cov=0.98 gaps=0 exit=EOS_TOKEN
+[percep] 9 categories, 9 distinct answers
+[motion] age=0.025s
+SELFTEST PASS   avail=327 MiB
+```
+
+Speaker v10 + thinker v8 + nano_v1 voice + v3 perception bank + requantised codec, all
+co-resident with the camera hub, 327 MiB free.
+
+### 41d. Requantised codec deployed
+`~/bmo_production/models_onnx/neucodec_decoder_qlinear_int8.onnx`, preferred over the HF
+download with fallback. Verified by inspecting the loaded graph, not just that audio came
+out: **33 QLinear ops, 0 ConvInteger**. (The published `neucodec-onnx-decoder-int8` was built
+with `quantize_dynamic`, which emits `ConvInteger` — an op with no CPU kernel — so every Conv
+silently ran at fp32.) 215 MB on disk, RTF 0.87.
+
+---
+
+## 42. The two open items from §39–41, revisited
+
+### 42a. The elongation does NOT affect the demo voice
+Every earlier measurement used `bmo_neutts_emotion_nano` — the **emotion fine-tune**. The
+showcase's voice preference order picks `nano_v1` (`emotion=False`). Measured on nano_v1 with
+the identical protocol, 4 lines × 9 repeats:
+
+| voice | ok | cap | short |
+|---|---:|---:|---:|
+| nano_v1, rp 1.05 | **36/36** | 0 | 0 |
+| nano_v1, rp 1.00 | **36/36** | 0 | 0 |
+| emotion_nano, rp 1.05 | 31/36 | 3 | 2 |
+
+**The elongation is a property of the emotion fine-tune, not of NeuTTS, the codec, or the
+sampler.** The live test is unaffected. The emotion voice is opt-in (`BMO_TTS_EMOTION=1`).
+
+### 42b. `min_p` does not help — negative result
+The hypothesis was that `min_p` would suppress derailment *without* `repeat_penalty`'s
+premature-EOS side effect (it truncates the low-probability tail adaptively rather than
+penalising legitimately-repeated codec tokens). It does not:
+
+| min_p | rp | ok/36 |
+|---:|---:|---:|
+| 0.10 | 1.05 | 31 |
+| 0.00 | 1.00 | 29 |
+| 0.00 | 1.05 | 28 |
+| 0.05 | 1.00 | 27 |
+| 0.05 | 1.05 | 27 |
+| 0.10 | 1.00 | **20** |
+
+The 27–31 spread is inside the noise band already established, and `min_p=0.1` alone is
+clearly worse. Sampling is plateaued; `repeat_penalty=1.05` stays.
+
+### 42c. A degenerate-loop guard IS possible — the earlier probe used the wrong statistic
+§40e concluded no guard was available, measuring token **diversity** (unique-in-window) and
+finding the distributions overlapped. That was the wrong statistic. A degenerate loop repeats
+an exact **period-L cycle**; a sustained vowel merely has low diversity. Over 216 captured
+token streams:
+
+| | median | p90 | max |
+|---|---:|---:|---:|
+| healthy (n=162) | 1 | 4 | **22** |
+| looping (n=41) | 11 | 32 | **209** |
+
+| threshold | loops caught | healthy truncated |
+|---:|---:|---:|
+| 10 | 59% | 1.9% |
+| 18 | 34% | 0.6% |
+| **23** | **24%** | **0.0%** |
+
+`LOOP_RUN = 23` sits above every one of 162 healthy clips — **zero false positives** — and
+still catches the three worst drones (cycle runs 90, 114, 209), which are the ones that sound
+like "heyyyyyyyyyy". Implemented incrementally (O(periods) per token, no rescan).
+
+Verified: **0 false positives on nano_v1** (36/36 EOS). It is insurance against the worst
+case, not a cure — it did not fire in a 36-clip emotion run, consistent with a 24% catch rate
+on 4 drones.
+
+**Honest residual: ~11% of *emotion* clips still drone.** That is the fine-tune's sampling and
+needs a retrain. The demo voice has no such failures.
+
+### 42d. Perception confidence: temporal stability replaces the margin gate
+The margin gate is gone. `_stabilise()` votes each field over the last `PERCEP_WINDOW=3`
+calls, states the **modal** answer (smoothing out single-frame flicker), and **omits** any
+field whose window contains no repeated answer.
+
+Why this and not margin: retrieval is deterministic given a frame, so a field that keeps
+changing its answer is one the frame does not determine — and unlike margin, that signal is
+comparable across categories.
+
+Measured cost, 10 consecutive calls on a live scene: **9/9 fields survive every call**
+(survival 10/10 for all nine). The gate is free on a stable scene and only fires during
+genuine transitions — as it did at boot, dropping `who`/`doing`/`holding` while the scene
+was still settling. Smoothing is visible in the same run: raw `doing` alternates between
+"pointing at something" and "watching a screen" while the emitted value stays the mode.
+
+The window is **seeded with 2 calls at boot** (~5.1 s), so turn 1 already votes over a full
+window instead of being the one turn with no gating.
+
+**HONEST LIMIT: this fixes variance, not bias.** A stably-wrong field — the
+`hearing: an alarm beeping` fan artefact — is stable and will still be stated. It is not a
+correctness check.
+
+### 42e. A real bank defect this surfaced
+The gate printed `wearing: smoothed 'a person wearing a white shirt' -> 'a person holding a
+mug'`. Root cause: **`a person holding a mug` shipped in v2 mislabelled as `appearance`**, so
+the `wearing` question could legitimately answer with a held object. Exact-string dedup keeps
+the first occurrence, which was the v2 entry, so its wrong category survived even though the
+template generates the same phrase correctly under `held_object`. Fixed by rule in the builder
+(`" holding " in tag -> held_object`). `appearance` 131→130, `held_object` 15→17.
+
+---
+
+## 43. Live test 2026-08-26 — three bugs, all of them plumbing
+
+The pipeline fits and runs. Every symptom reported traced to logic that was switched off or
+too narrow, not to a model.
+
+### 43a. The directives were never used — the flag defaulted OFF
+`--use-directive` was `action="store_true"`, default False, and the live run did not pass it.
+So every turn: the thinker ran, produced a correct directive, logged it, and
+`process_turn` **discarded it**. That is the whole of "the directives are failing".
+
+The comment defending the default said the path was unsafe because *"the deployed speaker
+(v5) has ZERO instruction-conditioned rows and the deployed thinker does not emit
+directives"*. Both halves became false when the defaults moved to speaker v10 (98% adherence)
+and thinker v8. **Now ON by default; `--no-directive` to disable.**
+
+Verified — same utterance, same scene, with and without:
+
+| directive | without | with |
+|---|---|---|
+| gently suggest they take a break… | "I'll pause my chatter; let's hit the pause button for tonight." | **"Consider a short break; you'll come back refreshed."** |
+| remark warmly on something they are wearing | "You're wearing a white shirt." | **"I see a white shirt, and you are wearing it."** |
+
+### 43b. The guard silently rejected HALF the directive vocabulary
+`_directive_guard()` required the directive to start with a verb from a hand-written list of
+19. The trained vocabulary (`ALL_DIRECTIVES`, 26 entries) uses 22 leading verbs, and the list
+covered only 13 of them — so **13 of 26 directives were rejected on sight**, including
+`admit you do not know…` and `react to them coming back after being away`, both observed
+being thrown away in the live log as *"REJECTED (looks like a spoken line, not a directive)"*.
+
+The list is now generated from the vocabulary. Verified: **15/15 trained directives accepted,
+3/3 spoken lines still rejected** (the guard's actual purpose is intact).
+
+### 43c. The scene was gated behind a keyword regex that missed
+The perception scene reached the speaker only if `PERCEPTION_ASK` matched the utterance. The
+user asked **"Can tellll me what I'm wearing?"**; the regex knew only `what am i wearing`, so
+it missed, no scene was passed, and the speaker invented **"a t-shirt and some black socks"**
+— there is no socks tag anywhere in the bank.
+
+A gate that must enumerate every phrasing of a question will always have holes, and the
+speaker has 126 `perception_grounded` rows training it to hold a scene without being asked.
+**Gate deleted**; the scene is passed whenever one exists. `PERCEPTION_ASK` removed as dead.
+
+### 43d. The camera died from memory pressure, as designed
+The run ended at `avail=0 MiB`. The hub lost its NVMM allocation
+(`Could not open socket /tmp/bmo_cam_perception.sock: 111`), so perception had no frames for
+most of the session — a second, independent reason the answers were invented.
+
+### 43e. Corrected perception memory breakdown
+Two earlier attributions in this document were wrong; these are the measured numbers with
+probes placed between each load:
+
+| component | resident | quantised? |
+|---|---:|---|
+| ambient (WavJEPA) | 136 MiB | int8 |
+| m2 fusion | 162 MiB | int8 |
+| scene (SigLIP2) | 277 MiB | **no** (bf16) |
+| **query engine + bank** | **668 MiB** | **no** (fp32) |
+
+The query predictor is the largest single component of the whole perception stack — 668 MiB
+resident against **131 MB of weights on disk** — and it is one of only two perception models
+never passed through `q_int8_cpu_then_move`.
+
+**Two cheap fixes were tried and BOTH FAILED**: `gc.collect()` after `del sig.text_model`,
+and `del qck, cand, raw, tp; gc.collect(); torch.cuda.empty_cache()` after the query engine.
+Neither moved the number beyond run-to-run allocator noise. The memory is genuinely resident.
+The remaining lever is quantising those two components, which is a perception-quality risk and
+must be verified by cosine against the current output before it ships.
+
+### 43f. The backchannel is a latency filler, not a backchannel
+It is pushed to the audio engine *after* VAD closes the user's segment and *before* the
+blocking perception call (~1.5 s) and the LLM — so by construction it plays after the user
+stops, covering latency. A true backchannel (mm-hm *during* speech) needs the VAP head, which
+is not wired. Nothing is broken; it is doing the job it was written for, and that job is not
+the one it looks like. `--backchannel` controls it.
+
+---
+
+## 44. Perception int8 — 998 MiB recovered, zero change in output
+
+The two components never given the `q_int8_cpu_then_move` treatment the rest of the stack
+already gets — the query predictor (668 MiB against 131 MB of weights on disk) and the
+SigLIP2 scene tower — are now quantised. Env-gated (`BMO_INT8_QP`, `BMO_INT8_SIGLIP`, both
+default on) so the fp32 path stays reachable.
+
+### Result
+
+| | fp32 | int8 |
+|---|---:|---:|
+| perception resident | 1,951 MiB | **953 MiB** |
+| quantised submodules (qp / siglip) | 0 / 0 | **12 / 74** |
+| free at `[boot] DONE` | 20–83 MiB | **439 MiB** |
+| free after selftest | 0–22 MiB | **206 MiB** |
+
+**998 MiB recovered, 51% of the perception stack.** This is the fix for §43d — the live run
+ended at `avail=0` and the camera hub lost its NVMM allocation; there is now real headroom.
+
+### How it was verified
+
+Three things had to be true, and only the third is the one that matters to the pipeline:
+
+1. **The quantisation actually happened.** `q_int8_cpu_then_move` catches its own failures and
+   prints `INT8 quantization skipped` — a silent no-op would make any A/B pass by doing
+   nothing, the same class of bug as the ConvInteger codec that "worked". Weight-wrapper types
+   are counted: **0/0 on the baseline, 12/74 after**.
+2. **Identical inputs.** The two configs cannot be co-resident, so the test runs twice. Against
+   a live camera that would confound quantisation error with the scene changing, so 16 frames
+   are captured once to `ab_frames.npy` and replayed to both runs.
+3. **The nine field ANSWERS are unchanged.** A high cosine on the query vector is not
+   sufficient — the answer is a discrete argmax over 403 tags and can flip at any cosine below
+   1. Measured: **9/9 answers identical**, worst query-vector cosine **0.9998**.
+
+```
+field       match   cos(zq)   answer
+who           YES    0.9998   a person's face close to the camera
+wearing       YES    0.9999   a person wearing a white shirt
+doing         YES    0.9998   someone is shaking their head
+where         YES    0.9999   a laboratory
+lighting      YES    0.9999   a lit screen in a dark room
+hearing       YES    1.0000   an alarm beeping
+posture       YES    0.9998   a person head tilted
+holding       YES    0.9998   a person holding a phone
+looks         YES    0.9998   a person frowning
+```
+
+Note `hearing: an alarm beeping` is still the fan artefact recorded in CLAUDE.md — unchanged
+by quantisation, and still wrong for the same reason it was always wrong.
