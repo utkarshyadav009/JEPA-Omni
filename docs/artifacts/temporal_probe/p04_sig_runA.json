@@ -1,0 +1,81 @@
+{
+  "script": "scripts/temporal_probe/qp_rescore_bs1.py",
+  "command": "/home/utkarsh/miniconda3/envs/jepa-omni/bin/python scripts/temporal_probe/qp_rescore_bs1.py --qp-ckpt checkpoints/sig_runA_matched3stream/best.pt --out docs/artifacts/temporal_probe/p04_sig_runA.json",
+  "git_rev": "7f1f658b6b01c0062dfcafeafc7b7d7db1edd17b",
+  "utc": "2026-09-11T19:58:56Z",
+  "qp_ckpt": "checkpoints/sig_runA_matched3stream/best.pt",
+  "qp_ckpt_step": 1499,
+  "qp_cfg": {
+    "m2_ckpt": "checkpoints/m2_run2_vggsound197k_ego4d134k_neg200/step19000.pt",
+    "out_dir": "checkpoints/sig_runA_matched3stream",
+    "steps": "1500",
+    "micro_batch": "64",
+    "n_micro": "8",
+    "lr": "0.0003",
+    "temp": "0.07",
+    "eval_every": "250",
+    "text_backbone": "siglip2",
+    "token_sources": "m2,vision,ambient",
+    "p_vggsound": "0.5",
+    "captions_path": "/home/utkarsh/JEPA-Omni/scripts/qwen_omni_full_captions_v2.jsonl",
+    "lambda_within": "0.3",
+    "seed": "0",
+    "scene_dir": "/dev/shm/scene_all",
+    "restrict_to_scene": "False",
+    "audio_mode": "mean",
+    "text_cache_dir": "/dev/shm/siglip2_text_cache"
+  },
+  "m2_ckpt": "checkpoints/m2_run2_vggsound197k_ego4d134k_neg200/step19000.pt",
+  "m2_ckpt_sha256": "e1a8231ec9fbae6cf2b8288c89612ee1facd2dc6938781c22cf06295b31bedf8",
+  "cache_dir": "/mnt/Raid-Storage-2/utkarsh-data/feature_cache_vgg51k",
+  "streams": [
+    "m2",
+    "vision",
+    "ambient"
+  ],
+  "eval_clips_available": 13679,
+  "max_clips": 624,
+  "seed": 0,
+  "logged_reference": {
+    "step": 1499,
+    "vggsound": {
+      "within_clip_acc": 0.654113233089447,
+      "swapped_query_acc": 0.005876068491488695,
+      "within_clip_chance": 0.16666666666666666,
+      "cross_clip_r1": 0.48878204822540283,
+      "n_clips": 624.0
+    },
+    "action100m": {
+      "within_clip_acc": 0.9599359035491943,
+      "swapped_query_acc": 0.04006410390138626,
+      "within_clip_chance": 0.5,
+      "cross_clip_r1": 0.05128205195069313,
+      "n_clips": 624.0
+    }
+  },
+  "runs": [
+    {
+      "within_clip_acc": 0.6546474099159241,
+      "swapped_query_acc": 0.005876068491488695,
+      "within_clip_chance": 0.16666666666666666,
+      "cross_clip_r1": 0.48878204822540283,
+      "n_clips": 624.0,
+      "batch_size": 48,
+      "wall_s": 17.7
+    },
+    {
+      "within_clip_acc": 0.6546474099159241,
+      "swapped_query_acc": 0.005876068491488695,
+      "within_clip_chance": 0.16666666666666666,
+      "cross_clip_r1": 0.5032051205635071,
+      "n_clips": 624.0,
+      "batch_size": 1,
+      "wall_s": 76.2,
+      "delta_vs_bs48": {
+        "within_clip_acc": 0.0,
+        "swapped_query_acc": 0.0,
+        "cross_clip_r1": 0.0144
+      }
+    }
+  ]
+}

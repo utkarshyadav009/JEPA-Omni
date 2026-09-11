@@ -1,0 +1,53 @@
+{
+  "n_files": 2821,
+  "n_windows": 134491,
+  "pct_files_fully_contiguous": 9.15,
+  "pct_pairs_gap1": 59.11,
+  "gap_hist_top": [
+    [
+      1,
+      77831
+    ],
+    [
+      2,
+      25631
+    ],
+    [
+      3,
+      10380
+    ],
+    [
+      4,
+      5527
+    ],
+    [
+      5,
+      2766
+    ],
+    [
+      6,
+      1729
+    ],
+    [
+      7,
+      1572
+    ],
+    [
+      8,
+      987
+    ],
+    [
+      9,
+      719
+    ],
+    [
+      10,
+      596
+    ]
+  ],
+  "longest_run_mean": 12.56,
+  "longest_run_max": 149,
+  "files_run_ge5": 1539,
+  "files_run_ge10": 1042,
+  "files_run_ge30": 357
+}

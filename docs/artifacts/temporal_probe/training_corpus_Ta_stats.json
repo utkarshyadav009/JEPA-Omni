@@ -1,0 +1,18 @@
+{
+  "vggsound_51k": {
+    "n_sampled": 60,
+    "min": 896,
+    "max": 998,
+    "mean": 994.5,
+    "std": 12.9,
+    "distinct": 6
+  },
+  "ego4d_train_v1": {
+    "n_sampled": 1,
+    "min": 996,
+    "max": 996,
+    "mean": 996,
+    "std": 0.0,
+    "distinct": 1
+  }
+}

@@ -1,0 +1,194 @@
+{
+  "cell1 leaked  + shuffled(5)": {
+    "n_runs": 5,
+    "vision->ambient_R@1": {
+      "mean": 53.01,
+      "std": 1.115,
+      "range": 2.66,
+      "values": [
+        53.79,
+        52.88,
+        51.13,
+        53.79,
+        53.46
+      ]
+    },
+    "vision->ambient_R@5": {
+      "mean": 80.208,
+      "std": 0.639,
+      "range": 1.68,
+      "values": [
+        79.87,
+        79.42,
+        80.52,
+        80.13,
+        81.1
+      ]
+    },
+    "vision->ambient_R@10": {
+      "mean": 86.964,
+      "std": 0.317,
+      "range": 0.77,
+      "values": [
+        86.86,
+        86.73,
+        87.44,
+        87.12,
+        86.67
+      ]
+    },
+    "ambient->vision_R@1": {
+      "mean": 52.906,
+      "std": 0.848,
+      "range": 2.26,
+      "values": [
+        53.2,
+        53.14,
+        52.49,
+        51.72,
+        53.98
+      ]
+    },
+    "ambient->vision_R@5": {
+      "mean": 80.208,
+      "std": 0.428,
+      "range": 0.9,
+      "values": [
+        80.52,
+        79.68,
+        79.81,
+        80.45,
+        80.58
+      ]
+    },
+    "ambient->vision_R@10": {
+      "mean": 87.766,
+      "std": 0.569,
+      "range": 1.35,
+      "values": [
+        87.83,
+        86.93,
+        88.28,
+        88.28,
+        87.51
+      ]
+    }
+  },
+  "cell2 leaked  + determ.(1)": {
+    "n_runs": 1,
+    "vision->ambient_R@1": {
+      "value": 52.75
+    },
+    "vision->ambient_R@5": {
+      "value": 80.26
+    },
+    "vision->ambient_R@10": {
+      "value": 87.25
+    },
+    "ambient->vision_R@1": {
+      "value": 53.53
+    },
+    "ambient->vision_R@5": {
+      "value": 81.49
+    },
+    "ambient->vision_R@10": {
+      "value": 88.61
+    }
+  },
+  "cell3 FIXED   + shuffled(5)": {
+    "n_runs": 5,
+    "vision->ambient_R@1": {
+      "mean": 29.928,
+      "std": 0.038,
+      "range": 0.07,
+      "values": [
+        29.97,
+        29.9,
+        29.9,
+        29.9,
+        29.97
+      ]
+    },
+    "vision->ambient_R@5": {
+      "mean": 56.866,
+      "std": 0.033,
+      "range": 0.06,
+      "values": [
+        56.89,
+        56.83,
+        56.89,
+        56.83,
+        56.89
+      ]
+    },
+    "vision->ambient_R@10": {
+      "mean": 68.672,
+      "std": 0.046,
+      "range": 0.13,
+      "values": [
+        68.74,
+        68.61,
+        68.67,
+        68.67,
+        68.67
+      ]
+    },
+    "ambient->vision_R@1": {
+      "mean": 28.28,
+      "std": 0.0,
+      "range": 0.0,
+      "values": [
+        28.28,
+        28.28,
+        28.28,
+        28.28,
+        28.28
+      ]
+    },
+    "ambient->vision_R@5": {
+      "mean": 56.25,
+      "std": 0.0,
+      "range": 0.0,
+      "values": [
+        56.25,
+        56.25,
+        56.25,
+        56.25,
+        56.25
+      ]
+    },
+    "ambient->vision_R@10": {
+      "mean": 68.16,
+      "std": 0.0,
+      "range": 0.0,
+      "values": [
+        68.16,
+        68.16,
+        68.16,
+        68.16,
+        68.16
+      ]
+    }
+  },
+  "cell4 FIXED   + determ.(1)": {
+    "n_runs": 1,
+    "vision->ambient_R@1": {
+      "value": 29.9
+    },
+    "vision->ambient_R@5": {
+      "value": 56.83
+    },
+    "vision->ambient_R@10": {
+      "value": 68.67
+    },
+    "ambient->vision_R@1": {
+      "value": 28.28
+    },
+    "ambient->vision_R@5": {
+      "value": 56.25
+    },
+    "ambient->vision_R@10": {
+      "value": 68.16
+    }
+  }
+}

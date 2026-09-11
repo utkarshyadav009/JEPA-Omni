@@ -1,0 +1,25 @@
+{
+  "n_clips": 1545,
+  "clips_requested": 1545,
+  "eval_list": "data/vggsound_eval_1545.txt",
+  "audio_to_visual": {
+    "R@1": 0.19,
+    "R@5": 0.58,
+    "R@10": 1.17
+  },
+  "visual_to_audio": {
+    "R@1": 0.91,
+    "R@5": 2.72,
+    "R@10": 3.95
+  },
+  "ckpt": "/mnt/Raid-Storage-2/utkarsh-data/baseline_checkpoints/audioclip/repo/assets/AudioCLIP-Full-Training.pt",
+  "ckpt_sha256": "2441d35b353352c8b1bbfb8f7c687f46314c3d2909e940eaf763b8c17f632c44",
+  "repo": "https://github.com/AndreyGuzhov/AudioCLIP",
+  "params_millions": 134.1,
+  "audio_tower_params_millions": 32.1,
+  "pretrain_corpus": "Audio tower (ESResNeXt-fbsp): AudioSet. Image+text towers: frozen/fine-tuned from OpenAI CLIP (ResNet-50), CLIP's original ~400M web image-text pairs.",
+  "contamination_flag": "HELD-OUT",
+  "preprocessing": "Audio: torchcodec AudioDecoder resampled to 44100 Hz, mono; raw waveform center-cropped/padded to 220500 samples (5.0s), matching AudioCLIP's own eval-time RandomCrop/RandomPadding (protocols/audioclip-esc50.json, train:false); fed directly to AudioCLIP.encode_audio (internal FBSP spectrogram, n_fft=2048, hop=561, win=1654, window=blackmanharris, no external mel step). Visual: torchcodec center frame -> PIL -> Resize(224,bicubic) -> CenterCrop(224) -> Normalize(CLIP mean/std), matching AudioCLIP's demo/AudioCLIP.ipynb image_transforms exactly. Both embeddings L2-normalised (as AudioCLIP.forward does internally) before cosine similarity.",
+  "date_evaluated": "2026-09-02",
+  "eval_command": "conda run -n jepa-omni python scripts/audioclip_retrieval.py"
+}

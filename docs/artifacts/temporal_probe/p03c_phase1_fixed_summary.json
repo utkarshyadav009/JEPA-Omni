@@ -1,0 +1,283 @@
+{
+  "A0": {
+    "vision->ambient_R@1": 29.9,
+    "vision->ambient_R@5": 56.83,
+    "vision->ambient_R@10": 68.67,
+    "ambient->vision_R@1": 28.28,
+    "ambient->vision_R@5": 56.25,
+    "ambient->vision_R@10": 68.16,
+    "world_state_cos_to_A0": 1.0
+  },
+  "A2": {
+    "vision->ambient_R@1": {
+      "mean": 29.94,
+      "std": 0.13,
+      "delta_vs_A0": 0.04
+    },
+    "vision->ambient_R@5": {
+      "mean": 56.79,
+      "std": 0.04,
+      "delta_vs_A0": -0.04
+    },
+    "vision->ambient_R@10": {
+      "mean": 68.56,
+      "std": 0.06,
+      "delta_vs_A0": -0.11
+    },
+    "ambient->vision_R@1": {
+      "mean": 28.22,
+      "std": 0.08,
+      "delta_vs_A0": -0.06
+    },
+    "ambient->vision_R@5": {
+      "mean": 56.22,
+      "std": 0.07,
+      "delta_vs_A0": -0.03
+    },
+    "ambient->vision_R@10": {
+      "mean": 68.12,
+      "std": 0.1,
+      "delta_vs_A0": -0.04
+    },
+    "world_state_cos_to_A0": 0.99998774,
+    "world_state_rel_L2": 0.004749
+  },
+  "A3": {
+    "vision->ambient_R@1": {
+      "mean": 30.01,
+      "std": 0.03,
+      "delta_vs_A0": 0.11
+    },
+    "vision->ambient_R@5": {
+      "mean": 56.92,
+      "std": 0.14,
+      "delta_vs_A0": 0.09
+    },
+    "vision->ambient_R@10": {
+      "mean": 68.56,
+      "std": 0.09,
+      "delta_vs_A0": -0.11
+    },
+    "ambient->vision_R@1": {
+      "mean": 28.23,
+      "std": 0.07,
+      "delta_vs_A0": -0.05
+    },
+    "ambient->vision_R@5": {
+      "mean": 56.26,
+      "std": 0.05,
+      "delta_vs_A0": 0.01
+    },
+    "ambient->vision_R@10": {
+      "mean": 68.17,
+      "std": 0.08,
+      "delta_vs_A0": 0.01
+    },
+    "world_state_cos_to_A0": 0.99998935,
+    "world_state_rel_L2": 0.00444
+  },
+  "A4": {
+    "vision->ambient_R@1": {
+      "mean": 30.03,
+      "std": 0.05,
+      "delta_vs_A0": 0.13
+    },
+    "vision->ambient_R@5": {
+      "mean": 56.82,
+      "std": 0.12,
+      "delta_vs_A0": -0.01
+    },
+    "vision->ambient_R@10": {
+      "mean": 68.57,
+      "std": 0.13,
+      "delta_vs_A0": -0.1
+    },
+    "ambient->vision_R@1": {
+      "mean": 28.26,
+      "std": 0.09,
+      "delta_vs_A0": -0.02
+    },
+    "ambient->vision_R@5": {
+      "mean": 56.21,
+      "std": 0.07,
+      "delta_vs_A0": -0.04
+    },
+    "ambient->vision_R@10": {
+      "mean": 68.2,
+      "std": 0.12,
+      "delta_vs_A0": 0.04
+    },
+    "world_state_cos_to_A0": 0.99998742,
+    "world_state_rel_L2": 0.004823
+  },
+  "A5": {
+    "vision->ambient_R@1": {
+      "mean": 15.73,
+      "std": 0.0,
+      "delta_vs_A0": -14.17
+    },
+    "vision->ambient_R@5": {
+      "mean": 40.78,
+      "std": 0.0,
+      "delta_vs_A0": -16.05
+    },
+    "vision->ambient_R@10": {
+      "mean": 51.97,
+      "std": 0.0,
+      "delta_vs_A0": -16.7
+    },
+    "ambient->vision_R@1": {
+      "mean": 11.97,
+      "std": 0.0,
+      "delta_vs_A0": -16.31
+    },
+    "ambient->vision_R@5": {
+      "mean": 34.76,
+      "std": 0.0,
+      "delta_vs_A0": -21.49
+    },
+    "ambient->vision_R@10": {
+      "mean": 45.95,
+      "std": 0.0,
+      "delta_vs_A0": -22.21
+    },
+    "world_state_cos_to_A0": 0.99071634,
+    "world_state_rel_L2": 0.118624
+  },
+  "A6": {
+    "vision->ambient_R@1": {
+      "mean": 25.9,
+      "std": 0.39,
+      "delta_vs_A0": -4.0
+    },
+    "vision->ambient_R@5": {
+      "mean": 55.56,
+      "std": 0.37,
+      "delta_vs_A0": -1.27
+    },
+    "vision->ambient_R@10": {
+      "mean": 66.21,
+      "std": 0.45,
+      "delta_vs_A0": -2.46
+    },
+    "ambient->vision_R@1": {
+      "mean": 25.68,
+      "std": 0.36,
+      "delta_vs_A0": -2.6
+    },
+    "ambient->vision_R@5": {
+      "mean": 53.79,
+      "std": 0.24,
+      "delta_vs_A0": -2.46
+    },
+    "ambient->vision_R@10": {
+      "mean": 65.24,
+      "std": 0.14,
+      "delta_vs_A0": -2.92
+    },
+    "world_state_cos_to_A0": 0.99747354,
+    "world_state_rel_L2": 0.057075
+  },
+  "A7": {
+    "vision->ambient_R@1": {
+      "mean": 26.28,
+      "std": 0.3,
+      "delta_vs_A0": -3.62
+    },
+    "vision->ambient_R@5": {
+      "mean": 55.33,
+      "std": 0.31,
+      "delta_vs_A0": -1.5
+    },
+    "vision->ambient_R@10": {
+      "mean": 66.15,
+      "std": 0.28,
+      "delta_vs_A0": -2.52
+    },
+    "ambient->vision_R@1": {
+      "mean": 25.49,
+      "std": 0.41,
+      "delta_vs_A0": -2.79
+    },
+    "ambient->vision_R@5": {
+      "mean": 53.53,
+      "std": 0.43,
+      "delta_vs_A0": -2.72
+    },
+    "ambient->vision_R@10": {
+      "mean": 65.77,
+      "std": 0.35,
+      "delta_vs_A0": -2.39
+    },
+    "world_state_cos_to_A0": 0.9974341,
+    "world_state_rel_L2": 0.057384
+  },
+  "A8": {
+    "vision->ambient_R@1": {
+      "mean": 17.61,
+      "std": 0.0,
+      "delta_vs_A0": -12.29
+    },
+    "vision->ambient_R@5": {
+      "mean": 43.11,
+      "std": 0.0,
+      "delta_vs_A0": -13.72
+    },
+    "vision->ambient_R@10": {
+      "mean": 55.4,
+      "std": 0.0,
+      "delta_vs_A0": -13.27
+    },
+    "ambient->vision_R@1": {
+      "mean": 13.2,
+      "std": 0.0,
+      "delta_vs_A0": -15.08
+    },
+    "ambient->vision_R@5": {
+      "mean": 35.47,
+      "std": 0.0,
+      "delta_vs_A0": -20.78
+    },
+    "ambient->vision_R@10": {
+      "mean": 47.96,
+      "std": 0.0,
+      "delta_vs_A0": -20.2
+    },
+    "world_state_cos_to_A0": 0.99981588,
+    "world_state_rel_L2": 0.018085
+  },
+  "A9": {
+    "vision->ambient_R@1": {
+      "mean": 17.28,
+      "std": 0.0,
+      "delta_vs_A0": -12.62
+    },
+    "vision->ambient_R@5": {
+      "mean": 43.17,
+      "std": 0.0,
+      "delta_vs_A0": -13.66
+    },
+    "vision->ambient_R@10": {
+      "mean": 53.98,
+      "std": 0.0,
+      "delta_vs_A0": -14.69
+    },
+    "ambient->vision_R@1": {
+      "mean": 17.35,
+      "std": 0.0,
+      "delta_vs_A0": -10.93
+    },
+    "ambient->vision_R@5": {
+      "mean": 42.91,
+      "std": 0.0,
+      "delta_vs_A0": -13.34
+    },
+    "ambient->vision_R@10": {
+      "mean": 55.15,
+      "std": 0.0,
+      "delta_vs_A0": -13.01
+    },
+    "world_state_cos_to_A0": 0.99820173,
+    "world_state_rel_L2": 0.052838
+  }
+}

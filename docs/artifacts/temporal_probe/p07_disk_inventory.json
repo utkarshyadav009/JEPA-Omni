@@ -1,0 +1,42 @@
+{
+  "feature_cache_vgg51k": {
+    "path": "/mnt/Raid-Storage-2/utkarsh-data/feature_cache_vgg51k",
+    "size": "764G",
+    "top_level_entries": 4098
+  },
+  "feature_cache_ego4d_train_v1": {
+    "path": "/mnt/Raid-Storage-2/utkarsh-data/feature_cache_ego4d_train_v1",
+    "size": "518G",
+    "top_level_entries": 2
+  },
+  "feature_cache_action100m": {
+    "path": "/mnt/Raid-Storage-2/utkarsh-data/feature_cache_action100m",
+    "size": "1.5T",
+    "top_level_entries": 2055
+  },
+  "audioset_feats": {
+    "path": "/mnt/Raid-Storage-2/utkarsh-data/audioset_feats",
+    "size": "9.8G",
+    "top_level_entries": 14
+  },
+  "vggsound_raw/extracted/video": {
+    "path": "/mnt/Raid-Storage-2/utkarsh-data/vggsound_raw/extracted/video",
+    "size": "316G",
+    "top_level_entries": 197970
+  },
+  "action100m_videos": {
+    "path": "/mnt/Raid-Storage-2/utkarsh-data/action100m_videos",
+    "size": "2.3T",
+    "top_level_entries": 134989
+  },
+  "audioset_scrape": {
+    "path": "/mnt/Raid-Storage-2/utkarsh-data/audioset_scrape",
+    "size": "1.1G",
+    "top_level_entries": 1621
+  },
+  "easycom": {
+    "path": "/mnt/Raid-Storage-2/utkarsh-data/easycom",
+    "size": "145G",
+    "top_level_entries": 2
+  }
+}

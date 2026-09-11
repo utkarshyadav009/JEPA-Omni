@@ -1,0 +1,90 @@
+{
+  "script": "scripts/temporal_probe/pad_sweep.py",
+  "command": "/home/utkarsh/miniconda3/envs/jepa-omni/bin/python scripts/temporal_probe/pad_sweep.py --pads 0,10,50,100,200,400 --out docs/artifacts/temporal_probe/pad_sweep.json",
+  "git_rev": "7f1f658b6b01c0062dfcafeafc7b7d7db1edd17b",
+  "utc": "2026-09-11T18:26:59Z",
+  "ckpt": "checkpoints/m2_run2_vggsound197k_ego4d134k_neg200/step19000.pt",
+  "ckpt_sha256": "e1a8231ec9fbae6cf2b8288c89612ee1facd2dc6938781c22cf06295b31bedf8",
+  "gallery": "data/vggsound_eval_1545.txt",
+  "gallery_size": 1545,
+  "runs": [
+    {
+      "vision->ambient_R@1": 30.16,
+      "vision->ambient_R@5": 57.41,
+      "vision->ambient_R@10": 68.67,
+      "ambient->vision_R@1": 29.13,
+      "ambient->vision_R@5": 57.35,
+      "ambient->vision_R@10": 68.93,
+      "matched_cos_sim": 0.7496,
+      "n_clips": 1545,
+      "uniform_pad_tokens": 0,
+      "batch_size": 1,
+      "wall_s": 10.1
+    },
+    {
+      "vision->ambient_R@1": 23.43,
+      "vision->ambient_R@5": 52.75,
+      "vision->ambient_R@10": 65.05,
+      "ambient->vision_R@1": 22.59,
+      "ambient->vision_R@5": 52.69,
+      "ambient->vision_R@10": 64.85,
+      "matched_cos_sim": 0.7429,
+      "n_clips": 1545,
+      "uniform_pad_tokens": 10,
+      "batch_size": 1,
+      "wall_s": 10.1
+    },
+    {
+      "vision->ambient_R@1": 20.91,
+      "vision->ambient_R@5": 49.51,
+      "vision->ambient_R@10": 61.36,
+      "ambient->vision_R@1": 19.48,
+      "ambient->vision_R@5": 48.61,
+      "ambient->vision_R@10": 60.84,
+      "matched_cos_sim": 0.7545,
+      "n_clips": 1545,
+      "uniform_pad_tokens": 50,
+      "batch_size": 1,
+      "wall_s": 10.0
+    },
+    {
+      "vision->ambient_R@1": 17.48,
+      "vision->ambient_R@5": 42.39,
+      "vision->ambient_R@10": 55.08,
+      "ambient->vision_R@1": 16.31,
+      "ambient->vision_R@5": 41.94,
+      "ambient->vision_R@10": 55.21,
+      "matched_cos_sim": 0.7447,
+      "n_clips": 1545,
+      "uniform_pad_tokens": 100,
+      "batch_size": 1,
+      "wall_s": 9.9
+    },
+    {
+      "vision->ambient_R@1": 13.72,
+      "vision->ambient_R@5": 37.61,
+      "vision->ambient_R@10": 49.26,
+      "ambient->vision_R@1": 12.75,
+      "ambient->vision_R@5": 33.85,
+      "ambient->vision_R@10": 45.5,
+      "matched_cos_sim": 0.7668,
+      "n_clips": 1545,
+      "uniform_pad_tokens": 200,
+      "batch_size": 1,
+      "wall_s": 10.3
+    },
+    {
+      "vision->ambient_R@1": 10.74,
+      "vision->ambient_R@5": 27.77,
+      "vision->ambient_R@10": 36.5,
+      "ambient->vision_R@1": 6.47,
+      "ambient->vision_R@5": 20.19,
+      "ambient->vision_R@10": 29.32,
+      "matched_cos_sim": 0.811,
+      "n_clips": 1545,
+      "uniform_pad_tokens": 400,
+      "batch_size": 1,
+      "wall_s": 10.6
+    }
+  ]
+}

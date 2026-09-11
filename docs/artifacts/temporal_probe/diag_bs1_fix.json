@@ -1,0 +1,37 @@
+{
+  "script": "scripts/temporal_probe/bin_scramble_eval.py",
+  "command": "/home/utkarsh/miniconda3/envs/jepa-omni/bin/python scripts/temporal_probe/bin_scramble_eval.py --arms A0 --no-world-state --batch-size 1 --fix-padding --out docs/artifacts/temporal_probe/diag_bs1_fix.json",
+  "git_rev": "7f1f658b6b01c0062dfcafeafc7b7d7db1edd17b",
+  "utc": "2026-09-11T18:23:08Z",
+  "torch": "2.12.1+cu130",
+  "device": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+  "runs": [
+    {
+      "metrics": {
+        "vision->ambient_R@1": 30.03,
+        "vision->ambient_R@5": 57.15,
+        "vision->ambient_R@10": 68.74,
+        "ambient->vision_R@1": 29.26,
+        "ambient->vision_R@5": 57.41,
+        "ambient->vision_R@10": 69.0,
+        "matched_cos_sim": 0.75,
+        "shuffled_cos_sim": 0.3224,
+        "shuffle_sanity_gap": 0.4276,
+        "n_clips": 1545,
+        "n_batches": 1545
+      },
+      "clip_ids_sha256": "f4df095f0f8f77ee934cb5b453a6b0bedb84e8e824bffe1f34ec66d3f5b486a7",
+      "arm": "A0",
+      "seed": 0,
+      "gallery": "data/vggsound_eval_1545.txt",
+      "gallery_size": 1545,
+      "cache_dir": "/mnt/Raid-Storage-2/utkarsh-data/feature_cache_vgg51k",
+      "ckpt": "checkpoints/m2_run2_vggsound197k_ego4d134k_neg200/step19000.pt",
+      "ckpt_sha256": "e1a8231ec9fbae6cf2b8288c89612ee1facd2dc6938781c22cf06295b31bedf8",
+      "batch_size": 1,
+      "batch_order_seed": null,
+      "fix_padding": true,
+      "wall_s": 13.0
+    }
+  ]
+}

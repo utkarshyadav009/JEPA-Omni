@@ -1,0 +1,37 @@
+{
+  "script": "scripts/temporal_probe/bin_scramble_eval.py",
+  "command": "/home/utkarsh/miniconda3/envs/jepa-omni/bin/python scripts/temporal_probe/bin_scramble_eval.py --arms A0 --no-world-state --eval-subset data/vggsound_eval_1545_balanced.txt --batch-order-seed 3 --out docs/artifacts/temporal_probe/p03a_bal_leak_s3.json",
+  "git_rev": "7f1f658b6b01c0062dfcafeafc7b7d7db1edd17b",
+  "utc": "2026-09-11T18:54:35Z",
+  "torch": "2.12.1+cu130",
+  "device": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+  "runs": [
+    {
+      "metrics": {
+        "vision->ambient_R@1": 68.03,
+        "vision->ambient_R@5": 94.11,
+        "vision->ambient_R@10": 97.67,
+        "ambient->vision_R@1": 68.61,
+        "ambient->vision_R@5": 94.17,
+        "ambient->vision_R@10": 97.41,
+        "matched_cos_sim": 0.7725,
+        "shuffled_cos_sim": 0.0449,
+        "shuffle_sanity_gap": 0.7276,
+        "n_clips": 1545,
+        "n_batches": 25
+      },
+      "clip_ids_sha256": "57727373561c05d847995b27c6314f0a9cdd3ddd7b101699593afd7060abacd7",
+      "arm": "A0",
+      "seed": 0,
+      "gallery": "data/vggsound_eval_1545_balanced.txt",
+      "gallery_size": 1545,
+      "cache_dir": "/mnt/Raid-Storage-2/utkarsh-data/feature_cache_vgg51k",
+      "ckpt": "checkpoints/m2_run2_vggsound197k_ego4d134k_neg200/step19000.pt",
+      "ckpt_sha256": "e1a8231ec9fbae6cf2b8288c89612ee1facd2dc6938781c22cf06295b31bedf8",
+      "batch_size": 64,
+      "batch_order_seed": 3,
+      "fix_padding": false,
+      "wall_s": 7.1
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "script": "scripts/temporal_probe/congruence_mask_ab.py",
+  "command": "/home/utkarsh/miniconda3/envs/jepa-omni/bin/python scripts/temporal_probe/congruence_mask_ab.py --arms abl_A_m2_vision_ambient:mean --n-clips 320 --out docs/artifacts/temporal_probe/p04_congruence_mask_ab.json",
+  "git_rev": "7f1f658b6b01c0062dfcafeafc7b7d7db1edd17b",
+  "utc": "2026-09-11T20:11:25Z",
+  "note": "batch size is NOT a free variable here: eval_av_congruence swaps audio within a batch and skips B<2, so batch-size-1 is impossible. The single variable tested is the m2 backbone's padding mask.",
+  "n_clips": 320,
+  "runs": {
+    "abl_A_m2_vision_ambient": {
+      "leaked_m2_unmasked": {
+        "streams": [
+          "m2",
+          "vision",
+          "ambient"
+        ],
+        "audio_mode": "mean",
+        "has_audio": true,
+        "n_trials": 640,
+        "audio_following_rate": 0.65,
+        "vision_following_rate": 0.35,
+        "matched_control_acc": 0.95625,
+        "wall_s": 25.5
+      },
+      "fixed_m2_masked": {
+        "streams": [
+          "m2",
+          "vision",
+          "ambient"
+        ],
+        "audio_mode": "mean",
+        "has_audio": true,
+        "n_trials": 640,
+        "audio_following_rate": 0.653125,
+        "vision_following_rate": 0.346875,
+        "matched_control_acc": 0.9546875,
+        "wall_s": 25.7
+      },
+      "delta_fixed_minus_leaked": {
+        "has_audio": 0,
+        "n_trials": 0,
+        "audio_following_rate": 0.0031,
+        "vision_following_rate": -0.0031,
+        "matched_control_acc": -0.0016
+      }
+    }
+  }
+}

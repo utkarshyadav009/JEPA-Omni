@@ -192,14 +192,27 @@ class AVJepaPredictor(nn.Module):
         return torch.cat(parts, 1)
 
     @torch.no_grad()
-    def encode_world_state(self, feats: Dict[str, Tensor], tbins: Dict[str, Tensor]) -> Tensor:
+    def encode_world_state(self, feats: Dict[str, Tensor], tbins: Dict[str, Tensor],
+                            key_padding_mask: Optional[Tensor] = None) -> Tensor:
         """Full (unmasked) sequence -> attentive-pool -> UN-NORMALISED World-State (B, d).
-        Do NOT L2-normalise this; SIGReg in training shapes it toward N(0,I)."""
+        Do NOT L2-normalise this; SIGReg in training shapes it toward N(0,I).
+
+        key_padding_mask (B, S) bool, True at PADDED positions, in the SAME token
+        order the sequence is built in (concatenation over feats.items(), i.e.
+        [vision; ambient] for the standard cache). ADDED 2026-09-11 (P0.1): the
+        collate function av_collate_fn has always returned a padding_mask, and no
+        caller ever passed it, so zero-padded ambient tokens participated in both
+        self-attention and the attentive pool. DEFAULT None reproduces the previous
+        behaviour bit-for-bit -- nothing that does not pass this argument changes.
+        """
         tokens, _, _ = self._embed(feats, tbins)
-        h = self._backbone(tokens)
+        h = self._backbone(tokens, key_padding_mask=key_padding_mask)
         q = self.pool_query.expand(h.shape[0], 1, -1)
         # single-query attentive pool
-        attn = torch.softmax((q @ h.transpose(1, 2)) / (h.shape[-1] ** 0.5), dim=-1)  # (B,1,S)
+        logits = (q @ h.transpose(1, 2)) / (h.shape[-1] ** 0.5)                       # (B,1,S)
+        if key_padding_mask is not None:
+            logits = logits.masked_fill(key_padding_mask.unsqueeze(1), float("-inf"))
+        attn = torch.softmax(logits, dim=-1)                                          # (B,1,S)
         return (attn @ h).squeeze(1)                            # (B, d) un-normalised
 
     def world_state(self, feats: Dict[str, Tensor], tbins: Dict[str, Tensor]) -> Tensor:
@@ -214,7 +227,8 @@ class AVJepaPredictor(nn.Module):
         return (attn @ h).squeeze(1)                            # (B, d) un-normalised
 
     @torch.no_grad()
-    def encode_pre_pool_tokens(self, feats: Dict[str, Tensor], tbins: Dict[str, Tensor]) -> Tensor:
+    def encode_pre_pool_tokens(self, feats: Dict[str, Tensor], tbins: Dict[str, Tensor],
+                                key_padding_mask: Optional[Tensor] = None) -> Tensor:
         """Full (unmasked) sequence -> post-backbone, PRE-POOL tokens (B, S, d).
         For M3: the connector's Perceiver-style latent queries cross-attend this
         per-token sequence, not the already-collapsed single World-State vector
@@ -223,10 +237,11 @@ class AVJepaPredictor(nn.Module):
         encode_world_state, just returned before the attentive pool collapses
         it to one vector. Frozen/no-grad, like encode_world_state."""
         tokens, _, _ = self._embed(feats, tbins)
-        return self._backbone(tokens)                            # (B, S, d)
+        return self._backbone(tokens, key_padding_mask=key_padding_mask)   # (B, S, d)
 
     def encode_source_tokens(
-        self, feats: Dict[str, Tensor], tbins: Dict[str, Tensor]
+        self, feats: Dict[str, Tensor], tbins: Dict[str, Tensor],
+        key_padding_mask: Optional[Tensor] = None,
     ) -> Dict[str, Tensor]:
         """Per-modality backbone tokens, each from a pass where every OTHER
         modality is masked (mask_token + position-only, mirroring forward()'s
@@ -257,7 +272,7 @@ class AVJepaPredictor(nn.Module):
             tokens = torch.where(
                 flat_mask.unsqueeze(-1), q + self._embed_pos_only(feats, tbins), tokens,
             )
-            h = self._backbone(tokens)                          # (B, S, d)
+            h = self._backbone(tokens, key_padding_mask=key_padding_mask)   # (B, S, d)
             offset = 0
             for m, x in feats.items():
                 T_m = x.shape[1]

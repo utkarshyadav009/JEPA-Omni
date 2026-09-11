@@ -1,0 +1,85 @@
+{
+  "script": "scripts/temporal_probe/qp_rescore_bs1.py",
+  "command": "/home/utkarsh/miniconda3/envs/jepa-omni/bin/python scripts/temporal_probe/qp_rescore_bs1.py --qp-ckpt checkpoints/sig_runD_proj768/best.pt --scene-file /mnt/Raid-Storage-2/utkarsh-data/scene_qp_eval_subset.pt --out docs/artifacts/temporal_probe/p04_sig_runD.json",
+  "git_rev": "7f1f658b6b01c0062dfcafeafc7b7d7db1edd17b",
+  "utc": "2026-09-11T20:06:52Z",
+  "qp_ckpt": "checkpoints/sig_runD_proj768/best.pt",
+  "qp_ckpt_step": 1249,
+  "qp_cfg": {
+    "m2_ckpt": "checkpoints/m2_run2_vggsound197k_ego4d134k_neg200/step19000.pt",
+    "out_dir": "checkpoints/sig_runD_proj768",
+    "steps": "1500",
+    "micro_batch": "64",
+    "n_micro": "8",
+    "lr": "0.0003",
+    "temp": "0.07",
+    "eval_every": "250",
+    "text_backbone": "siglip2",
+    "token_sources": "m2,vision,ambient,scene",
+    "p_vggsound": "0.5",
+    "captions_path": "/home/utkarsh/JEPA-Omni/scripts/qwen_omni_full_captions_v2.jsonl",
+    "lambda_within": "0.3",
+    "seed": "0",
+    "scene_dir": "/dev/shm/scene_all",
+    "restrict_to_scene": "True",
+    "audio_mode": "base",
+    "siglip_shared_dim": "768",
+    "text_cache_dir": "/dev/shm/siglip2_text_cache"
+  },
+  "m2_ckpt": "checkpoints/m2_run2_vggsound197k_ego4d134k_neg200/step19000.pt",
+  "m2_ckpt_sha256": "e1a8231ec9fbae6cf2b8288c89612ee1facd2dc6938781c22cf06295b31bedf8",
+  "cache_dir": "/mnt/Raid-Storage-2/utkarsh-data/feature_cache_vgg51k",
+  "streams": [
+    "m2",
+    "vision",
+    "ambient",
+    "scene"
+  ],
+  "eval_clips_available": 900,
+  "scene_file": "/mnt/Raid-Storage-2/utkarsh-data/scene_qp_eval_subset.pt",
+  "scene_subset_is_original_membership": false,
+  "max_clips": 624,
+  "seed": 0,
+  "logged_reference": {
+    "step": 1249,
+    "vggsound": {
+      "within_clip_acc": 0.8178418874740601,
+      "swapped_query_acc": 0.00454059848561883,
+      "within_clip_chance": 0.16666666666666666,
+      "cross_clip_r1": 0.7355769276618958,
+      "n_clips": 624.0
+    },
+    "action100m": {
+      "within_clip_acc": 0.9431089758872986,
+      "swapped_query_acc": 0.056891024112701416,
+      "within_clip_chance": 0.5,
+      "cross_clip_r1": 0.0833333358168602,
+      "n_clips": 624.0
+    }
+  },
+  "runs": [
+    {
+      "within_clip_acc": 0.8181089758872986,
+      "swapped_query_acc": 0.00454059848561883,
+      "within_clip_chance": 0.16666666666666666,
+      "cross_clip_r1": 0.7355769276618958,
+      "n_clips": 624.0,
+      "batch_size": 48,
+      "wall_s": 17.8
+    },
+    {
+      "within_clip_acc": 0.8189102411270142,
+      "swapped_query_acc": 0.004273504484444857,
+      "within_clip_chance": 0.16666666666666666,
+      "cross_clip_r1": 0.7339743375778198,
+      "n_clips": 624.0,
+      "batch_size": 1,
+      "wall_s": 76.5,
+      "delta_vs_bs48": {
+        "within_clip_acc": 0.0008,
+        "swapped_query_acc": -0.0003,
+        "cross_clip_r1": -0.0016
+      }
+    }
+  ]
+}

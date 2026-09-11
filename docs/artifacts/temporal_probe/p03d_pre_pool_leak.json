@@ -1,0 +1,25 @@
+{
+  "script": "scripts/temporal_probe/pre_pool_leak.py",
+  "command": "/home/utkarsh/miniconda3/envs/jepa-omni/bin/python scripts/temporal_probe/pre_pool_leak.py --out docs/artifacts/temporal_probe/p03d_pre_pool_leak.json",
+  "git_rev": "7f1f658b6b01c0062dfcafeafc7b7d7db1edd17b",
+  "utc": "2026-09-11T20:09:04Z",
+  "ckpt": "checkpoints/m2_run2_vggsound197k_ego4d134k_neg200/step19000.pt",
+  "ckpt_sha256": "e1a8231ec9fbae6cf2b8288c89612ee1facd2dc6938781c22cf06295b31bedf8",
+  "result": {
+    "contam_rel_l2": 0.515168,
+    "contam_cos": 0.834827,
+    "pad_norm_ratio": 0.99968,
+    "pad_frac": 0.00543,
+    "bs1_rel_l2_mean": 0.537741,
+    "bs1_rel_l2_per_clip": [
+      0.41928,
+      0.767012,
+      0.771525,
+      0.193146
+    ],
+    "batch_size": 64,
+    "n_batches": 8,
+    "gallery": "data/vggsound_eval_1545.txt",
+    "gallery_size": 1545
+  }
+}

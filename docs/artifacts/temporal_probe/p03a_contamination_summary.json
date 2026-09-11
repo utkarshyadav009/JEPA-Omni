@@ -1,0 +1,370 @@
+{
+  "fix": {
+    "cells": {
+      "held": {
+        "vision->ambient_R@1": {
+          "seeds": [
+            29.97,
+            29.9,
+            29.9,
+            29.9,
+            29.97
+          ],
+          "mean": 29.927999999999997,
+          "std": 0.03834057902536178,
+          "det": 29.9
+        },
+        "vision->ambient_R@5": {
+          "seeds": [
+            56.89,
+            56.83,
+            56.89,
+            56.83,
+            56.89
+          ],
+          "mean": 56.866,
+          "std": 0.03286335345031121,
+          "det": 56.83
+        },
+        "vision->ambient_R@10": {
+          "seeds": [
+            68.74,
+            68.61,
+            68.67,
+            68.67,
+            68.67
+          ],
+          "mean": 68.672,
+          "std": 0.0460434577328836,
+          "det": 68.67
+        },
+        "ambient->vision_R@1": {
+          "seeds": [
+            28.28,
+            28.28,
+            28.28,
+            28.28,
+            28.28
+          ],
+          "mean": 28.28,
+          "std": 0.0,
+          "det": 28.28
+        },
+        "ambient->vision_R@5": {
+          "seeds": [
+            56.25,
+            56.25,
+            56.25,
+            56.25,
+            56.25
+          ],
+          "mean": 56.25,
+          "std": 0.0,
+          "det": 56.25
+        },
+        "ambient->vision_R@10": {
+          "seeds": [
+            68.16,
+            68.16,
+            68.16,
+            68.16,
+            68.16
+          ],
+          "mean": 68.16,
+          "std": 0.0,
+          "det": 68.16
+        }
+      },
+      "bal": {
+        "vision->ambient_R@1": {
+          "seeds": [
+            39.35,
+            39.29,
+            39.22,
+            39.22,
+            39.35
+          ],
+          "mean": 39.286,
+          "std": 0.06503845016603767,
+          "det": 39.29
+        },
+        "vision->ambient_R@5": {
+          "seeds": [
+            75.34,
+            75.28,
+            75.28,
+            75.28,
+            75.28
+          ],
+          "mean": 75.292,
+          "std": 0.026832815729998495,
+          "det": 75.34
+        },
+        "vision->ambient_R@10": {
+          "seeds": [
+            86.02,
+            85.95,
+            85.95,
+            86.02,
+            85.95
+          ],
+          "mean": 85.978,
+          "std": 0.03834057902535789,
+          "det": 86.02
+        },
+        "ambient->vision_R@1": {
+          "seeds": [
+            38.25,
+            38.25,
+            38.25,
+            38.25,
+            38.25
+          ],
+          "mean": 38.25,
+          "std": 0.0,
+          "det": 38.25
+        },
+        "ambient->vision_R@5": {
+          "seeds": [
+            73.2,
+            73.2,
+            73.2,
+            73.2,
+            73.2
+          ],
+          "mean": 73.2,
+          "std": 0.0,
+          "det": 73.2
+        },
+        "ambient->vision_R@10": {
+          "seeds": [
+            85.11,
+            85.11,
+            85.11,
+            85.11,
+            85.11
+          ],
+          "mean": 85.11,
+          "std": 0.0,
+          "det": 85.11
+        }
+      }
+    },
+    "deltas": {
+      "vision->ambient_R@1": {
+        "delta_mean": 9.358,
+        "delta_std_propagated": 0.075,
+        "delta_deterministic": 9.39
+      },
+      "vision->ambient_R@5": {
+        "delta_mean": 18.426,
+        "delta_std_propagated": 0.042,
+        "delta_deterministic": 18.51
+      },
+      "vision->ambient_R@10": {
+        "delta_mean": 17.306,
+        "delta_std_propagated": 0.06,
+        "delta_deterministic": 17.35
+      },
+      "ambient->vision_R@1": {
+        "delta_mean": 9.97,
+        "delta_std_propagated": 0.0,
+        "delta_deterministic": 9.97
+      },
+      "ambient->vision_R@5": {
+        "delta_mean": 16.95,
+        "delta_std_propagated": 0.0,
+        "delta_deterministic": 16.95
+      },
+      "ambient->vision_R@10": {
+        "delta_mean": 16.95,
+        "delta_std_propagated": 0.0,
+        "delta_deterministic": 16.95
+      }
+    }
+  },
+  "leak": {
+    "cells": {
+      "held": {
+        "vision->ambient_R@1": {
+          "seeds": [
+            53.79,
+            52.88,
+            51.13,
+            53.79,
+            53.46
+          ],
+          "mean": 53.01,
+          "std": 1.1147421226454113,
+          "det": 52.75
+        },
+        "vision->ambient_R@5": {
+          "seeds": [
+            79.87,
+            79.42,
+            80.52,
+            80.13,
+            81.1
+          ],
+          "mean": 80.208,
+          "std": 0.6391948059864032,
+          "det": 80.26
+        },
+        "vision->ambient_R@10": {
+          "seeds": [
+            86.86,
+            86.73,
+            87.44,
+            87.12,
+            86.67
+          ],
+          "mean": 86.964,
+          "std": 0.31737989854431414,
+          "det": 87.25
+        },
+        "ambient->vision_R@1": {
+          "seeds": [
+            53.2,
+            53.14,
+            52.49,
+            51.72,
+            53.98
+          ],
+          "mean": 52.906,
+          "std": 0.8476909814313227,
+          "det": 53.53
+        },
+        "ambient->vision_R@5": {
+          "seeds": [
+            80.52,
+            79.68,
+            79.81,
+            80.45,
+            80.58
+          ],
+          "mean": 80.208,
+          "std": 0.4276330202404828,
+          "det": 81.49
+        },
+        "ambient->vision_R@10": {
+          "seeds": [
+            87.83,
+            86.93,
+            88.28,
+            88.28,
+            87.51
+          ],
+          "mean": 87.766,
+          "std": 0.5694119773942211,
+          "det": 88.61
+        }
+      },
+      "bal": {
+        "vision->ambient_R@1": {
+          "seeds": [
+            69.06,
+            70.36,
+            68.16,
+            68.03,
+            67.57
+          ],
+          "mean": 68.636,
+          "std": 1.1047759953945433,
+          "det": 66.8
+        },
+        "vision->ambient_R@5": {
+          "seeds": [
+            94.95,
+            95.15,
+            94.76,
+            94.11,
+            95.28
+          ],
+          "mean": 94.85000000000001,
+          "std": 0.4584212036980851,
+          "det": 95.53
+        },
+        "vision->ambient_R@10": {
+          "seeds": [
+            97.8,
+            98.06,
+            97.8,
+            97.67,
+            97.99
+          ],
+          "mean": 97.864,
+          "std": 0.15820872289478832,
+          "det": 97.41
+        },
+        "ambient->vision_R@1": {
+          "seeds": [
+            70.68,
+            70.94,
+            68.67,
+            68.61,
+            69.64
+          ],
+          "mean": 69.708,
+          "std": 1.089756853614604,
+          "det": 68.09
+        },
+        "ambient->vision_R@5": {
+          "seeds": [
+            94.82,
+            95.15,
+            95.08,
+            94.17,
+            95.02
+          ],
+          "mean": 94.848,
+          "std": 0.3984595337044903,
+          "det": 94.56
+        },
+        "ambient->vision_R@10": {
+          "seeds": [
+            97.67,
+            97.99,
+            97.61,
+            97.41,
+            97.86
+          ],
+          "mean": 97.708,
+          "std": 0.22498888861452634,
+          "det": 97.93
+        }
+      }
+    },
+    "deltas": {
+      "vision->ambient_R@1": {
+        "delta_mean": 15.626,
+        "delta_std_propagated": 1.569,
+        "delta_deterministic": 14.05
+      },
+      "vision->ambient_R@5": {
+        "delta_mean": 14.642,
+        "delta_std_propagated": 0.787,
+        "delta_deterministic": 15.27
+      },
+      "vision->ambient_R@10": {
+        "delta_mean": 10.9,
+        "delta_std_propagated": 0.355,
+        "delta_deterministic": 10.16
+      },
+      "ambient->vision_R@1": {
+        "delta_mean": 16.802,
+        "delta_std_propagated": 1.381,
+        "delta_deterministic": 14.56
+      },
+      "ambient->vision_R@5": {
+        "delta_mean": 14.64,
+        "delta_std_propagated": 0.584,
+        "delta_deterministic": 13.07
+      },
+      "ambient->vision_R@10": {
+        "delta_mean": 9.942,
+        "delta_std_propagated": 0.612,
+        "delta_deterministic": 9.32
+      }
+    }
+  }
+}
