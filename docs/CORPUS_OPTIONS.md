@@ -4,8 +4,19 @@
 Raw artifacts: `docs/artifacts/temporal_probe/p07_disk_inventory.json`,
 `p07_ego4d_ordering.json`.
 
-Disk headroom: `/mnt/Raid-Storage-2` is **90% full — 716 GB free of 7.0 TB**.
-`/mnt/Raid-Storage` has 1.5 TB free. `/` has 26 GB free (97% full).
+Disk headroom: `/mnt/Raid-Storage-2` (md1) is **90% full — 714 GB free of 7.0 TB**, and its
+5.9 TB of used space is essentially all ours. `/` has 26 GB free (97% full).
+
+**CORRECTION (2026-09-12), against an earlier version of this document.** `/mnt/Raid-Storage`
+(md0) does have 1.5 TB free, but it is **a shared array whose 5.2 TB of used space belongs to
+other parties**: `CS-Data` 1.9 TB owned by `pgorden` (uid 1005, a live account on this box —
+6,702 esports `.rar` files), `iris` 2.0 TB owned by `root` (`Driver Store`, `hannah`, `holly`,
+`Images` — apparently a Windows backup), and `MegaDepth_v1_SfM` 1.3 TB owned by uid 1104876,
+which does not exist in `/etc/passwd` (copied from another machine with uids preserved). No
+directory there was writable by us until a `backups/` dir was created by hand.
+**md0's free space is therefore not ours to budget against** — `pgorden` can grow `CS-Data` at
+any time. Every storage plan below assumes **md1 only**. Nothing on md0 has been deleted or
+modified; reclaiming any of it is an administrative question, not a technical one.
 `/dev/shm` is 756 GB and **empty** — everything that lived there is gone (see §1.6).
 
 ---
@@ -108,11 +119,12 @@ Ego4D's role in the corpus. EPIC-Sounds gives an audio event vocabulary that ove
 target classes far better than Ego4D's narration.
 
 **Two blockers to decide, not for me to decide:**
-1. **741 GiB against 716 GB free on Raid-Storage-2.** It does not fit. `/mnt/Raid-Storage`
-   has 1.5 TB free and would hold the video, but features would then need a home too:
-   at VGGSound's observed ~3.85 MB/window, a 2 s stride over 100 h ≈ 180,000 windows ≈
-   **690 GB** of features. Video + features ≈ 1.4 TB. It fits on Raid-Storage **only if
-   nothing else lands there**.
+1. **741 GiB against 714 GB free on md1, and md0 is not available** (see the correction
+   above). Video + features ≈ 1.4 TB does not fit anywhere we control. Two routes make it
+   feasible: delete the redundant VGGSound tarballs (**315 GB**, §7) to reach ~1.03 TB, and
+   **store world-states rather than full features** (§7) — at ~5.5 KB/window instead of
+   3.94 MB, Epic-Kitchens features become a few GB and only the video needs real space,
+   which stream-processing reduces to a working set.
 2. **CC BY-NC 4.0 is non-commercial.** Fine for an ICLR submission; a constraint on
    anything downstream. Flagging, not adjudicating.
 
@@ -167,3 +179,32 @@ the proposed horizons. Three options, in order of cost:
 
 Option 1 is the only one that needs no decision from anyone. It is also the only one that
 can start today.
+
+
+---
+
+## 7. Reclaimable space on md1, audited 2026-09-12
+
+| candidate | size | verdict |
+|---|---|---|
+| `vggsound_raw/*.tar.gz` (20 tarballs) | **315 GB** | **Safe to delete.** Pure redundancy: `extracted/` already holds all 197,970 mp4s, and the tarballs are re-downloadable from the `Loie/VGGSound` mirror. Would take md1 from 714 GB → ~1.03 TB free. **Not deleted — awaiting approval.** |
+| `action100m_videos` | 2.3 TB | **Do not delete.** 399,934 windows are cached, but re-acquiring means a scrape measured at ~300 clips/hr with a 37% failure rate — weeks. |
+
+### Storing world-states instead of features changes the arithmetic entirely
+
+The measured cache cost is **3.94 MB per 10 s window**, which is what makes a fine-stride
+Ego4D subset look impossible:
+
+| files | stride | windows | **full features** | **world-states only** |
+|---|---|---|---|---|
+| 2,000 | 2 s | 870,000 | 3.27 TB | ~4.8 GB |
+| 2,000 | 1 s | 1,740,000 | 6.54 TB | ~9.6 GB |
+| 3,000 | 1 s | 2,610,000 | 9.82 TB | ~14 GB |
+
+Phase 2, Phase 3 and RUN-5 Arm B all operate on `W(t)` — Arm B's own spec is "fit
+`g: W(t) → W(t+Δ)`", ridge and a 2-layer MLP over frozen world-states. Storing `W` plus the
+two reference means is ~5.5 KB/window at fp16, a ~700× reduction. **Storage stops being the
+binding constraint.** What remains is the raw-video download (~0.5–0.7 GB per Ego4D file,
+≈1.4 TB for 2,000 files, reducible to a working set by download→extract→delete), GPU
+throughput (**NOT MEASURED** — the cards have been fully occupied by another user; any figure
+now would be misleading), and access lead time.
