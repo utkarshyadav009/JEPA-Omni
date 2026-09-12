@@ -235,3 +235,84 @@ academic ICLR submission that is ordinarily fine, but:
 
 Direct download from data.bris or Academic Torrents — **no YouTube scraping and no per-clip
 yield risk**, unlike AVE or ACAV100M. That is a significant practical advantage.
+
+---
+
+## 9. Ego4D re-acquisition — prep (P2.7), and a conflict with §8
+
+Everything below is ready to run the moment credentials arrive. The old AWS key is
+**deleted server-side** (STS `InvalidClientTokenId`, S3 `InvalidAccessKeyId`), so nothing
+can be fetched until the re-approval lands.
+
+### 9.1 THE CONFLICT: Epic-Kitchens and an Ego4D feature subset cannot both fit
+
+Both draw on the same **1.03 TB**. Epic-Kitchens at 100 h / 2 s stride takes **0.68 TB**,
+leaving 0.35 TB.
+
+Ego4D, full token features, from the measured 3.94 MB/window and a median source-file
+duration of 870 s:
+
+| budget | stride | files | windows |
+|---|---|---|---|
+| 1.03 TB (all of md1) | 1 s | **315** | 274,050 |
+| 1.03 TB (all of md1) | 2 s | **630** | 274,050 |
+| 0.35 TB (after Epic-K) | 1 s | **107** | 93,090 |
+| 0.35 TB (after Epic-K) | 2 s | **214** | 93,090 |
+
+**This is a choice, not an oversight.** Taking Epic-Kitchens for Arm B leaves room for only
+~107–214 Ego4D files — well short of the 2,000–3,000 originally scoped.
+
+**Recommended resolution: they serve different purposes, so split by output mode.**
+
+* **Epic-Kitchens → full features (0.68 TB).** Continuous 100 h footage, any stride, direct
+  download, no yield risk. It is the corpus that makes Arm B possible at all (§8).
+* **Ego4D → world-states only.** At 5.5 KB/window, **2,000 files at 1 s stride costs 9.1 GB**
+  and 3,000 files costs 13.7 GB. Effectively free. That covers Phases 2–3 at fine Δ and any
+  predictor fit on frozen `W(t)` — the things Ego4D is actually needed for, given the
+  held-out gallery is unrecoverable (E-8) and Ego4D's value now is temporal structure rather
+  than retraining data.
+
+That combination fits comfortably: 0.68 TB + 13.7 GB against 1.03 TB, with ~0.33 TB spare.
+
+### 9.2 Proposed acquisition
+
+| | |
+|---|---|
+| files | **2,000** (of 2,821 in the surviving cache, so the selection is already scored) |
+| stride | **1 s** |
+| output | **world-states** (`--mode world_state`) |
+| cost | **9.1 GB**, 1,740,000 windows |
+| download | ~0.5–0.7 GB/file ⇒ ~1.4 TB transferred, but **peak disk is a working set** via `stream_extract.py` |
+
+1 s rather than 2 s because at world-state cost the difference is 9.1 GB vs 4.6 GB — the
+saving is meaningless and the resolution is not.
+
+### 9.3 Filter adaptation for fine-stride selection
+
+`scripts/ego4d_av_relevance_filter.py` scores candidate windows on
+`top_nonspeech_event_prob × (1 − vad_speech_fraction) × energy_cov_norm`, deliberately
+independent of M2. That scoring is **reusable unchanged**.
+
+What must change is **candidate generation**. The current version spreads candidates
+**evenly and non-consecutively** across each file (`--per-file-cap`, "EVENLY spread (not
+consecutive)"). That is correct for building a diverse contrastive corpus and **wrong for
+temporal work** — it is exactly why the surviving cache has only 59.1% adjacent-pair
+contiguity and a median longest run of 5 windows (§1.3).
+
+The change: select **contiguous SEGMENTS**, not spread singletons. Score each file's
+candidate segments by the mean of the existing per-window score over the segment, then keep
+the top-k segments per file at the target stride. A segment of N seconds at 1 s stride
+yields N consecutive windows, which is what Phases 2–3 and any temporal objective need.
+
+Recommended: **3 segments × 120 s per file**, giving 360 consecutive windows per file at 1 s
+stride — 6× the current median run length of 5, and enough for Δ up to 60 s with many pairs.
+
+### 9.4 ONE-SHOT CONSTRAINT — read before authorising
+
+`stream_extract.py` **deletes each video after extraction**. The stride cannot be revisited
+without re-downloading ~1.4 TB. A fine stride can always be decimated to a coarse one; the
+reverse cannot be done. **Err finer.** At world-state cost there is no reason not to use 1 s.
+
+If there is any chance Arm B will retrain the bridge on Ego4D rather than Epic-Kitchens,
+say so **before** the download — that decision changes the output mode from 9.1 GB to
+~1.08 TB and does not fit alongside Epic-Kitchens.
