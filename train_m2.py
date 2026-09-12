@@ -741,6 +741,16 @@ def contrastive_retrieval_eval(
     for batch in loader:
         if n_clips >= max_clips:
             break
+        # RUN-4: the eval MUST see the SAME ambient length as training. The training
+        # loop caps to MAX_AMBIENT_T; this path never did. That was invisible while
+        # MAX_AMBIENT_T was 1024, because VGGSound's p99.9 is ~1000 tokens so the cap
+        # was a no-op and both sides saw ~996. Lowering it to 896 made training see 896
+        # while the eval still saw ~996 -- a 100-token train/test mismatch that includes
+        # ~100 temporal_emb positions never trained at those offsets. It collapsed the
+        # AMBIENT side specifically (vision is always 512): v->a R@1 fell to 1.04% while
+        # a->v held at 6.15%, and the same collapse reproduced across two independent
+        # runs. Capping here restores the match.
+        _cap_ambient_len(batch["feats"], batch["tbins"], batch.get("padding_mask"))
         feats = {k: v.to(device) for k, v in batch["feats"].items()}
         tbins = {k: v.to(device) for k, v in batch["tbins"].items()}
         # RUN-4: the eval MUST mask padding exactly as training does. Omitting it is a
