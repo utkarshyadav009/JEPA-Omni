@@ -1,0 +1,30 @@
+{
+  "RUN-2 step19000 (20k steps) @ ~996 (uncapped)": {
+    "v2a_R@1": 29.84,
+    "v2a_R@5": 56.83,
+    "a2v_R@1": 28.28,
+    "a2v_R@5": 56.25,
+    "matched_cos": 0.7437
+  },
+  "RUN-2 step19000 (20k steps) @ 896 (capped)": {
+    "v2a_R@1": 22.33,
+    "v2a_R@5": 48.41,
+    "a2v_R@1": 19.42,
+    "a2v_R@5": 45.05,
+    "matched_cos": 0.6515
+  },
+  "RUN-4 smoke  (6k steps) @ ~996 (uncapped)": {
+    "v2a_R@1": 2.33,
+    "v2a_R@5": 5.57,
+    "a2v_R@1": 12.49,
+    "a2v_R@5": 35.47,
+    "matched_cos": 0.2973
+  },
+  "RUN-4 smoke  (6k steps) @ 896 (capped)": {
+    "v2a_R@1": 33.01,
+    "v2a_R@5": 63.82,
+    "a2v_R@1": 33.01,
+    "a2v_R@5": 63.88,
+    "matched_cos": 0.674
+  }
+}

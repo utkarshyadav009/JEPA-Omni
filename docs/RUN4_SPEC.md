@@ -132,3 +132,78 @@ commit `0eb3337` never touched the file. Two options:
 Confirm only: loss is not NaN, no collapse, and the trajectory is sane.
 **Abort on:** loss NaN, R@1 < 5% at step 3,000, or `shuffle_sanity_gap` < 0.3.
 Checkpoint selection during the smoke run is irrelevant under option (a).
+
+---
+
+# SMOKE CHECK RESULT — PASSED (2026-09-12)
+
+6,000 steps, 4-GPU DDP, `T_a=896`, all three padding fixes in.
+Log `logs/temporal_probe/run4_smoke5.log`, checkpoints `checkpoints/m2_run4_smoke_v3/`,
+raw comparison `docs/artifacts/temporal_probe/run4_smoke_matched_length.json`.
+
+## Trajectory (in-training eval, corrected path, 1,545 gallery)
+
+| step | a→v R@1 | v→a R@1 | matched cos | gap | eff_rank |
+|---|---|---|---|---|---|
+| 1000 | 9.32 | 8.74 | 0.5549 | 0.3407 | 16.70 |
+| 2000 | 19.22 | 19.68 | 0.6397 | 0.5485 | 19.16 |
+| 3000 | 24.40 | 23.95 | 0.6767 | 0.5858 | 22.36 |
+| 4000 | 28.03 | 28.74 | 0.6691 | 0.6287 | 22.01 |
+| 5000 | 32.04 | 31.65 | 0.6741 | 0.6322 | 25.20 |
+| 6000 | **33.01** | **33.01** | 0.6740 | 0.6324 | **26.13** |
+
+Monotonic, zero NaN, exit 0. Every pre-registered abort criterion cleared with margin
+(R@1 24.4% at step 3,000 against a 5% floor; gap 0.586 against 0.3).
+
+`world_state_eff_rank` runs roughly double RUN-2's (~12.5 at comparable steps) and did so
+across all three smoke attempts — consistent with the representation spreading once the
+one-dimensional pad-count shortcut is unavailable. A diagnostic, not a result.
+
+## Matched-length head-to-head
+
+Identical harness, identical gallery, only the model and the ambient length vary.
+
+| model | ambient length | v→a R@1 | v→a R@5 | a→v R@1 | a→v R@5 | matched cos |
+|---|---|---|---|---|---|---|
+| RUN-2, 20k steps | **~996 (its own)** | **29.84** | 56.83 | **28.28** | 56.25 | 0.7437 |
+| RUN-2, 20k steps | 896 (mismatched) | 22.33 | 48.41 | 19.42 | 45.05 | 0.6515 |
+| RUN-4 smoke, 6k | ~996 (mismatched) | 2.33 | 5.57 | 12.49 | 35.47 | 0.2973 |
+| RUN-4 smoke, 6k | **896 (its own)** | **33.01** | 63.82 | **33.01** | 63.88 | 0.6740 |
+
+Three readings:
+
+1. **The length-mismatch effect is real and symmetric.** Either model evaluated off its
+   training length degrades: RUN-2 29.84 → 22.33, RUN-4 33.01 → 2.33. RUN-4 degrades far
+   harder because 896 → ~996 exposes ~100 `temporal_emb` positions it never trained at,
+   whereas RUN-2 → 896 is plain truncation.
+2. **Sanity check passes.** RUN-2 at ~996 scores 29.84/28.28 here against 29.90/28.28
+   measured in the audit with a different harness and batch size — independent agreement
+   to 0.06.
+3. **Each model in its own regime, RUN-4 at 6,000 steps beats RUN-2 at 20,000**:
+   33.01/33.01 vs 29.84/28.28, +3.2/+4.7 points at a third of the training, while seeing
+   ~1 s LESS audio per clip.
+
+## The caveat that must travel with any RUN-4 number
+
+**Neither single length is a fair comparison**, and the "own regime" row carries a confound
+introduced here, not designed in: the memory ceiling forced `T_a` 992 → 896, so the two
+models saw **different amounts of audio**. RUN-4 is ahead on a comparison where it has
+strictly less input, which is conservative in its favour — but the honest description is
+**"padding fix + 896-token ambient window"**, not "padding fix" alone.
+
+Removing the confound requires finding memory elsewhere. Gradient checkpointing is the only
+route that leaves batch size, negatives (200×200) and the 40.5% Ego4D share untouched, and
+it is not implemented in `train_m2.py`.
+
+## Bugs the smoke check caught (all introduced by the RUN-4 patch)
+
+| # | bug | would have cost |
+|---|---|---|
+| 1 | `masked_mean` materialised a full `(B,T,D)` temporary | OOM at step 0 |
+| 2 | eval path did not mask padding | train/test inconsistency |
+| 3 | eval path did not cap ambient length | a 20,000-step run reporting a fake collapse |
+
+Bug 3 was initially mis-diagnosed as bug 2 and declared fixed before step 2,000 confirmed
+otherwise; the collapse reproduced identically in a second run. The correct diagnosis was
+established by scoring one checkpoint two ways (uncapped 1.04 / 6.15 vs capped 19.29 /
+18.83), which reproduced the logged collapse exactly.
