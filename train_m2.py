@@ -227,14 +227,26 @@ def build_scheduler(
 # so it has no material effect on what the model sees for the vast majority
 # of clips. This is a memory-engineering cap, independent of negatives/temp/
 # lam_sigreg/lam_fusion -- it does not touch the isolated experimental variable.
-MAX_AMBIENT_T = 992   # RUN-4: lowered 1024 -> 992. Measured on 1,500 clips/corpus
+MAX_AMBIENT_T = 896   # RUN-4: lowered 1024 -> 896. Measured on 1,500 clips/corpus
                       # (docs/artifacts/temporal_probe/p13_fixed_Ta_analysis.json):
-                      # at 992, 98.1% of clips are an exact-length crop and only 1.8%
-                      # need any padding at all (mean 1.4 tokens), so ambient LENGTH
-                      # carries essentially no information even before masking. At
-                      # 1024 every clip was padded by ~29 tokens -- the raw material
-                      # of the E-1 leak. Deterministic head-truncation is kept (not
-                      # random-crop) so RUN-4 stays a single-variable change.
+                      # at 896, 99.0% of clips are an exact-length crop and only 0.4%
+                      # need ANY padding (mean 0.1 tokens), so ambient LENGTH carries
+                      # essentially no information even before masking. At 1024 every
+                      # clip was padded by ~29 tokens -- the raw material of the E-1 leak.
+                      #
+                      # 896 rather than 992 is forced by MEMORY, measured not assumed:
+                      # masking padding in attention costs +0.57 GiB/forward at batch 50
+                      # (3.73 -> 4.30 GiB), and RUN-2 already sat at 94.9 of 95 GB
+                      # (see the OOM note below), so the 6,000-step smoke OOM'd in
+                      # backward at step 0 with T_a=992 -- twice, including with
+                      # PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True. Attention is
+                      # O(T^2) on the joint sequence, so 1504 -> 1408 tokens buys ~22%
+                      # of the attention memory back. This keeps batch size, negatives
+                      # (200x200) and the 40.5% Ego4D batch share UNCHANGED -- lowering
+                      # the batch instead would have confounded negatives and batch
+                      # share exactly as RUN-3 did.
+                      # Deterministic head-truncation, not random-crop: random-crop
+                      # would add a stochastic augmentation, i.e. a second variable.
 
 
 def _cap_ambient_len(feats: Dict[str, Tensor], tbins: Dict[str, Tensor],
@@ -277,9 +289,15 @@ def flat_pad(pad: Dict[str, Tensor], feats: Dict[str, Tensor]) -> Tensor:
 
 
 def masked_mean(x: Tensor, pad: Tensor) -> Tensor:
-    """Mean over non-pad positions only. x (B,T,D), pad (B,T) True=PAD. RUN-4."""
-    keep = (~pad).unsqueeze(-1).to(x.dtype)
-    return (x * keep).sum(1) / keep.sum(1).clamp_min(1.0)
+    """Mean over non-pad positions only. x (B,T,D), pad (B,T) True=PAD. RUN-4.
+
+    Uses a batched mat-vec rather than (x * keep).sum(1): the naive form
+    materialises a full-size (B,T,D) temporary, which at batch 50 x ~1500 tokens
+    x 1024 dims was enough to OOM a 95 GB card that RUN-2 already filled to
+    94.9 GB. bmm((B,1,T),(B,T,D)) allocates only the (B,1,D) output."""
+    keep = (~pad).to(x.dtype)                                  # (B,T)
+    n = keep.sum(1).clamp_min(1.0).unsqueeze(-1)               # (B,1)
+    return torch.bmm(keep.unsqueeze(1), x).squeeze(1) / n      # (B,D)
 
 
 # ── Dataset / DataLoader ────────────────────────────────────────────────────
@@ -710,6 +728,7 @@ def contrastive_retrieval_eval(
     loader: DataLoader,
     device: torch.device,
     max_clips: int = 1545,
+    use_padding_mask: bool = False,
 ) -> Dict[str, float]:
     """Rank gallery by cosine similarity of the TRAINED contrastive
     embeddings (NOT the regression pooled head). Returns R@1/5/10 both
@@ -724,9 +743,19 @@ def contrastive_retrieval_eval(
             break
         feats = {k: v.to(device) for k, v in batch["feats"].items()}
         tbins = {k: v.to(device) for k, v in batch["tbins"].items()}
+        # RUN-4: the eval MUST mask padding exactly as training does. Omitting it is a
+        # train/test mismatch, not a cosmetic difference. The step-2000 smoke eval
+        # collapsed to v->a R@1 0.91% / matched_cos 0.1189 while the TRAINING
+        # contrastive loss was simultaneously BETTER than RUN-2's (1.0615, c_acc 0.680
+        # vs 1.3252, 0.520). The collapse was asymmetric -- ambient is the padded
+        # stream, so z_a was the corrupted side (v->a R@10 3.62% vs a->v 25.95%) --
+        # which is the signature of precisely this mismatch.
+        pad_e = ({k: v.to(device) for k, v in batch["padding_mask"].items()}
+                 if (use_padding_mask and "padding_mask" in batch) else None)
         with torch.autocast(device_type=device.type, dtype=torch.bfloat16,
                             enabled=(device.type == "cuda")):
-            z_v, z_a = pool_and_project(predictor, vision_proj, ambient_proj, feats, tbins)
+            z_v, z_a = pool_and_project(predictor, vision_proj, ambient_proj, feats, tbins,
+                                        pad=pad_e)
         zv_all.append(z_v.cpu()); za_all.append(z_a.cpu())
         n_clips += z_v.shape[0]
 
@@ -1420,6 +1449,7 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
                 print(f"[m2] === RETRIEVAL EVAL (contrastive head) @ step {step+1} ===", flush=True)
                 cret = contrastive_retrieval_eval(
                     raw, vision_proj, ambient_proj, eval_loader, device,
+                    use_padding_mask=True,          # RUN-4: match the training path
                 )
                 n_clips_seen = int(cret.pop("n_clips"))
                 # Full-gallery guard: eval_loader must NOT be sharded by a
