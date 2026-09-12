@@ -1,0 +1,10 @@
+{
+  "test_split": 15446,
+  "cache": 199007,
+  "eval_list": 1545,
+  "train_corpus": 197462,
+  "test_in_train": 13894,
+  "test_in_eval": 1545,
+  "test_uncached": 7,
+  "uncached_with_video": 7
+}

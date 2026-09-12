@@ -1,0 +1,12 @@
+{
+  "file": "data/vggsound_testsplit_contaminated_1545.txt",
+  "n": 1545,
+  "md5": "dbd405117674715acda08dd08a65f3c2",
+  "sha256": "4b7bd2ba81e6636f8a0c2fbc8aab151183797480aa1cdbc6d4cd7b719b1f8f06",
+  "overlap_with_train_corpus": 1545,
+  "overlap_with_clean_gallery": 0,
+  "classes_clean": 307,
+  "classes_contaminated": 305,
+  "seed": 0,
+  "source": "data/test.csv official VGGSound test split, restricted to clips IN the RUN-2 training corpus"
+}

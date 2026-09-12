@@ -395,3 +395,105 @@ trainable parameters against ImageBind's 1200.8M, and still clearly ahead of Equ
 
 **Proposed:** restate the comparison in `docs/BASELINE_1545.md` as a tie with ImageBind
 once E-1 is adopted. Not applied.
+
+---
+
+## E-12 — `docs/ICLR_RESULTS.md` §2 cites source files that no longer contain its numbers
+
+§2's baseline table (lines 116-123) reports the **old 1532/1545** measurement while citing
+per-model JSONs that were **re-measured to the full 1545** on 2026-09-09
+(`docs/BASELINE_1545.md:139`, "all 13 missing videos recovered"). Seven of eight rows are
+therefore stale relative to the file they name. Read from the JSONs, 2026-09-11:
+
+| model | source JSON (canonical, n=1545) | ICLR §2 (stale) | match |
+|---|---|---|---|
+| ImageBind | **29.45 / 29.64** | 29.70 / 29.70 | ✗ |
+| EquiAV | **24.66 / 21.81** | 24.80 / 21.80 | ✗ |
+| CAV-MAE | 12.23 / 14.24 | 12.23 / 14.24 | ✓ (already 1545) |
+| LanguageBind | **7.64 / 10.29** | 7.57 / 10.31 | ✗ |
+| Wav2CLIP | **5.31 / 6.47** | 5.35 / 6.46 | ✗ |
+| AVSiam | **2.59 / 3.04** | 2.48 / 3.00 | ✗ |
+| CAV-MAE Sync | **2.01 / 4.92** | 2.02 / 4.90 | ✗ |
+| AudioCLIP | **0.19 / 0.91** | 0.20 / 0.91 | ✗ |
+
+Differences are small (≤0.25) and no conclusion changes, but the ImageBind figure quoted in
+the abstract should be **29.45 / 29.64**. **Proposed:** refresh §2 from the JSONs and state
+the gallery as 1545/1545. Raw: `p14_baseline_reconciliation.json`. Not applied.
+
+---
+
+## E-13 — A cleaner contamination measurement: 0% vs 100%, matched size and class structure
+
+E-5 measured contamination as clean-vs-*balanced* (0% vs 90.9% contaminated), and the
+balanced gallery differs from the clean one in construction as well as contamination. A
+better-controlled pair is now available and **corroborates E-5 closely**.
+
+Accounting, read from disk (`p13_testsplit_accounting.json`):
+
+```
+official VGGSound test split         15,446
+  ... in the RUN-2 training corpus   13,894   (90.0%)
+  ... in the 1,545 eval list          1,545   (100% of the eval list)
+  ... never extracted at all              7
+```
+
+**Two facts worth recording in their own right.** First, **`data/vggsound_eval_1545.txt` is
+itself a subset of the official test split** — all 1,545 of its clips are in `data/test.csv`.
+Our held-out gallery is therefore not an arbitrary draw: it is (1,545 of) the 1,552
+official-test clips that were never trained on. Second, and consequently, **a genuinely
+clean gallery larger than what we already have cannot be built from the official test
+split** — only 7 further clips qualify. RUN-5's exclusion is the only route to a bigger one.
+
+New gallery: `data/vggsound_testsplit_contaminated_1545.txt`, md5
+`dbd405117674715acda08dd08a65f3c2`, sha256 `4b7bd2ba81e6636f…`. Built by sampling 1,545
+(seed 0) from the 13,894 official-test clips that ARE in the RUN-2 training corpus. All
+cached. **Overlap with the training corpus 1545/1545 = 100.0%. Overlap with the clean
+gallery: 0.** Class structure is closely matched: 305 vs 307 classes, 5.07 vs 5.03
+clips/class, both from the same source split.
+
+| gallery | contamination | v→a R@1 | v→a R@5 | v→a R@10 | a→v R@1 | a→v R@5 | a→v R@10 |
+|---|---|---|---|---|---|---|---|
+| `vggsound_eval_1545` | **0%** | 29.90 | 56.83 | 68.67 | 28.28 | 56.25 | 68.16 |
+| `vggsound_testsplit_contaminated_1545` | **100%** | 39.48 | 74.63 | 86.28 | 37.54 | 73.85 | 84.98 |
+| **Δ** | | **+9.58** | **+17.80** | **+17.61** | **+9.26** | **+17.60** | **+16.82** |
+
+Corrected path, deterministic batch order, checkpoint sha256 `e1a8231e…`, n=1,545 both.
+
+Against E-5's balanced-gallery delta of **+9.36 / +9.97** at R@1 and +18.43 / +16.95 at
+R@5, two independently constructed contaminated galleries agree to within ~0.7 points in
+every column. **The contamination effect is +9.3 to +10.0 R@1 and +16.8 to +18.4 R@5.**
+
+**Proposed:** cite E-13 as the primary contamination result (it is the better-controlled
+pair) with E-5 as independent corroboration. Not applied.
+
+---
+
+## E-14 — The `best.pt` checkpoint-selection bug was never fixed in code
+
+Commit `0eb3337` ("Correct RUN-2 result: best.pt was mislabeled") is widely referenced as
+having fixed checkpoint selection. **It changed four files and none of them is
+`train_m2.py`**: `checkpoints/falsifier_tracking.md`,
+`presentation/M2_M5_Supervisor_Update.md`, and two PNGs. It corrected the *claim* and
+re-scored the checkpoints; it did not touch the selection logic.
+
+`train_m2.py:1344` still reads:
+
+```python
+if loss_ema < best_loss:
+    best_loss = loss_ema
+    save_checkpoint(os.path.join(ckpt_dir, "best.pt"), ...)
+```
+
+`git log -L 1344,1345:train_m2.py` shows the line unchanged since `ab7bae5` ("M2 work
+started"). **`best.pt` is still selected on training `loss_ema`, never on held-out R@1** —
+exactly the defect that made RUN-2's `best.pt` (step 13,960) worse than `step19000.pt` on
+every measured metric.
+
+No published number is affected: RUN-2's reported results come from `step19000.pt`, chosen
+correctly after the fact. But **any future run inherits the bug**, and the next time there
+is no plateau to notice, it may go uncaught.
+
+**Proposed, for RUN-4:** either (a) launch unchanged and select post hoc from the
+`stepN000.pt` checkpoints by held-out R@1, ignoring `best.pt` — zero code change, preserves
+RUN-4's single-variable design; or (b) fix the selection criterion, which adds a second
+change to a run scoped as padding-fix-only. (a) is recommended. Not applied either way.
