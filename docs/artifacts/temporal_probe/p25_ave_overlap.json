@@ -1,0 +1,8 @@
+{
+  "ave_ids": 4097,
+  "ave_categories": 28,
+  "overlap_vggsound_train": 867,
+  "overlap_audioset_mirror": 0,
+  "surviving_clean": 3230,
+  "surviving_categories": 28
+}

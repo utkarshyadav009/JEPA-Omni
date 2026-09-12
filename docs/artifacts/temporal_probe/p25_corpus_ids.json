@@ -1,0 +1,7 @@
+{
+  "vgg_clips": 199007,
+  "vgg_ids": 161516,
+  "audioset_clips": 35824,
+  "audioset_ids": 34922,
+  "vgg_audioset_id_overlap": 5848
+}
