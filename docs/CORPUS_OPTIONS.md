@@ -167,3 +167,71 @@ the proposed horizons. Three options, in order of cost:
 
 Option 1 is the only one that needs no decision from anyone. It is also the only one that
 can start today.
+
+---
+
+## 8. Epic-Kitchens-100 — costed for BOTH consumers (P2.6)
+
+Budget: **1.03 TB** on md1 after reclaiming the 315 GB of redundant VGGSound tarballs
+(md1 is now 1.1 TB free; md0 is excluded — see the correction in the header).
+
+Per-window costs: **3.94 MB** full token features (measured, 518 GB / 134,491 windows in
+`feature_cache_ego4d_train_v1`) and **5.5 KB** world-state-only (W + two reference means,
+fp16). Ratio **734×**.
+
+### Consumer A — probing, and a predictor fit on frozen `W(t)`
+
+| stride | windows | storage |
+|---|---|---|
+| 1 s | 360,000 | **1.9 GB** |
+| 2 s | 180,000 | **0.9 GB** |
+
+Storage is a non-issue. This covers Phases 2–3 at fine Δ and RUN-5 Arm B **as its spec is
+written** — "fit `g: W(t) → W(t+Δ)`", ridge and a 2-layer MLP over frozen world-states.
+
+### Consumer B — Arm B if it RETRAINS THE BRIDGE
+
+Then world-states are useless: you cannot backprop into the bridge through a stored `W`.
+Full token features are required and the 734× reduction does not apply.
+
+| footage | stride | windows | features | fits 1.03 TB? |
+|---|---|---|---|---|
+| 100 h | 1 s | 360,000 | **1.35 TB** | ✗ |
+| **100 h** | **2 s** | **180,000** | **0.68 TB** | **✓** |
+| 50 h | 1 s | 180,000 | 0.68 TB | ✓ |
+| 25 h | 1 s | 90,000 | 0.34 TB | ✓ |
+
+Maximum that fits: **76 h at 1 s stride**, or the whole 100 h at 2 s.
+
+**Arm B is feasible on Epic-Kitchens — this is the headline.** The full 100 h at 2 s stride
+yields **180,000 windows, more than the 134,491-window Ego4D cache the current model was
+trained on**, for 0.68 TB. Ego4D could not do this at any useful scale (§1.3: 2,000 files at
+2 s = 3.27 TB), so **Epic-Kitchens is not merely a nicer option, it is the difference
+between Arm B being possible and impossible.**
+
+The binding constraint is no longer features but the 741 GiB video download: 741 GB video +
+680 GB features = 1.42 TB > 1.03 TB **if held simultaneously**. Stream-processing removes
+that — `scripts/temporal_probe/stream_extract.py` downloads one file, extracts, writes, and
+deletes the video, so peak usage is a working set.
+
+### The one-shot constraint — decide the stride before downloading
+
+The video is deleted after extraction, so **the stride cannot be revisited without
+re-downloading the corpus**. A fine stride can always be decimated to a coarse one; the
+reverse is a re-download. **Recommendation: 1 s if Arm B is world-state-only (1.9 GB, no
+reason not to), 2 s if Arm B retrains the bridge (0.68 TB, the whole corpus fits).**
+If it is not yet settled which Arm B will be, extract **both** — world-states at 1 s cost
+1.9 GB alongside features at 2 s, which is free insurance against a re-download.
+
+### Licence — FLAGGED FOR A HUMAN, NOT ACCEPTED
+
+Epic-Kitchens-100 is **CC BY-NC 4.0: non-commercial use only**, with attribution. For an
+academic ICLR submission that is ordinarily fine, but:
+
+* it is a **restriction on downstream use** of anything trained on it, including the BMO
+  deployment if that is ever commercial;
+* it is **not a decision this session should make**. `stream_extract.py` refuses to run
+  against `epic_kitchens` until the decision is recorded, and prints why.
+
+Direct download from data.bris or Academic Torrents — **no YouTube scraping and no per-clip
+yield risk**, unlike AVE or ACAV100M. That is a significant practical advantage.
