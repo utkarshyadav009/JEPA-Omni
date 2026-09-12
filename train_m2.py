@@ -227,10 +227,18 @@ def build_scheduler(
 # so it has no material effect on what the model sees for the vast majority
 # of clips. This is a memory-engineering cap, independent of negatives/temp/
 # lam_sigreg/lam_fusion -- it does not touch the isolated experimental variable.
-MAX_AMBIENT_T = 1024
+MAX_AMBIENT_T = 992   # RUN-4: lowered 1024 -> 992. Measured on 1,500 clips/corpus
+                      # (docs/artifacts/temporal_probe/p13_fixed_Ta_analysis.json):
+                      # at 992, 98.1% of clips are an exact-length crop and only 1.8%
+                      # need any padding at all (mean 1.4 tokens), so ambient LENGTH
+                      # carries essentially no information even before masking. At
+                      # 1024 every clip was padded by ~29 tokens -- the raw material
+                      # of the E-1 leak. Deterministic head-truncation is kept (not
+                      # random-crop) so RUN-4 stays a single-variable change.
 
 
 def _cap_ambient_len(feats: Dict[str, Tensor], tbins: Dict[str, Tensor],
+                      pad_mask: Optional[Dict[str, Tensor]] = None,
                       max_t: Optional[int] = None) -> None:
     """In-place: truncate the 'ambient' entries to at most max_t tokens.
     MUST be called on the CPU batch, BEFORE .to(device) -- an outlier-length
@@ -246,6 +254,32 @@ def _cap_ambient_len(feats: Dict[str, Tensor], tbins: Dict[str, Tensor],
     if "ambient" in feats and feats["ambient"].shape[1] > max_t:
         feats["ambient"] = feats["ambient"][:, :max_t]
         tbins["ambient"] = tbins["ambient"][:, :max_t]
+        # RUN-4: the pad mask MUST be truncated with them. Before RUN-4 nothing
+        # consumed padding_mask, so this omission was inert; RUN-4 is precisely
+        # the change that starts consuming it, at which point a mask longer than
+        # the tensor it describes is a shape error or a silent misalignment.
+        if pad_mask is not None and "ambient" in pad_mask:
+            pad_mask["ambient"] = pad_mask["ambient"][:, :max_t]
+
+
+def flat_pad(pad: Dict[str, Tensor], feats: Dict[str, Tensor]) -> Tensor:
+    """Concatenate per-modality pad masks in the SAME order AVJepaPredictor._embed
+    concatenates tokens (iteration order of feats). RUN-4."""
+    parts = []
+    for m in feats:
+        assert m in pad, f"no padding mask for modality {m!r}"
+        assert pad[m].shape == feats[m].shape[:2], (
+            f"pad[{m!r}] {tuple(pad[m].shape)} != feats[{m!r}] {tuple(feats[m].shape[:2])}")
+        parts.append(pad[m])
+    flat = torch.cat(parts, 1)
+    assert not flat.all(1).any(), "a sample is entirely padding -- attention would emit NaN"
+    return flat
+
+
+def masked_mean(x: Tensor, pad: Tensor) -> Tensor:
+    """Mean over non-pad positions only. x (B,T,D), pad (B,T) True=PAD. RUN-4."""
+    keep = (~pad).unsqueeze(-1).to(x.dtype)
+    return (x * keep).sum(1) / keep.sum(1).clamp_min(1.0)
 
 
 # ── Dataset / DataLoader ────────────────────────────────────────────────────
@@ -404,6 +438,7 @@ def pool_and_project(
     feats: Dict[str, Tensor],
     tbins: Dict[str, Tensor],
     tokens: Optional[Dict[str, Tensor]] = None,
+    pad: Optional[Dict[str, Tensor]] = None,
 ) -> Tuple[Tensor, Tensor]:
     """Mean-pool the leak-fixed per-modality source tokens, project into the
     shared contrastive space, L2-normalise. This head is SEPARATE from and
@@ -414,9 +449,17 @@ def pool_and_project(
     skip recomputing it (e.g. when another branch this same step, like
     CrossAttnFusionBridge, already needs the identical call -- avoids a
     redundant extra pair of backbone forward passes)."""
-    src_by_mod = tokens if tokens is not None else predictor.encode_source_tokens(feats, tbins)
-    z_v = F.normalize(vision_proj(src_by_mod["vision"].mean(1)).float(), dim=-1)
-    z_a = F.normalize(ambient_proj(src_by_mod["ambient"].mean(1)).float(), dim=-1)
+    if tokens is not None:
+        src_by_mod = tokens
+    else:
+        kpm = flat_pad(pad, feats) if pad is not None else None
+        src_by_mod = predictor.encode_source_tokens(feats, tbins, key_padding_mask=kpm)
+    if pad is None:                      # pre-RUN-4 behaviour, bit-for-bit
+        z_v = F.normalize(vision_proj(src_by_mod["vision"].mean(1)).float(), dim=-1)
+        z_a = F.normalize(ambient_proj(src_by_mod["ambient"].mean(1)).float(), dim=-1)
+    else:                                # RUN-4: pad excluded from the pool
+        z_v = F.normalize(vision_proj(masked_mean(src_by_mod["vision"], pad["vision"])).float(), dim=-1)
+        z_a = F.normalize(ambient_proj(masked_mean(src_by_mod["ambient"], pad["ambient"])).float(), dim=-1)
     return z_v, z_a
 
 
@@ -1085,9 +1128,11 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
     for step in range(start_step, total_steps):
         batch = next(batches)
 
-        _cap_ambient_len(batch["feats"], batch["tbins"])
+        _cap_ambient_len(batch["feats"], batch["tbins"], batch.get("padding_mask"))
         feats = {k: v.to(device) for k, v in batch["feats"].items()}
         tbins = {k: v.to(device) for k, v in batch["tbins"].items()}
+        pad   = {k: v.to(device) for k, v in batch["padding_mask"].items()}   # RUN-4
+        kpm   = flat_pad(pad, feats)                                          # RUN-4
 
         # GradCache: pull the REST of this step's microbatches now (feats/
         # tbins above stays the "primary" microbatch -- used for pred_loss/
@@ -1096,6 +1141,16 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
         # microbatches, via gradcache_contrastive_step().
         gc_micro_batches: List[Tuple[Dict[str, Tensor], Dict[str, Tensor]]] = []
         if lam_contrastive > 0.0 and gradcache_micro_steps > 1:
+            # RUN-4 GUARD: the GradCache contrastive path has NOT been made
+            # padding-aware. RUN-2 never used it (gradcache_micro_steps=1; the
+            # string "gradcache" appears 0 times in logs/m2_run2_final.log) and
+            # RUN-4 reuses RUN-2's config, so this is unreachable for RUN-4.
+            # Fail loudly rather than silently reintroduce the E-1 leak for
+            # anyone who enables it later.
+            raise NotImplementedError(
+                "gradcache_micro_steps > 1 is not padding-aware after the RUN-4 fix. "
+                "Make gradcache_contrastive_step() accept and apply the padding mask "
+                "before enabling it, or the E-1 shortcut returns on the contrastive path.")
             gc_micro_batches.append((feats, tbins))
             for _ in range(gradcache_micro_steps - 1):
                 _b = next(batches)
@@ -1118,7 +1173,7 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
             # parameter (incl. out_head, only used here) must receive a
             # real .grad tensor each step, or the reducer errors/hangs on
             # "unused parameters". lam_pred==0 just zeroes its contribution.
-            pred_loss, metrics = model(feats, tbins, mask)
+            pred_loss, metrics = model(feats, tbins, mask, key_padding_mask=kpm)
 
             # ── world state + sigreg ───────────────────────────────
             # encode_world_state() is @no_grad (authoritative — do not alter).
@@ -1126,12 +1181,12 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
             raw = predictor
             if lam_sigreg > 0:
                 # grad-enabled path: SIGReg flows through pool_query + blocks
-                ws = raw.world_state(feats, tbins)       # (B, d) with grad
+                ws = raw.world_state(feats, tbins, key_padding_mask=kpm)  # (B,d) with grad
                 sr_loss = sigreg(ws.float(), global_step=step, num_slices=num_slices)
                 total_loss = lam_pred * pred_loss + lam_sigreg * sr_loss
             else:
                 # lam==0: compute sigreg for logging only (no effect on loss)
-                ws = raw.encode_world_state(feats, tbins)  # (B, d) no grad
+                ws = raw.encode_world_state(feats, tbins, key_padding_mask=kpm)  # (B,d) no grad
                 with torch.no_grad():
                     sr_loss = sigreg(ws.float(), global_step=step, num_slices=num_slices)
                 total_loss = lam_pred * pred_loss
@@ -1139,7 +1194,7 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
             # ── pooled cross-modal auxiliary (STEP 3, optional) ───
             pooled_loss_val = 0.0
             if pooled_heads is not None and lam_pooled > 0.0:
-                src_by_mod = raw.encode_source_tokens(feats, tbins)
+                src_by_mod = raw.encode_source_tokens(feats, tbins, key_padding_mask=kpm)
                 pl = pooled_heads.combined_loss(src_by_mod, feats)
                 total_loss = total_loss + lam_pooled * pl
                 pooled_loss_val = float(pl.detach())
@@ -1154,7 +1209,7 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
                                   (lam_contrastive > 0.0 and not use_gradcache)
             shared_src_tokens: Optional[Dict[str, Tensor]] = None
             if need_shared_tokens:
-                shared_src_tokens = raw.encode_source_tokens(feats, tbins)
+                shared_src_tokens = raw.encode_source_tokens(feats, tbins, key_padding_mask=kpm)
 
             # ── cross-attention fusion bridge (STEP 2, AUXILIARY ONLY) ──
             # See CrossAttnFusionBridge docstring: real-pair vs shuffled-pair
@@ -1225,7 +1280,7 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
             if lam_contrastive > 0.0 and not use_gradcache:
                 assert amp_enabled, "week run requires bf16 autocast active for the contrastive path"
                 z_v, z_a = pool_and_project(raw, vision_proj, ambient_proj, feats, tbins,
-                                            tokens=shared_src_tokens)
+                                            tokens=shared_src_tokens, pad=pad)
                 c_loss, c_metrics = gathered_info_nce(z_v, z_a, temperature=contrast_temp)
                 total_loss = total_loss + lam_contrastive * c_loss
                 contrastive_loss_val = float(c_loss.detach())

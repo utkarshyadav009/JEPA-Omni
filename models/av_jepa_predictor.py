@@ -147,6 +147,7 @@ class AVJepaPredictor(nn.Module):
         feats: Dict[str, Tensor],     # {modality: (B, T_m, dim_m)} frozen cached latents
         tbins: Dict[str, Tensor],     # {modality: (B, T_m)} integer TDM bins
         mask: Dict[str, Tensor],      # {modality: (B, T_m) bool} True = MASKED (to predict)
+        key_padding_mask: Optional[Tensor] = None,   # (B,S) True = PAD. RUN-4.
     ) -> Tuple[Tensor, Dict[str, float]]:
         """Cross-modal masked latent prediction to frozen targets. Returns (loss, metrics)."""
         tokens, mod_ids, _ = self._embed(feats, tbins)         # (B, S, d)
@@ -160,7 +161,7 @@ class AVJepaPredictor(nn.Module):
         q = self.mask_token.expand(B, S, d)
         tokens = torch.where(flat_mask.unsqueeze(-1), q + self._embed_pos_only(feats, tbins), tokens)
 
-        h = self._backbone(tokens)                              # (B, S, d)
+        h = self._backbone(tokens, key_padding_mask=key_padding_mask)   # (B, S, d)
 
         # per-modality output heads -> predict into each modality's frozen latent space
         loss, n = tokens.new_zeros(()), 0
@@ -215,15 +216,19 @@ class AVJepaPredictor(nn.Module):
         attn = torch.softmax(logits, dim=-1)                                          # (B,1,S)
         return (attn @ h).squeeze(1)                            # (B, d) un-normalised
 
-    def world_state(self, feats: Dict[str, Tensor], tbins: Dict[str, Tensor]) -> Tensor:
+    def world_state(self, feats: Dict[str, Tensor], tbins: Dict[str, Tensor],
+                     key_padding_mask: Optional[Tensor] = None) -> Tensor:
         """Grad-enabled world-state for use in SIGReg backprop (lam_sigreg > 0).
         SAME computation as encode_world_state but WITHOUT @torch.no_grad, so
         gradients flow through pool_query and all transformer block parameters.
         Do NOT call this for eval/logging — use encode_world_state() there."""
         tokens, _, _ = self._embed(feats, tbins)
-        h = self._backbone(tokens)
+        h = self._backbone(tokens, key_padding_mask=key_padding_mask)
         q = self.pool_query.expand(h.shape[0], 1, -1)
-        attn = torch.softmax((q @ h.transpose(1, 2)) / (h.shape[-1] ** 0.5), dim=-1)  # (B,1,S)
+        logits = (q @ h.transpose(1, 2)) / (h.shape[-1] ** 0.5)                       # (B,1,S)
+        if key_padding_mask is not None:
+            logits = logits.masked_fill(key_padding_mask.unsqueeze(1), float("-inf"))
+        attn = torch.softmax(logits, dim=-1)                                          # (B,1,S)
         return (attn @ h).squeeze(1)                            # (B, d) un-normalised
 
     @torch.no_grad()
