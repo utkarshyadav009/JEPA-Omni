@@ -1,0 +1,47 @@
+{
+  "vggsound": {
+    "n": 1500,
+    "min": 594,
+    "p1": 896,
+    "p50": 996,
+    "p99": 998,
+    "max": 1042,
+    "mean": 993.2
+  },
+  "ego4d": {
+    "n": 1500,
+    "min": 990,
+    "p1": 996,
+    "p50": 996,
+    "p99": 996,
+    "max": 999,
+    "mean": 996.0
+  },
+  "fixed_Ta_options": {
+    "896": {
+      "pct_cropped": 98.97,
+      "pct_padded": 0.4,
+      "mean_pad_tokens": 0.1
+    },
+    "960": {
+      "pct_cropped": 98.63,
+      "pct_padded": 1.37,
+      "mean_pad_tokens": 0.8
+    },
+    "992": {
+      "pct_cropped": 98.07,
+      "pct_padded": 1.8,
+      "mean_pad_tokens": 1.4
+    },
+    "1000": {
+      "pct_cropped": 0.03,
+      "pct_padded": 99.87,
+      "mean_pad_tokens": 5.2
+    },
+    "1024": {
+      "pct_cropped": 0.03,
+      "pct_padded": 99.97,
+      "mean_pad_tokens": 29.2
+    }
+  }
+}
