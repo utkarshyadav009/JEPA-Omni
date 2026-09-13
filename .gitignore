@@ -29,3 +29,6 @@ jetson_artifacts/benchmarks/home/demo_frame.jpg
 # Local GGUF builds: 241-678 MB each, over GitHub's 100 MB per-file limit.
 # Backed up in the RAID bundle instead (see docs/ERRATA_PROPOSED.md / P1.0).
 models_gguf/
+data/p32_wcache/
+data/feature_cache_epic_kitchens/
+data/epic_kitchens_ws/

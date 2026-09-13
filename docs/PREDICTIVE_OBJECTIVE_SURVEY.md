@@ -60,8 +60,8 @@ step 2000).
 | **stop-gradient** | already present — `tgt = x[mm].detach()` | yes, in place |
 | **predictor asymmetry** | prediction error stays non-zero even at collapse, giving a residual gradient | partially present: `out_head[m]` is a per-modality linear head |
 | **target normalisation** | removes the constant/anisotropic component of the target | **already in place and this matters** — `av_jepa_predictor.py:176` applies `F.layer_norm(tgt)` with the comment *"removes near-zero-constant shortcut"*. This is exactly data2vec's recipe, and it was added **after** the seven failed runs in §5 |
-| **variance floor (VICReg)** | forces per-dimension std above a threshold | compatible in principle, but **redundant with SIGReg**: SIGReg already shapes the unnormalised world-state toward N(0,I), which pins both variance and covariance. Adding VICReg would double-regularise the same object |
-| **L2 normalisation of the world-state** | — | **incompatible.** SIGReg targets N(0,I), which is geometrically inconsistent with a unit sphere. This is recorded as a lesson already paid for across the M1 SIGReg sweeps |
+| **variance floor (VICReg)** | forces per-dimension std above a threshold | compatible in principle, but **redundant with SIGReg**: SIGReg already shapes the unnormalised scene representation toward N(0,I), which pins both variance and covariance. Adding VICReg would double-regularise the same object |
+| **L2 normalisation of the scene representation** | — | **incompatible.** SIGReg targets N(0,I), which is geometrically inconsistent with a unit sphere. This is recorded as a lesson already paid for across the M1 SIGReg sweeps |
 
 **Conclusion for RUN-5 Arm A:** we already hold three of the four mechanisms (frozen
 target, stop-grad, target layer-norm) plus SIGReg. Nothing new is structurally required.
@@ -129,7 +129,7 @@ that the outcome is *chance retrieval*, not divergence — the model was learnin
    lowest-risk option.
 3. **Add a variance floor** (VICReg-style) if 1+2 still show low effective rank — but
    see §3: SIGReg already covers this ground, and stacking them risks over-constraining
-   the world-state.
+   the scene representation.
 
 **The practical implication for RUN-5 Arm A:** the historical failure is *not* evidence
 that a predictive term is harmful. It is evidence that a predictive term **alone**, with

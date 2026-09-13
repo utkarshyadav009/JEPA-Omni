@@ -4,13 +4,22 @@
 draft and not here, it is not canonical. Where a dispute is live it is marked **DISPUTED**
 and both sides are given — nothing is silently resolved.
 
-Last updated 2026-09-12. Corrections proposed against published tables live in
+Last updated 2026-09-13. Corrections proposed against published tables live in
 `docs/ERRATA_PROPOSED.md` (14 entries); **none has been applied to a published table.**
 
-Locked checkpoint everywhere unless stated:
+**Primary system checkpoint (RUN-4), selected post hoc by held-out R@1 in P3.0:**
+`checkpoints/m2_run4_padfix_ta896/step18000.pt`,
+sha256 `27b33c8cebe656f26e51987cc49a5b8bf4452845f14d9e8a41eb9d1a6c1848a4`, `T_a = 896`.
+
+Legacy locked checkpoint (RUN-2, still the base of every §5 query-predictor number):
 `checkpoints/m2_run2_vggsound197k_ego4d134k_neg200/step19000.pt`,
 sha256 `e1a8231ec9fbae6cf2b8288c89612ee1facd2dc6938781c22cf06295b31bedf8`
 (every script verifies this and aborts on mismatch).
+
+**Naming verdict.** The term "world-state" was tested across four probes and **retired**. The
+object is an **audio-visual scene representation**. Forward prediction is no easier than
+backward prediction (gap −0.04 ± 0.15 for RUN-4), so it carries no directional forward
+information. See `docs/FORWARD_INFORMATION_PROBE.md`.
 
 Galleries:
 
@@ -35,12 +44,47 @@ Galleries:
 Deterministic single run: v→a 29.90 / 56.83 / 68.67, a→v 28.28 / 56.25 / 68.16.
 
 * Source: `docs/artifacts/temporal_probe/p02_summary.json`, `p02_cell{3,4}_fix_*.json`
-* Command: `python scripts/temporal_probe/bin_scramble_eval.py --arms A0 --no-world-state --fix-padding --out <path>`
+* Command: `python scripts/temporal_probe/bin_scramble_eval.py --arms A0 --no-scene representation --fix-padding --out <path>`
 * **Supersedes the published 53.27/53.72** (ERRATA E-1). Those were inflated ≈24 points by a
   padding-derived shared-nuisance leak, established three ways: batch-size-1 agreement,
   a uniform-pad control that *hurts*, and a random-pad control that reproduces the gain.
 * The published figure had **no error bar**; the leaked path's run-to-run range was ≈2.5
   points (E-2). The corrected path is nearly seed-invariant.
+
+## 1.1 PRIMARY SYSTEM RESULT — RUN-4 `step18000`
+
+**This is the number the paper reports as our system.** Selected post hoc by held-out R@1 over
+all 20 tagged checkpoints (E-14 option (a)); `best.pt` is selected on training `loss_ema` and is
+ignored.
+
+| direction | R@1 | R@5 | matched cos | eff_rank |
+|---|---|---|---|---|
+| **v→a** | **41.77** | 71.97 | 0.64 | 73.53 |
+| **a→v** | **41.88** | 72.10 | 0.64 | 73.53 |
+
+* n = 1,545, gallery `data/vggsound_eval_1545.txt` (0% contamination), `T_a = 896`,
+  corrected harness, **mean of 3 batch-order seeds**, seed range 0.06 R@1.
+* Checkpoint sha256 `27b33c8cebe656f26e51987cc49a5b8bf4452845f14d9e8a41eb9d1a6c1848a4`.
+* Source: `docs/artifacts/temporal_probe/p30_shard2.json`
+* Command: `python scripts/temporal_probe/p30_select_checkpoint.py --ckpts <...> --cap 896 --seeds 0,1,2`
+
+**Selection procedure, and the plateau it lands on.** All 20 steps were scored; R@1 rises to
+step 16,000 and is then flat:
+
+| step | 14000 | 15000 | 16000 | 17000 | **18000** | 19000 | 20000 |
+|---|---|---|---|---|---|---|---|
+| v→a R@1 | 38.53 | 39.33 | 41.68 | 41.44 | **41.77** | 41.40 | 41.34 |
+| a→v R@1 | 38.92 | 39.29 | 41.42 | 41.42 | **41.88** | 41.81 | 41.68 |
+| eff_rank | 64.16 | 67.87 | 69.74 | 72.75 | **73.53** | 74.12 | 74.26 |
+
+Steps 16,000–20,000 span 0.43 R@1 against a seed range of 0.06–0.13. **`step18000` wins by less
+than the run-to-run noise of the plateau** — it is the argmax, not a meaningfully better model,
+and the honest statement is "R@1 saturates at ≈41.7 from step 16,000" (see §9).
+
+**Reconciliation with §7.1.** The matched-length grid's RUN-4 row (41.35 / 41.68, eff_rank 74.26)
+is **`step20000`**, not `step18000` — it matches P3.0's step-20000 row (41.34 / 41.68) exactly.
+Both are correct; they are different checkpoints. Quote §1.1 for the system result and §7.1 for
+the length-controlled comparison.
 
 ## 2. Baselines — same gallery, n = 1,545
 
@@ -65,12 +109,53 @@ for 7 of 8 rows (E-12).
   is structurally impossible. Confirmed empirically at batch size 1 for ImageBind, AVSIAM
   and AudioCLIP (bit-identical) and EquiAV (±0.67 = 2/300 clips, both directions).
 
-### 2.1 The head-to-head claim
+### 2.1 The head-to-head claim — **NON-EQUIVALENT, do not write as a win**
 
-> **A tie with ImageBind at roughly one-eighth the trainable parameters** (155.9M vs
-> 1200.8M): ahead by 0.26 on v→a, behind by 1.17 on a→v. Clearly ahead of EquiAV.
+RUN-4 `step18000` scores 41.77 / 41.88 against ImageBind's 29.64 / 29.45 — about **12 points
+clear**. Per P4.3 that margin was audited before being claimed. It does not survive the audit.
 
-**Do not write this as a win.** Under the pre-correction number it looked like one; it is not.
+**What the audit clears:**
+
+| check | result |
+|---|---|
+| gallery file and size | **same** — `data/vggsound_eval_1545.txt`, n = 1,545 both, 0 missing, 0 failed |
+| gallery contamination | **same** — 0% for both; the gallery is held out of our training corpus |
+| padding / batch dependence | **clear** — ImageBind bs1 ≡ bs8 bit-identical (50.33/52.33, n=300); all 8 baselines pad to a fixed config-level length, so batch-dependent padding is structurally impossible (E-11) |
+| sequence length | **clear as an asymmetry** — each model runs its own released configuration; RUN-2 evaluated at RUN-4's 896 scores *worse* (22.21/19.42), so 896 is not an easy setting (§7.1) |
+| metric definition | **same** — R@k over the full 1,545×1,545 similarity matrix, ground truth on the diagonal |
+
+**What the audit does NOT clear — the asymmetry that blocks the claim:**
+
+> **We trained on VGGSound. ImageBind and EquiAV did not.**
+
+RUN-2/RUN-4 train on 197k VGGSound clips (plus 134k Ego4D). ImageBind's audio tower is AudioSet
+and its vision tower is web image-text; EquiAV is AudioSet-2M. Per each model's own recorded
+`pretrain_corpus`, neither has seen VGGSound at all.
+
+The gallery is held out at the **clip** level, which is what `contamination_flag: HELD-OUT`
+certifies. It is **not** held out at the **distribution** level. So the comparison is
+**in-domain (ours) against zero-shot transfer (theirs)**, and the ~12-point margin confounds
+representation quality with domain adaptation. No experiment here separates the two.
+
+**Therefore: record the comparison as non-equivalent.** Permissible statements:
+
+> On held-out VGGSound retrieval RUN-4 reaches 41.77/41.88 R@1, against 29.64/29.45 for
+> ImageBind evaluated zero-shot on this distribution. The two are not directly comparable:
+> our model is trained in-domain on VGGSound and ImageBind is not, so the margin reflects
+> domain adaptation as well as representation quality.
+
+Impermissible: "RUN-4 beats ImageBind", "state of the art", or any parameter-efficiency claim
+built on the margin (155.9M trainable vs 1200.8M) — parameter efficiency is only meaningful
+between models measured on the same footing.
+
+**What would clear it** (not run, and not proposed for this submission): evaluate RUN-4
+zero-shot on a corpus it never trained on, against the same baselines. The AVE external gallery
+in §8 (3,230 clips, 0 overlap with our AudioSet mirror) is the obvious candidate.
+
+**Superseded.** The earlier "tie with ImageBind at one-eighth the trainable parameters" line was
+written against RUN-2's corrected 28.28/29.90. It is retained in `ERRATA_PROPOSED.md` as history;
+it is no longer the current comparison, and the tie framing was itself resting on the same
+unaudited in-domain/zero-shot asymmetry.
 
 ## 3. Gallery contamination
 
@@ -136,13 +221,26 @@ text, which has no access to a clip's pad count.
 
 ## 6. Temporal-structure probe — one line
 
-> The M2 fused latent is an **audio-visual scene representation, not a world-state**: it has
+> The M2 fused latent is an **audio-visual scene representation, not a scene representation**: it has
 > no recurrence, `lam_pred = 0.0` so no predictive term was ever trained, vision's temporal
-> axis is provably unused (|Δ| ≤ 0.13 R@1, world-state cosine 0.99998), persistence is a
+> axis is provably unused (|Δ| ≤ 0.13 R@1, scene representation cosine 0.99998), persistence is a
 > plateau rather than a decay (0.835 at 20 s → 0.802 at 60 s, i.e. scene identity), and a
 > learned forward map beats copying at R@1 (3.43 vs 0.43) but loses on cosine and R@5.
 
-Full treatment, all three phases: `docs/TEMPORAL_STRUCTURE_PROBE.md`.
+**Fourth probe (P3.2), the decisive one:** predicting `W(t+Δ)` is no easier than predicting
+`W(t−Δ)`. Within-file micro R@1 at Δ=10 s, ridge, 3 seeds, chance 2.198:
+
+| model | forward | backward | gap | ±SE | pre-registered threshold |
+|---|---|---|---|---|---|
+| RUN-2 `step19000` | 9.13 | 8.52 | +0.61 | 0.40 | ≥2.0 and ≥3×SE → **FAIL** |
+| RUN-4 `step18000` | 9.78 | 9.82 | **−0.04** | 0.15 | **FAIL** |
+
+`IDENTITY` — direction-blind by construction — shows gaps up to +0.61 from gallery composition
+alone, so **≈0.6 is the artifact floor** and every learned-map gap sits at or below it.
+Verdict: symmetric persistence, no arrow of time, the name is retired.
+
+Full treatment: `docs/TEMPORAL_STRUCTURE_PROBE.md` (phases 0–2) and
+`docs/FORWARD_INFORMATION_PROBE.md` (forward information, P3.2).
 
 ## 7. RUN-4 — COMPLETE. The mechanism is LENGTH NORMALISATION, not masking.
 
@@ -188,19 +286,31 @@ truncation alone leaves only 0.4% of clips padded at a mean of 0.1 tokens, so th
 nothing left for a mask to do.
 
 **The effective-rank doubling tracks the same cause.** It rises in the control too (25.75 vs
-26.13, both ~2× RUN-2's ~12.5), so it is shortcut removal rather than masking specifically.
+26.13), so it is shortcut removal rather than masking specifically.
+
+**Do not compare these two numbers to the grid's.** 25.75/26.13 are *in-training* effective
+ranks at 6,000 steps; the grid's are *full-gallery* ranks from the corrected harness at
+convergence. The two scales are not interchangeable. **The canonical cross-model effective-rank
+comparison is 74.26 (RUN-4) vs 37.72 (RUN-2)** from the P2.3 matched grid — roughly **2×**, not
+the ~6× implied by comparing against an in-training ~12.5. That ~12.5 figure is withdrawn from
+every document; it was never measured on the same footing as anything it was compared to.
 
 ### 7.3 How to state this
 
 > Removing the length-derived shortcut from M2's training — by fixing the ambient sequence to
 > a constant 896 tokens — raises held-out VGGSound retrieval from **28.28/29.90** to
 > **41.68/41.35** R@1 (n=1,545, each model evaluated at its own training length), and roughly
-> doubles the world-state's effective rank. A control run isolates the cause: masking the
+> doubles the scene representation's effective rank. A control run isolates the cause: masking the
 > padding contributes nothing measurable once the length is fixed.
 
 **Caveats that must travel with it:** RUN-2 and RUN-4 see different amounts of audio
 (~996 vs 896 tokens, ≈1 s), which is why the control row and the P2.2 decomposition are part
-of the result rather than an appendix. RUN-4 was still improving at step 20,000.
+of the result rather than an appendix. The figures above are `step18000` (§1.1); the §7.1 grid
+row is `step20000`.
+
+**RETRACTED: "RUN-4 was still improving at step 20,000."** That was stated from partial data
+through step 16,000. The full 20-step sweep shows R@1 **flat** from step 16,000 (41.34–41.77,
+seed range 0.06–0.13). See §9.
 
 ## 8. AVE external gallery — feasibility
 
@@ -210,6 +320,36 @@ external, all 28 categories retained, median 125 clips/category. Source:
 `p25_ave_overlap.json`. Requires a YouTube scrape, so it inherits that yield risk.
 
 ---
+
+## 9. R@1 saturation — a standalone finding
+
+From step 16,000 to 20,000, **R@1 is flat while R@5 and effective rank keep rising**:
+
+| step | v→a R@1 | v→a R@5 | eff_rank |
+|---|---|---|---|
+| 16000 | 41.68 | 70.51 | 69.74 |
+| 17000 | 41.44 | 71.74 | 72.75 |
+| 18000 | 41.77 | 71.97 | 73.53 |
+| 19000 | 41.40 | 72.30 | 74.12 |
+| 20000 | 41.34 | **72.51** | **74.26** |
+
+R@1 moves 0.43 (within the 0.06–0.13 seed range, i.e. **no trend**) while R@5 gains 2.00 and
+effective rank gains 4.52 monotonically. The representation is still improving; R@1 has stopped
+registering it.
+
+**This is the third independent instance of the same lesson in this project**, and that is why
+it is a finding rather than a footnote:
+
+1. **Contamination (§3):** R@1 *shrinks* to ~9.4 while R@5 *grows* to ~18, because the
+   contaminated gallery was near ceiling and the gap compressed.
+2. **The padding leak (§1):** the leaked path scored 53.27 R@1 — a single top-1 metric gave no
+   hint that a shared-nuisance shortcut was doing the work.
+3. **Saturation (here):** R@1 flat, R@5 and effective rank still climbing.
+
+**Reporting rule: never quote R@1 alone.** Every retrieval claim in this project carries R@5 and,
+where the representation itself is the subject, effective rank.
+
+Write-up: `docs/R1_SATURATION.md`. Source: `docs/artifacts/temporal_probe/p30_shard*.json`.
 
 ## Live disputes — marked, not resolved
 

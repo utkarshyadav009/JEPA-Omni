@@ -1008,7 +1008,7 @@ Verified live: `[boot] identity ready (0 enrolled)`.
 ### 22b. The enrolment flow (`--identity`)
 The machinery was complete and reboot-verified; only the flow was missing. Now:
 
-1. Identity rides on the **same world-state features perception already built** — no second
+1. Identity rides on the **same scene representation features perception already built** — no second
    encode. Vision+voice pooled jointly (measured TAR@FAR1% 0.765 joint vs 0.694 voice-only,
    0.571 vision-only).
 2. `idmem.query(emb)` → recognised / `below_threshold` / `ambiguous` / `empty_memory`.
@@ -1573,7 +1573,7 @@ valence/arousal/control, and two positive branches in `homeostatic_to_mood_state
 | novel scene (drift 0.7) | surprised | +0.52 | face_silly_tongue |
 
 Still to wire in `bmo_showcase.py`: it passes `scene_embedding_drift=0.0` (so perception never
-moves mood — the cosine distance between consecutive world-states is the intended signal) and
+moves mood — the cosine distance between consecutive scene representations is the intended signal) and
 does not yet pass `input_valence_signal`. Both are one-liners now that the path exists.
 
 **Caveat carried forward:** the tags and coefficients are *reasoned, not calibrated* — baseline
@@ -1918,7 +1918,7 @@ Ordered by value. All are offline; only vectors ship, so the Jetson stays text-e
 4. **Report the retrieval score.** The similarity is already computed and thrown away.
    Surfacing it lets the thinker know when perception is guessing — and is what makes the
    *"admit you do not know"* directive fire honestly instead of inventing detail.
-5. **Temporal delta.** Compare consecutive world-states to report change — *"they just sat
+5. **Temporal delta.** Compare consecutive scene representations to report change — *"they just sat
    down"*, *"someone left"*. The cosine-drift signal is already needed for the homeostatic path
    (§32d), so it is one computation serving two consumers.
 

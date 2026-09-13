@@ -42,8 +42,8 @@ one learned query → `MultiheadAttention(8 heads)` → LayerNorm → `Linear(d,
 |---|---|---|---|---|---|
 | ambient — WavJEPA-base | 768 | linear | 8.69 | 87.60 | 1.634 |
 | ambient — WavJEPA-base | 768 | **attentive** | **18.31** | 92.01 | 1.988 |
-| world-state — vision ZEROED | 1024 | linear | 18.59 | 92.64 | 2.049 |
-| world-state — vision ZEROED | 1024 | **attentive** | **20.00** | **93.93** | **2.190** |
+| scene representation — vision ZEROED | 1024 | linear | 18.59 | 92.64 | 2.049 |
+| scene representation — vision ZEROED | 1024 | **attentive** | **20.00** | **93.93** | **2.190** |
 | *CONTROL — label-shuffled* | *1024* | *linear* | *0.59* | *50.12* | *0.004* |
 | *CONTROL — label-shuffled* | *1024* | *attentive* | *0.62* | *49.42* | *−0.020* |
 | *CONTROL — matched-stats random* | *1024* | *linear* | *0.56* | *50.42* | *0.015* |
@@ -66,11 +66,11 @@ confirm the effect on our own features, and it is large:**
 | features | linear mAP | attentive mAP | gap |
 |---|---|---|---|
 | WavJEPA-base ambient tokens | 8.69 | 18.31 | **+9.62 (2.11×)** |
-| M2 world-state | 18.59 | 20.00 | +1.41 (1.08×) |
+| M2 scene representation | 18.59 | 20.00 | +1.41 (1.08×) |
 
-The gap is **7× larger on the raw WavJEPA token sequence than on the World-State**, and the
+The gap is **7× larger on the raw WavJEPA token sequence than on the Scene Representation**, and the
 mechanism is visible: M2's `encode_world_state` already applies a learned single-query attentive
-pool, so the attentive probe largely duplicates work M2 has done. The World-State's linear score
+pool, so the attentive probe largely duplicates work M2 has done. The Scene Representation's linear score
 (18.59) nearly matches the ambient stream's *attentive* score (18.31) — i.e. **M2's fusion pool
 delivers, to a linear classifier, most of what an attentive probe extracts from the raw tokens.**
 This is a claim about the pooling, not about audio-visual fusion: the vision stream was zeroed.
@@ -145,7 +145,7 @@ leakage exclusion.
 | ImageBind | 1024 | yes | 2.48 | 10.81 | 15.96 |
 | Wav2CLIP | 512 | **no** | 1.55 | — | — |
 | **Ours — ambient (WavJEPA-base)** | 768 | yes | n/a (raw pooled) | **8.69** | **18.31** |
-| **Ours — world-state (vision ZEROED)** | 1024 | yes | n/a (raw pooled) | **18.59** | **20.00** |
+| **Ours — scene representation (vision ZEROED)** | 1024 | yes | n/a (raw pooled) | **18.59** | **20.00** |
 
 ### We do not win this column
 

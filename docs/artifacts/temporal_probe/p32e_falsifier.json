@@ -1,0 +1,54 @@
+{
+  "RUN-2 step19000": {
+    "10s": {
+      "R@1": 0.019,
+      "chance": 0.019,
+      "ratio_to_chance": 1.0,
+      "gallery": 5129
+    },
+    "20s": {
+      "R@1": 0.06,
+      "chance": 0.02,
+      "ratio_to_chance": 3.0,
+      "gallery": 5023
+    },
+    "30s": {
+      "R@1": 0.061,
+      "chance": 0.02,
+      "ratio_to_chance": 3.0,
+      "gallery": 4920
+    },
+    "60s": {
+      "R@1": 0.022,
+      "chance": 0.022,
+      "ratio_to_chance": 1.0,
+      "gallery": 4638
+    }
+  },
+  "RUN-4 step18000": {
+    "10s": {
+      "R@1": 0.0,
+      "chance": 0.019,
+      "ratio_to_chance": 0.0,
+      "gallery": 5267
+    },
+    "20s": {
+      "R@1": 0.0,
+      "chance": 0.019,
+      "ratio_to_chance": 0.0,
+      "gallery": 5166
+    },
+    "30s": {
+      "R@1": 0.0,
+      "chance": 0.02,
+      "ratio_to_chance": 0.0,
+      "gallery": 5076
+    },
+    "60s": {
+      "R@1": 0.0,
+      "chance": 0.021,
+      "ratio_to_chance": 0.0,
+      "gallery": 4778
+    }
+  }
+}

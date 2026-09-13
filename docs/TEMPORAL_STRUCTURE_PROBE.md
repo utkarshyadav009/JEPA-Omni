@@ -16,7 +16,7 @@ asserts `dataset_len == clips_seen == 1545`.
 
 ## 1. The reviewer's question, stated fairly
 
-> A world-state should be persistent and predictive over time. Your fusion bridge appears
+> A scene representation should be persistent and predictive over time. Your fusion bridge appears
 > to recompute a fresh vector from scratch on every window with no carry-over, so calling
 > it a "world-state" overclaims.
 
@@ -55,7 +55,7 @@ Two metrics per arm:
   never sees the fused vector: `pool_and_project` → `encode_source_tokens` runs one backbone
   pass per modality **with the other modality fully masked**. It measures a per-modality
   representation.
-* **world-state cosine to the un-intervened `W`** — the *primary* evidence, because it is
+* **scene representation cosine to the un-intervened `W`** — the *primary* evidence, because it is
   the object the naming dispute is actually about.
 
 All arms run with the **padding fix** applied and batch order held fixed, so the only thing
@@ -65,10 +65,10 @@ conservative. Permutations are drawn **per clip**, not once gallery-wide: a sing
 permutation merely relabels the bin axis self-consistently, which a model could be
 invariant to for a trivial reason.
 
-### 3.1 Gate, and proof the hook reaches the world-state
+### 3.1 Gate, and proof the hook reaches the scene representation
 
 Phase 0's identity-permutation arm (A1) matched A0 **bit-exactly** on all six R@k *and* on
-the world-state tensor sha256 (`034db8ae…`) — the hook is a no-op when it should be.
+the scene representation tensor sha256 (`034db8ae…`) — the hook is a no-op when it should be.
 
 Because A2/A3/A4 return cosine `1.0000` at four decimals, we verified separately that the
 intervention actually propagates into `encode_world_state` rather than only into the cached
@@ -82,13 +82,13 @@ retrieval path (these are separate assembly code). On the real checkpoint:
 | A5 all vision bins → 0 | 0.94643891 |
 
 Every value is `< 1.0`: the hook reaches it. The `1.0000` in earlier drafts was **four-decimal
-rounding**, not an inert intervention. All world-state cosines below are reported to 8 dp,
+rounding**, not an inert intervention. All scene representation cosines below are reported to 8 dp,
 with a relative-L2 column beside them. `temporal_emb` rows are genuinely distinct
 (pairwise cos 0.03–0.05), so this is not a degenerate embedding table.
 
 ## 4. Results — all arms, corrected path, 5 seeds, n = 1,545
 
-Deltas vs A0 in parentheses. A0: v→a 29.90 / a→v 28.28, world-state effective rank 37.72/1024.
+Deltas vs A0 in parentheses. A0: v→a 29.90 / a→v 28.28, scene representation effective rank 37.72/1024.
 
 | arm | intervention | v→a R@1 | a→v R@1 | **WS cos → A0** | WS rel. L2 |
 |---|---|---|---|---|---|
@@ -127,12 +127,12 @@ token *t* takes token *(T−1−t)*'s value. The multiset of embedding rows is p
 
 **(a) Vision's temporal axis is entirely unused.** A2, A3 and A4 destroy within-window
 vision order — including A3, which destroys the 16-token grouping as well — and change
-nothing: |Δ| ≤ 0.13 R@1 against a null range of 0.06, and a world-state cosine of
+nothing: |Δ| ≤ 0.13 R@1 against a null range of 0.06, and a scene representation cosine of
 **0.99998–0.99999**, i.e. a relative L2 change of **0.5%**. By the pre-registered rule
 (<2.0 points = no measurable effect) this is not a small effect; it is **no effect**.
 
 **(b) Ambient's temporal axis is used.** A6 alone costs 2.60–4.00 R@1 and moves the
-world-state ten times as far as A2/A3/A4 (rel. L2 0.057 vs 0.005). This asymmetry is the
+scene representation ten times as far as A2/A3/A4 (rel. L2 0.057 vs 0.005). This asymmetry is the
 headline, and it was **invisible under the leaked evaluation path**, where A6 read
 −5.89/−9.50 and A2/A3/A4 read −0.18/−0.28 — the same qualitative shape, but with the
 contrast inflated by an artifact.
@@ -144,11 +144,11 @@ spatial tokens in a group sharing one value. Vision's temporal resolution is 32 
 
 **(c) Direction matters, but only through ambient.** A10 costs 5.30/3.56 R@1 — more than
 A6's random ambient permutation — so the representation is not merely order-sensitive but
-mildly *direction*-sensitive. The world-state still only moves to cosine 0.9983.
+mildly *direction*-sensitive. The scene representation still only moves to cosine 0.9983.
 
-**(d) The fused world-state is near-invariant to all of it.** Across **every** arm,
+**(d) The fused scene representation is near-invariant to all of it.** Across **every** arm,
 including the three confounded ones that push inputs out of distribution, the worst
-world-state cosine is **0.9907** (A5). For the clean arms it is 0.9975–0.99999. Whatever
+scene representation cosine is **0.9907** (A5). For the clean arms it is 0.9975–0.99999. Whatever
 the temporal bins do, they are not what this vector is made of.
 
 ## 6. Verdict on the naming
@@ -186,22 +186,22 @@ touch these numbers). `docs/artifacts/temporal_probe/phase2_persistence.json`.
 
 | stream | Δ=0 | Δ=10 s | Δ=20 s | Δ=30 s | Δ=60 s | floor (c) | half-life |
 |---|---|---|---|---|---|---|---|
-| **world-state** | 1.0000 | 0.8699 | 0.8353 | 0.8217 | 0.8020 | **0.0937** | beyond 60 s |
+| **scene representation** | 1.0000 | 0.8699 | 0.8353 | 0.8217 | 0.8020 | **0.0937** | beyond 60 s |
 | vision (reference a) | 1.0000 | 0.9612 | 0.9489 | 0.9450 | 0.9387 | 0.7814 | beyond 60 s |
 | ambient (reference b) | 1.0000 | 0.9474 | 0.9351 | 0.9295 | 0.9202 | 0.7319 | beyond 60 s |
 
 **Answer: the fusion adds no persistence of its own.** Three readings:
 
-1. **It is a plateau, not a decay.** From Δ=20 s to Δ=60 s the world-state moves
+1. **It is a plateau, not a decay.** From Δ=20 s to Δ=60 s the scene representation moves
    0.835 → 0.802 — essentially flat over 40 s. Windows are *non-overlapping* 10 s, so
    Δ=10 s already means wholly disjoint content. A flat residual similarity between
    disjoint windows of the same file is **scene identity** — same room, same wearer, same
    microphone — not a decaying memory trace. Nothing is carried across windows.
 2. **Raw cosine flatters the references and must not be read directly.** Their floors are
    **0.78 and 0.73**: two windows from *different files* are already that similar, the
-   anisotropy/cone effect. The world-state's floor is **0.094**, so SIGReg did make it
+   anisotropy/cone effect. The scene representation's floor is **0.094**, so SIGReg did make it
    near-isotropic. Normalised by each stream's own dynamic range, retention at Δ=10 s is
-   world-state **0.857**, vision 0.823, ambient 0.804 — the same regime, no meaningful
+   scene representation **0.857**, vision 0.823, ambient 0.804 — the same regime, no meaningful
    advantage to the fused vector.
 3. **"Half-life beyond 60 s" for all three sounds impressive and is not** — it follows from
    the plateau in (1), not from memory.
@@ -251,7 +251,7 @@ discrimination at the cost of absolute proximity.
 
 **So there is real forward structure beyond slow change — and it is small.** 3.43% R@1 is
 ~85× chance and still 96.6% wrong. Note also that the per-dimension rescaled copy is
-identical to IDENTITY to four decimals, i.e. the world-state is already well-scaled
+identical to IDENTITY to four decimals, i.e. the scene representation is already well-scaled
 per-dimension — SIGReg doing its job, and one more baseline that the learned maps must and
 do beat at rank 1.
 
@@ -274,7 +274,7 @@ to predict anything, and Phase 2 shows it carries nothing between windows.
 * **The retrieval column does not measure the fused vector.** `encode_source_tokens` masks
   the other modality, so R@k describes a per-modality representation. A6/A7 act on ambient's
   real bins but reach the *vision* pass only through position-only mask tokens — a thinner
-  channel than the arm names suggest. The world-state column is the one that speaks to the
+  channel than the arm names suggest. The scene representation column is the one that speaks to the
   naming question.
 * **One checkpoint, one gallery, one corpus.** VGGSound, 1,545 clips. Not replicated on
   Ego4D (E-8 makes that impossible today) and not tested on another checkpoint.

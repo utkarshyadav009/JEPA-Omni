@@ -22,7 +22,7 @@ audit, verified a bit-exact no-op when not passed). RUN-4 additionally needs it 
 | `train_m2.py` line | call | why it matters |
 |---|---|---|
 | 1121 | `model(feats, tbins, mask)` — prediction loss | inert at `lam_pred=0.0`, but the mask keeps the logged `pred=` diagnostic honest |
-| 1129 | `raw.world_state(feats, tbins)` — SIGReg | SIGReg currently shapes a world-state computed over pad tokens |
+| 1129 | `raw.world_state(feats, tbins)` — SIGReg | SIGReg currently shapes a scene representation computed over pad tokens |
 | 1142 / 1157 | `raw.encode_source_tokens(feats, tbins)` | feeds both the contrastive head and the fusion bridge |
 | 1227 | `pool_and_project(...)` | **the pooling leak** — `.mean(1)` over the padded length |
 | 608 / 625 / 686 | GradCache + eval paths | same two leaks |
@@ -155,7 +155,7 @@ raw comparison `docs/artifacts/temporal_probe/run4_smoke_matched_length.json`.
 Monotonic, zero NaN, exit 0. Every pre-registered abort criterion cleared with margin
 (R@1 24.4% at step 3,000 against a 5% floor; gap 0.586 against 0.3).
 
-`world_state_eff_rank` runs roughly double RUN-2's (~12.5 at comparable steps) and did so
+`world_state_eff_rank` runs roughly double RUN-2's and did so
 across all three smoke attempts — consistent with the representation spreading once the
 one-dimensional pad-count shortcut is unavailable. A diagnostic, not a result.
 

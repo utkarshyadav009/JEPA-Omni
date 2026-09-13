@@ -1,5 +1,28 @@
 # CORPUS_OPTIONS — P0.7 data audit and acquisition assessment
 
+> ## CORRECTION (2026-09-13, P4.6) — read before using this document
+>
+> Two load-bearing claims below are **wrong** and are corrected here rather than edited out of
+> the analysis, so the reasoning stays auditable.
+>
+> **1. "Δ ∈ {1, 2, 5} s becomes measurable" with a finer-stride corpus — WRONG.**
+> Both encoders' receptive field spans the **full 10 s window**: V-JEPA2 (`fpc64`) samples 64
+> frames uniformly across it and WavJEPA runs at 100 Hz over the same 10 s. A target less than
+> 10 s away therefore **shares raw input** with the query, so Δ < 10 s is not a prediction
+> horizon **at any stride, on any corpus**. Finer striding cannot unlock it; only a shorter
+> window could. Every "Δ ∈ {1,2,5} s" argument below is void.
+>
+> **2. "Epic-Kitchens is the corpus that makes Arm B possible at all" — WRONG.**
+> The surviving Ego4D cache is **already in the valid regime**: a 10 s window at a 10 s
+> non-overlapping stride is exactly Δ = 10 s with **zero input overlap**, giving **77,831
+> consecutive pairs on disk today**, no download. Epic-Kitchens buys **scale and scene
+> diversity**, which are real but different goods. It was never an enabler.
+>
+> **3. Arm B as specified is CLOSED.** See `docs/ARM_B_CLOSURE.md`. The storage and stride
+> recommendations below are still sound *as storage arithmetic*; the experiment they were sizing
+> has been superseded by RUN-5.
+
+
 **Date:** 2026-09-11. Every row in §1 was read **from disk**, not from documentation.
 Raw artifacts: `docs/artifacts/temporal_probe/p07_disk_inventory.json`,
 `p07_ego4d_ordering.json`.
@@ -176,7 +199,7 @@ Budget: **1.03 TB** on md1 after reclaiming the 315 GB of redundant VGGSound tar
 (md1 is now 1.1 TB free; md0 is excluded — see the correction in the header).
 
 Per-window costs: **3.94 MB** full token features (measured, 518 GB / 134,491 windows in
-`feature_cache_ego4d_train_v1`) and **5.5 KB** world-state-only (W + two reference means,
+`feature_cache_ego4d_train_v1`) and **5.5 KB** scene representation-only (W + two reference means,
 fp16). Ratio **734×**.
 
 ### Consumer A — probing, and a predictor fit on frozen `W(t)`
@@ -187,11 +210,11 @@ fp16). Ratio **734×**.
 | 2 s | 180,000 | **0.9 GB** |
 
 Storage is a non-issue. This covers Phases 2–3 at fine Δ and RUN-5 Arm B **as its spec is
-written** — "fit `g: W(t) → W(t+Δ)`", ridge and a 2-layer MLP over frozen world-states.
+written** — "fit `g: W(t) → W(t+Δ)`", ridge and a 2-layer MLP over frozen scene representations.
 
 ### Consumer B — Arm B if it RETRAINS THE BRIDGE
 
-Then world-states are useless: you cannot backprop into the bridge through a stored `W`.
+Then scene representations are useless: you cannot backprop into the bridge through a stored `W`.
 Full token features are required and the 734× reduction does not apply.
 
 | footage | stride | windows | features | fits 1.03 TB? |
@@ -218,9 +241,9 @@ deletes the video, so peak usage is a working set.
 
 The video is deleted after extraction, so **the stride cannot be revisited without
 re-downloading the corpus**. A fine stride can always be decimated to a coarse one; the
-reverse is a re-download. **Recommendation: 1 s if Arm B is world-state-only (1.9 GB, no
+reverse is a re-download. **Recommendation: 1 s if Arm B is scene representation-only (1.9 GB, no
 reason not to), 2 s if Arm B retrains the bridge (0.68 TB, the whole corpus fits).**
-If it is not yet settled which Arm B will be, extract **both** — world-states at 1 s cost
+If it is not yet settled which Arm B will be, extract **both** — scene representations at 1 s cost
 1.9 GB alongside features at 2 s, which is free insurance against a re-download.
 
 ### Licence — FLAGGED FOR A HUMAN, NOT ACCEPTED
@@ -266,7 +289,7 @@ duration of 870 s:
 
 * **Epic-Kitchens → full features (0.68 TB).** Continuous 100 h footage, any stride, direct
   download, no yield risk. It is the corpus that makes Arm B possible at all (§8).
-* **Ego4D → world-states only.** At 5.5 KB/window, **2,000 files at 1 s stride costs 9.1 GB**
+* **Ego4D → scene representations only.** At 5.5 KB/window, **2,000 files at 1 s stride costs 9.1 GB**
   and 3,000 files costs 13.7 GB. Effectively free. That covers Phases 2–3 at fine Δ and any
   predictor fit on frozen `W(t)` — the things Ego4D is actually needed for, given the
   held-out gallery is unrecoverable (E-8) and Ego4D's value now is temporal structure rather
@@ -280,11 +303,11 @@ That combination fits comfortably: 0.68 TB + 13.7 GB against 1.03 TB, with ~0.33
 |---|---|
 | files | **2,000** (of 2,821 in the surviving cache, so the selection is already scored) |
 | stride | **1 s** |
-| output | **world-states** (`--mode world_state`) |
+| output | **scene representations** (`--mode world_state`) |
 | cost | **9.1 GB**, 1,740,000 windows |
 | download | ~0.5–0.7 GB/file ⇒ ~1.4 TB transferred, but **peak disk is a working set** via `stream_extract.py` |
 
-1 s rather than 2 s because at world-state cost the difference is 9.1 GB vs 4.6 GB — the
+1 s rather than 2 s because at scene representation cost the difference is 9.1 GB vs 4.6 GB — the
 saving is meaningless and the resolution is not.
 
 ### 9.3 Filter adaptation for fine-stride selection
@@ -311,7 +334,7 @@ stride — 6× the current median run length of 5, and enough for Δ up to 60 s 
 
 `stream_extract.py` **deletes each video after extraction**. The stride cannot be revisited
 without re-downloading ~1.4 TB. A fine stride can always be decimated to a coarse one; the
-reverse cannot be done. **Err finer.** At world-state cost there is no reason not to use 1 s.
+reverse cannot be done. **Err finer.** At scene representation cost there is no reason not to use 1 s.
 
 If there is any chance Arm B will retrain the bridge on Ego4D rather than Epic-Kitchens,
 say so **before** the download — that decision changes the output mode from 9.1 GB to

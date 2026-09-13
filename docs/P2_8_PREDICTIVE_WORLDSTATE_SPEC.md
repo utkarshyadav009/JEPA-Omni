@@ -1,4 +1,14 @@
-# P2.8 — Predictive World-State Experiment: design, and a data prerequisite that must be settled first
+# P2.8 — Predictive Scene Representation Experiment: design, and a data prerequisite that must be settled first
+
+> ## SUPERSEDED (2026-09-13, P4.6)
+>
+> This spec's Arm B is **closed** — see `docs/ARM_B_CLOSURE.md`. Its data-prerequisite section
+> also inherits the two corrections in `docs/CORPUS_OPTIONS.md`: Δ < 10 s is invalid at any
+> stride on any corpus (the encoders' receptive field is the whole 10 s window), and the Ego4D
+> cache was already in the valid regime, so Epic-Kitchens was never the enabler.
+>
+> The replacement experiment is specified in the RUN-5 specification (P4.10).
+
 
 **Status: SPEC ONLY. Nothing implemented, nothing trained.** Separate research track, not
 part of the ICLR RUN-2/RUN-4 submission (decision 5).
