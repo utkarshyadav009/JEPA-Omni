@@ -849,6 +849,7 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
           batch_size_override: Optional[int] = None,
           tag_ckpts: bool = False,
           gradcache_micro_steps: int = 1,
+          no_pad_mask: bool = False,
           lam_fusion: float = 0.0,
           fusion_layers: int = 2,
           source_disjoint_batches: bool = False,
@@ -1172,6 +1173,8 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
         tbins = {k: v.to(device) for k, v in batch["tbins"].items()}
         pad   = {k: v.to(device) for k, v in batch["padding_mask"].items()}   # RUN-4
         kpm   = flat_pad(pad, feats)                                          # RUN-4
+        if no_pad_mask:                        # P2.2 control: length fixed, masking OFF
+            pad, kpm = None, None
 
         # GradCache: pull the REST of this step's microbatches now (feats/
         # tbins above stays the "primary" microbatch -- used for pred_loss/
@@ -1459,7 +1462,7 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
                 print(f"[m2] === RETRIEVAL EVAL (contrastive head) @ step {step+1} ===", flush=True)
                 cret = contrastive_retrieval_eval(
                     raw, vision_proj, ambient_proj, eval_loader, device,
-                    use_padding_mask=True,          # RUN-4: match the training path
+                    use_padding_mask=not no_pad_mask,   # RUN-4 / P2.2: match training
                 )
                 n_clips_seen = int(cret.pop("n_clips"))
                 # Full-gallery guard: eval_loader must NOT be sharded by a
@@ -1593,6 +1596,11 @@ def main() -> None:
                         help="Override data.av_cache_dir from the config (in-memory only, "
                              "does not touch the config file) -- e.g. to point at a RAID-backed "
                              "copy of the feature cache instead of /dev/shm.")
+    parser.add_argument("--no-pad-mask", action="store_true",
+                        help="P2.2 CONTROL: train at the RUN-4 fixed T_a but WITHOUT padding "
+                             "masking, to decompose the RUN-4 gain into 'normalising ambient "
+                             "length' vs 'masking padding'. Reproduces RUN-2's unmasked "
+                             "behaviour at RUN-4's sequence length.")
     parser.add_argument("--max-ambient-t", type=int, default=None,
                         help="Override MAX_AMBIENT_T (default 1024) -- lower this when mixing in "
                              "a source with much higher variance in per-clip duration than "
@@ -1647,6 +1655,7 @@ def main() -> None:
           contrast_dim=args.contrast_dim, contrast_temp=args.contrast_temp,
           batch_size_override=args.batch_size, tag_ckpts=args.tag_ckpts,
           gradcache_micro_steps=args.gradcache_micro_steps,
+          no_pad_mask=args.no_pad_mask,
           lam_fusion=args.lam_fusion, fusion_layers=args.fusion_layers,
           source_disjoint_batches=args.source_disjoint_batches,
           mixed_source_specs=args.mixed_source,

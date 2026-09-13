@@ -144,16 +144,63 @@ text, which has no access to a clip's pad count.
 
 Full treatment, all three phases: `docs/TEMPORAL_STRUCTURE_PROBE.md`.
 
-## 7. RUN-4 — IN PROGRESS
+## 7. RUN-4 — COMPLETE. The mechanism is LENGTH NORMALISATION, not masking.
 
-20,000 steps launched 2026-09-12, `checkpoints/m2_run4_padfix_ta896/`. Numbers land here
-when it completes, with the P2.3 matched-length grid.
+20,000 steps, `checkpoints/m2_run4_padfix_ta896/`, `RUN4_EXIT=0`, 20 evals, **zero NaN**,
+full gallery asserted (`clips_seen=1545`). All 20 tagged checkpoints retained; per E-14 the
+best is selected post hoc by held-out R@1, **never** from `best.pt`.
 
-**Smoke check (6,000 steps) result, for reference only:** 33.01 / 33.01 at `T_a=896` against
-RUN-2's 29.84 / 28.28 at ~996, each in its own training regime.
-**Carries a confound:** the memory ceiling forced `T_a` 992 → 896, so the two models saw
-different amounts of audio. The honest description is **"padding fix + 896-token ambient
-window"**. P2.2's control run decomposes this.
+### 7.1 Matched-length grid (P2.3) — n=1,545, 5 seeds, one harness, both models both lengths
+
+| model | `T_a` | v→a R@1 | v→a R@5 | v→a R@10 | a→v R@1 | a→v R@5 | a→v R@10 | gap | eff_rank |
+|---|---|---|---|---|---|---|---|---|---|
+| RUN-2 | **~996 (own)** | 29.84 | 56.88 | 68.57 | 28.28 | 56.25 | 68.09 | 0.4300 | 37.72 |
+| RUN-2 | 896 | 22.21 | 48.40 | 59.57 | 19.42 | 45.05 | 53.79 | 0.4300 | 37.68 |
+| RUN-4 | ~996 | 4.27 | 14.05 | 21.42 | 20.91 | 47.64 | 59.42 | 0.3600 | 73.12 |
+| **RUN-4** | **896 (own)** | **41.35** | **72.50** | **80.46** | **41.68** | **72.36** | **80.45** | **0.6400** | **74.26** |
+
+**Each model in its own training regime: RUN-4 is +11.5 (v→a) / +13.4 (a→v) R@1 over RUN-2**,
++15.6/+16.1 at R@5, +11.9/+12.4 at R@10.
+
+**The `T_a` confound is controlled, not merely acknowledged.** RUN-2 evaluated at RUN-4's
+length (896) scores **worse**, not better — 22.21/19.42 against its own 29.84/28.28. The
+shorter window is a handicap, so RUN-4's gain cannot be attributed to 896 being an easier
+setting. Neither single length is a fair comparison; the diagonal is the defensible one.
+
+Source: `docs/artifacts/temporal_probe/p23_matched_length_grid.json`.
+
+### 7.2 P2.2 control — what actually causes the gain
+
+Identical config, 6,000 steps, `T_a=896`, evaluated at 896. **The only difference is the mask.**
+
+| | a→v R@1 | v→a R@1 | matched cos | gap | eff_rank |
+|---|---|---|---|---|---|
+| control, **mask OFF** | 32.56 | 34.89 | 0.6732 | 0.6321 | 25.75 |
+| RUN-4 smoke, **mask ON** | 33.01 | 33.01 | 0.6740 | 0.6324 | 26.13 |
+| Δ | −0.45 | +1.88 | −0.0008 | −0.0003 | −0.38 |
+
+**Identical within noise.** Masking padding adds essentially nothing once the ambient length
+is fixed.
+
+**Therefore the claim is "removing the length-derived shortcut from training", NOT "masking
+padding in training."** This is consistent with the measured distribution: at `T_a=896`,
+truncation alone leaves only 0.4% of clips padded at a mean of 0.1 tokens, so there is almost
+nothing left for a mask to do.
+
+**The effective-rank doubling tracks the same cause.** It rises in the control too (25.75 vs
+26.13, both ~2× RUN-2's ~12.5), so it is shortcut removal rather than masking specifically.
+
+### 7.3 How to state this
+
+> Removing the length-derived shortcut from M2's training — by fixing the ambient sequence to
+> a constant 896 tokens — raises held-out VGGSound retrieval from **28.28/29.90** to
+> **41.68/41.35** R@1 (n=1,545, each model evaluated at its own training length), and roughly
+> doubles the world-state's effective rank. A control run isolates the cause: masking the
+> padding contributes nothing measurable once the length is fixed.
+
+**Caveats that must travel with it:** RUN-2 and RUN-4 see different amounts of audio
+(~996 vs 896 tokens, ≈1 s), which is why the control row and the P2.2 decomposition are part
+of the result rather than an appendix. RUN-4 was still improving at step 20,000.
 
 ## 8. AVE external gallery — feasibility
 

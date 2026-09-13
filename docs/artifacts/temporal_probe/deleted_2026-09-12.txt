@@ -1,0 +1,18 @@
+# deleted 2026-09-12T22:29:01+00:00 with user approval
+hf_models/gpt-oss-120b  183G  re-downloadable from HuggingFace (openai/gpt-oss-120b)
+  used only as a --model-path default in 3 one-off corpus generators:
+    scripts/generate_bmo_corpus_v15_tars.py
+    scripts/generate_speaker_directive_rows.py
+    scripts/generate_bmo_corpus_v10_identity.py
+    scripts/generate_bmo_text_corpus_gptoss.py
+    scripts/clean_corpus_v10.py
+    scripts/expand_name_stranger.py
+    scripts/generate_bmo_companion_corpus_gptoss.py
+    scripts/generate_thinker_directive_rows.py
+    scripts/generate_thinker_corpus_gptoss.py
+    scripts/regen_tool_slice.py
+.cache/huggingface/datasets/parquet  35G  re-downloadable; sources already extracted on RAID
+checkpoints/m2_fusion_asym  4.1G  last.pt step20000-23000; 0 doc citations, logs retained:
+    logs/m2_fusion_asym.log
+    logs/m2_modality_dropout_asym.log
+    logs/m3_linear_probe_asym.log
