@@ -1,0 +1,59 @@
+{
+ "n_files": 288,
+ "n_unreadable": 0,
+ "n_nonfinite": 0,
+ "windows_kept": 129043,
+ "windows_attempted": 129043,
+ "delta": {
+  "5": {
+   "pairs": 127611,
+   "files": 284,
+   "input_overlap_s": 5.0,
+   "fused_valid": false,
+   "audio_only_valid": true
+  },
+  "10": {
+   "pairs": 126200,
+   "files": 280,
+   "input_overlap_s": 0.0,
+   "fused_valid": true,
+   "audio_only_valid": true
+  },
+  "20": {
+   "pairs": 123451,
+   "files": 268,
+   "input_overlap_s": 0.0,
+   "fused_valid": true,
+   "audio_only_valid": true
+  },
+  "30": {
+   "pairs": 120817,
+   "files": 258,
+   "input_overlap_s": 0.0,
+   "fused_valid": true,
+   "audio_only_valid": true
+  },
+  "60": {
+   "pairs": 113330,
+   "files": 240,
+   "input_overlap_s": 0.0,
+   "fused_valid": true,
+   "audio_only_valid": true
+  }
+ },
+ "participants": 9,
+ "held_out_participants": [
+  "P01",
+  "P06"
+ ],
+ "train_videos": 237,
+ "eval_videos": 51,
+ "usable_pairs_delta10": {
+  "train": 91498,
+  "eval": 34702
+ },
+ "usable_pairs_delta20": {
+  "train": 89249,
+  "eval": 34202
+ }
+}
