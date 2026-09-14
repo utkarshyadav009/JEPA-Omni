@@ -1,9 +1,12 @@
 """P3.2 — forward-information probe. Does W(t) carry information about the FUTURE beyond
 symmetric temporal persistence and scene identity?
 
-RECEPTIVE FIELD, MEASURED NOT ASSUMED: V-JEPA2 (vjepa2-vitl-fpc64-256) samples 64 frames
-uniformly across the FULL 10 s window and WavJEPA runs 100 Hz over the same 10 s, so ONE
-window's receptive field is the whole 10 s. Any target within +-10 s of W(t) therefore shares
+RECEPTIVE FIELD -- now genuinely measured (scripts/temporal_probe/p4_receptive_field.py):
+V-JEPA2 (vjepa2-vitl-fpc64-256) spans the FULL 10 s window (no zero cell anywhere in its
+influence matrix). CORRECTION to what this file originally said: WavJEPA does NOT -- its
+measured receptive field is ~2.25 s median / 4.25 s max, 76% of its influence matrix exactly
+zero. 100 Hz is its token RATE, not its receptive field. The Delta>=10 s floor below still
+holds, but it is set by VISION ALONE, not by both encoders. Any target within +-10 s of W(t) therefore shares
 input content with it. Consequences, both forced by that number rather than chosen:
   * Delta < 10 s is NOT a prediction horizon at any stride -- it is partly retrieval of content
     already inside the input. Not reported.

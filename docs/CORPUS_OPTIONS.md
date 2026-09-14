@@ -6,11 +6,17 @@
 > the analysis, so the reasoning stays auditable.
 >
 > **1. "Δ ∈ {1, 2, 5} s becomes measurable" with a finer-stride corpus — WRONG.**
-> Both encoders' receptive field spans the **full 10 s window**: V-JEPA2 (`fpc64`) samples 64
-> frames uniformly across it and WavJEPA runs at 100 Hz over the same 10 s. A target less than
-> 10 s away therefore **shares raw input** with the query, so Δ < 10 s is not a prediction
-> horizon **at any stride, on any corpus**. Finer striding cannot unlock it; only a shorter
-> window could. Every "Δ ∈ {1,2,5} s" argument below is void.
+> **V-JEPA2's** receptive field spans the **full 10 s window** — measured, not assumed: its
+> influence matrix has no zero cell anywhere, and the earliest output group still responds to the
+> last input slice at 0.36 of its self-response. Since `W(t)` fuses both modalities, `W(t)`
+> depends on all 10 s of video, so a target less than 10 s away **shares raw input** with the
+> query. Δ < 10 s is not a prediction horizon **at any stride, on any corpus**, and finer
+> striding cannot unlock it. Every "Δ ∈ {1,2,5} s" argument below is void.
+>
+> *(Sub-correction: an earlier version of this banner said BOTH encoders span the full window.
+> That is wrong. **WavJEPA's measured receptive field is ≈2.25 s median / 4.25 s max**, with 76%
+> of its influence matrix exactly zero — 100 Hz is its token rate, not its receptive field. The
+> floor is set by vision alone. See `docs/FORWARD_INFORMATION_PROBE.md` §2.)*
 >
 > **2. "Epic-Kitchens is the corpus that makes Arm B possible at all" — WRONG.**
 > The surviving Ego4D cache is **already in the valid regime**: a 10 s window at a 10 s

@@ -64,24 +64,64 @@ reproduces is not forward information.
 
 ---
 
-## 2. Receptive field, and why Δ ≥ 10 s is the floor
+## 2. Receptive field — **measured**, and why Δ ≥ 10 s is the floor
 
-| encoder | checkpoint | temporal extent of one window |
-|---|---|---|
-| V-JEPA2 ViT-L | `facebook/vjepa2-vitl-fpc64-256` | 64 frames sampled **uniformly across the full 10 s** |
-| WavJEPA-base/nat | — | 100 Hz over the **same full 10 s** |
+**This section was originally written from encoder configuration. It has since been measured,
+and the measurement corrected half of it.** Both the original claim and the correction are kept
+below, because the conclusion survived and the reasoning behind it did not.
 
-One window's receptive field is therefore **the whole 10 s**, for both modalities. Two
-consequences, both *forced* by that number rather than chosen:
+### Method
 
-1. **Δ < 10 s is not a prediction horizon at any stride.** A target less than 10 s away shares
-   raw input content with the query. "Predicting" it is partly retrieval of material already
-   inside the encoder's input. Δ < 10 s is therefore **not reported**, at any stride.
-2. **The within-file gallery excludes everything within ±10 s of the query.**
+A causal influence matrix, not an appeal to architecture. Encode a real 10 s clip; corrupt one
+input time-slice with Gaussian noise at the clip's own scale; re-encode; record the relative L2
+change at every output time-group. `M[i][j]` is how much input slice `j` moves output group `i`.
+A local encoder gives a banded `M`; a global one gives a dense `M`.
 
-This also retires an earlier claim: Epic-Kitchens was once argued to be necessary to unlock
-Δ ∈ {1, 2, 5} s. It is not — those Δ are invalid for *any* corpus at this receptive field.
-Epic-Kitchens buys scale and scene diversity, not smaller Δ.
+Script `scripts/temporal_probe/p4_receptive_field.py`, artifact
+`docs/artifacts/temporal_probe/p4_receptive_field.json`. Measured on a held-out Epic-Kitchens
+clip (`P37_103`), reproduced on a second (`P02_07`) to within 3 percentage points on every
+summary statistic.
+
+### Result
+
+| encoder | config claim | **measured receptive field** | non-local influence | cells exactly 0 |
+|---|---|---|---:|---:|
+| V-JEPA2 ViT-L (`fpc64-256`) | full 10 s | **full 10 s — confirmed** | 67.9 % | 0 % |
+| WavJEPA-base | "100 Hz over the same 10 s" | **≈2.25 s median, 4.25 s max** | 59.1 % | 76 % |
+| WavJEPA-nat-base | "100 Hz over the same 10 s" | **≈2.25 s median, 4.25 s max** | 61.2 % | 76 % |
+
+**V-JEPA2 is global, as claimed.** Its minimum influence cell is 0.163 — there is no blind spot
+anywhere in the matrix, and the *earliest* output group still responds to the *last* input slice
+at 0.36 of its own self-response. Every output token sees the whole window.
+
+**WavJEPA is local, and the original claim was wrong.** 76 % of its influence matrix is *exactly*
+zero — hard blind spots, not small numbers. A mid-window output group responds to a symmetric
+±1.1 s neighbourhood and to nothing beyond it:
+
+```
+row 20 of 40 (mid-window), slices 14…26, normalised:
+0.00 0.00 0.51 0.53 0.54 0.63 0.92 0.55 0.55 0.54 0.39 0.00 0.00
+```
+
+The error was a category mistake of mine: **100 Hz is WavJEPA's token *rate*, not its receptive
+field.** Emitting a token every 10 ms says nothing about how much context each token integrates.
+
+### What this changes, and what it does not
+
+**The Δ ≥ 10 s floor stands.** `W(t)` fuses both modalities, and vision alone spans the full
+window, so `W(t)` depends on all 10 s of video. A target less than 10 s away shares raw input
+with the query, and "predicting" it is partly retrieval of content already inside the encoder's
+input. Δ < 10 s therefore remains invalid at any stride, on any corpus.
+
+**But it is now set by one encoder, not two.** The correct statement is *"vision's receptive
+field is the full window"*, not *"both encoders span the full window"*. Audio alone would
+tolerate Δ ≳ 4.25 s. Anywhere this document, `CORPUS_OPTIONS.md`, or the probe scripts justify
+the floor by appealing to both encoders, the justification is half wrong even though the floor
+is right.
+
+**A live consequence for RUN-5.** An audio-only or audio-dominant predictive objective could be
+trained at Δ ≈ 5 s, where the audio towers genuinely have no input overlap. That option did not
+exist under the old assumption. It is recorded here, not adopted — see the RUN-5 specification.
 
 ### The ±10 s band reduces to offset 0
 
@@ -258,8 +298,8 @@ cross-window state — the reviewer's challenge is answered, and answered in the
 | scripts | `scripts/temporal_probe/p32_stages_abcd.py`, `p32_forward_info.py` |
 | artifacts | `docs/artifacts/temporal_probe/p32_abcd.json`, `p32e_falsifier.json` |
 | stage order | **e** (falsifier) → a (persistence) → b (forward) → c (backward) → d (residual) |
+| receptive field | `scripts/temporal_probe/p4_receptive_field.py`, `p4_receptive_field.json` |
 
-**Pending (P4.15 step 10).** The receptive field in §2 is derived from encoder *configuration*
-(`fpc64` over a 10 s window; WavJEPA at 100 Hz over the same window). An independent **empirical**
-measurement is scheduled and will be appended here. It can only tighten the Δ floor's
-justification, not relax it — 64 frames spanning 10 s is an upper bound on locality either way.
+**Receptive field: MEASURED (P4.15 step 10), not assumed** — see §2. The measurement confirmed
+V-JEPA2 spans the full 10 s window and **refuted** the claim that WavJEPA does (it spans ≈2.25 s).
+The Δ ≥ 10 s floor is unaffected, because vision alone sets it.
