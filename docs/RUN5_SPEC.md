@@ -51,9 +51,13 @@ Input:                  W_t = f_theta(V_t, A_t), the fused representation of a 1
                         Full:  recomputed with grad from cached token features (2 s stride).
 
 Target:                 W_{t+D} = f_theta(V_{t+D}, A_{t+D}), SAME encoder, STOP-GRADIENT.
-                        Detached on purpose: a target that moves with the predictor is
-                        satisfiable by collapse, which is the known failure of this objective
-                        family and the thing the controls in section 3 exist to catch.
+                        Detached so the target branch does not move toward the predictor during
+                        the predictive update. NOTE: stop-gradient does NOT by itself prevent
+                        representation collapse -- it only removes the trivial path where both
+                        branches drift together. The representation can still collapse on its
+                        own. The anti-collapse constraints are SIGReg's distributional pressure
+                        and the explicit collapse diagnostics below, and those are what a
+                        collapse would have to defeat.
 
 Delta:                  10 s PRIMARY. 20 s secondary (generalisation check).
                         NOT 1/2/5 s -- see "Encoder receptive field".
@@ -87,8 +91,11 @@ Contrastive loss:       L_AV unchanged from RUN-4 -- InfoNCE, temperature 0.05, 
                         Retained so RUN-5 remains comparable to RUN-4 on VGGSound retrieval,
                         which is a REQUIRED non-regression check, not a bonus.
 
-SIGReg:                 lambda = 0.03, unchanged, on W_t. Its N(0,I) target is the standing
-                        anti-collapse term and the reason a stop-grad target is tolerable here.
+SIGReg:                 lambda = 0.03, unchanged, on W_t. Its N(0,I) target supplies the
+                        DISTRIBUTIONAL pressure against collapse -- this, not the stop-gradient,
+                        is the actual anti-collapse mechanism. If SIGReg and the diagnostics both
+                        pass and retrieval still degrades, the cause is not collapse and must be
+                        diagnosed separately rather than assumed.
 
 Total objective:        L = L_AV + lambda_future * L_future + lambda_sigreg * L_SIGReg
                         lambda_future = 1.0 primary; {0.3, 3.0} only if the primary is
@@ -112,9 +119,14 @@ Overlap exclusion:      Pairs must satisfy |t_a - t_b| >= 10 s, i.e. zero shared
                         exactly the receptive-field constraint, not a safety margin.
                         Evaluation additionally excludes the query's own window from its gallery.
 
-Identity baseline:      W_t used unchanged as the prediction. THE BAR TO BEAT. In P3.2 this beat
-                        ridge by 4.5 and an MLP by 6.4 R@1, so it is the only baseline whose
-                        failure would be informative.
+Identity baseline:      THE PERSISTENCE BASELINE, and THE BAR TO BEAT. W_t used unchanged.
+                        This is NOT a rival prediction model -- it is the null hypothesis stated
+                        as a predictor: it asserts the scene does not change, and it scores well
+                        only because RUN-4's representation is strongly persistent (rescaled
+                        cosine 0.783 at 10 s). Beating it therefore means one specific thing:
+                        the predictor has extracted CHANGE information rather than merely
+                        preserving scene identity. In P3.2 it beat ridge by 4.5 and an MLP by
+                        6.4 R@1, so it is the only baseline whose failure would be informative.
 
 Ridge baseline:         Closed-form ridge W_t -> W_{t+D} fitted on the training split.
                         RUN-4 value at D=10 s: 9.78 micro R@1.
@@ -156,8 +168,13 @@ experiments are directly comparable.
 
 All four must hold, at Δ = 10 s, within-file micro R@1, ≥3 seeds:
 
-1. **Beats IDENTITY** by ≥ 2.0 points absolute and ≥ 3× SE. *(RUN-4's ridge fails this by
-   −5.0 points; this is the hard one and it is meant to be.)*
+1. **Beats PERSISTENCE (IDENTITY)** by ≥ 2.0 points absolute and ≥ 3× SE.
+   *Interpretation, stated precisely: the predictive model must outperform persistence, not
+   merely learn to preserve the current scene.* IDENTITY is the null hypothesis written as a
+   predictor — "nothing changes" — and at Δ=10 s RUN-4 is persistent enough that it scores
+   14.81 micro R@1 against 2.198 chance. Clearing it requires extracting change information.
+   *(RUN-4's ridge fails this by −5.0 points. This is the hard criterion and it is meant to be;
+   it is not to be weakened if the pilot struggles.)*
 2. **Forward − backward ≥ 2.0** points and ≥ 3× SE, same sign at Δ = 20 s.
 3. **Shuffle control at chance** and **falsifier at chance**.
 4. **No collapse** on all four metrics above.
@@ -173,7 +190,24 @@ All four must hold, at Δ = 10 s, within-file micro R@1, ≥3 seeds:
 3. **Beats the post-hoc MLP baseline** — otherwise joint training bought nothing over fitting a
    head to a frozen RUN-4.
 4. **Retains multimodal retrieval:** VGGSound n=1,545 R@1 within **2.0 points** of RUN-4's
-   41.77 / 41.88. A predictive gain paid for with retrieval collapse is not a result.
+   **41.77 (v→a) / 41.88 (a→v)**. A predictive gain paid for with retrieval collapse is not a
+   result.
+
+   > **This number was contested and is now resolved** — see `CANONICAL_NUMBERS.md` §1.2.
+   > Three RUN-4 figures were in circulation and one document contradicted itself, because the
+   > **direction order was never written down**: `41.68/41.35` and `41.35/41.68` are the same
+   > measurement in opposite orders, and neither is `step18000`.
+   >
+   > | value (v→a / a→v) | checkpoint | source | seeds |
+   > |---|---|---|---|
+   > | **41.77 / 41.88** | **`step18000`** | P3.0 sweep, `p30_shard2.json` | 3 |
+   > | 41.34 / 41.68 | `step20000` | P3.0 sweep, `p30_shard0.json` | 3 |
+   > | 41.35 / 41.68 | `step20000` | P2.3 matched grid | 5 |
+   >
+   > **The criterion above uses 41.77 / 41.88** — `step18000`, n=1,545, `T_a=896`, corrected
+   > harness, 3 batch-order seeds, gallery `data/vggsound_eval_1545.txt`, checkpoint sha256
+   > `27b33c8cebe656f26e51987cc49a5b8bf4452845f14d9e8a41eb9d1a6c1848a4`. The `42.27 / 41.68` in
+   > `EVIDENCE_LEDGER.md` is a *different July run* and must never be cited here.
 5. **Controls clean:** shuffle and falsifier at chance, all four collapse metrics passing.
 
 **Higher cosine alone is not a result** and will not be reported as one. Cosine rises under
@@ -204,10 +238,33 @@ At 288 of 648 Epic-Kitchens videos extracted (41.8% by duration):
 > representative** and must not size anything. **Re-run `p411_pair_audit.py` at completion**
 > (~37 participants expected) before the pilot's split is fixed.
 
-**Split: participant-held-out**, not video-held-out. Two videos from one kitchen share lighting,
-utensils and layout, so a video-level split leaks scene identity — and scene identity is exactly
-what a persistence-driven model exploits. The official EK train/val split is video-level and is
-therefore **not** used for RUN-5.
+### Split: participant-held-out — **PROVISIONAL, not frozen**
+
+**Rationale.** Two videos from one kitchen share lighting, utensils and layout, so a video-level
+split leaks scene identity — and scene identity is exactly what a persistence-driven model
+exploits. The official EK train/val split is video-level and is therefore not used as-is.
+
+**But this is a consequential departure from the existing evaluation regime, and it is held
+provisional until the extraction and the full pair audit finish.** The specific risk is real and
+named here so it cannot be rationalised away later:
+
+> A participant-held-out split may make the pilot **unnecessarily hard**. If it fails under a
+> split that is harsher than anything RUN-4 was ever measured on, "prediction does not work" is
+> **not** a licensed conclusion — "prediction does not work across kitchens" might be, and even
+> that only with the video-level comparison in hand.
+
+**Therefore, before the split is frozen:**
+
+1. Re-run `p411_pair_audit.py` on all 648 videos (~37 participants expected, versus the 9 the
+   provisional numbers were computed from).
+2. Report pair counts under **both** a participant-held-out and a video-held-out split.
+3. If the two differ materially in usable pairs or in per-participant scene diversity, **run the
+   pilot under both** and report both. The difference between them is itself a result about how
+   much of the signal is scene identity.
+4. Only then fix the split — and fix it **before** any RUN-5 result is inspected (§2.3).
+
+A failure under the harsher split with a pass under the easier one is a finding about
+generalisation, not about prediction, and must be written up as such.
 
 **Ego4D remains available** as a second corpus: 77,831 pairs at Δ = 10 s, already on disk.
 Use it as an out-of-corpus generalisation check, not as training data, so that "works on

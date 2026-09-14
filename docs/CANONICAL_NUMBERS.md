@@ -86,6 +86,33 @@ is **`step20000`**, not `step18000` — it matches P3.0's step-20000 row (41.34 
 Both are correct; they are different checkpoints. Quote §1.1 for the system result and §7.1 for
 the length-controlled comparison.
 
+### 1.2 RUN-4 number resolution — every 41.xx in this repo, disambiguated
+
+Three RUN-4 figures were circulating and one document contradicted itself. **Direction order was
+never labelled**, which was the real source of confusion: `41.68/41.35` and `41.35/41.68` are the
+same measurement written in opposite orders. Every RUN-4 R@1 in this repo is one of these:
+
+| value (v→a / a→v) | checkpoint | source | seeds | what it is |
+|---|---|---|---|---|
+| **41.77 / 41.88** | **`step18000`** | P3.0 sweep, `p30_shard2.json` | 3 | **CANONICAL system result.** Use this everywhere unless the sentence is specifically about the length-controlled grid. |
+| 41.34 / 41.68 | `step20000` | P3.0 sweep, `p30_shard0.json` | 3 | last checkpoint, plateau tail |
+| 41.35 / 41.68 | `step20000` | P2.3 matched grid, `p23_matched_length_grid.json` | 5 | the length-controlled row (§7.1). Agrees with the row above to 0.01 — independent confirmation, not a conflict. |
+
+**Rules now in force.**
+1. **Always write the direction.** `41.77 (v→a) / 41.88 (a→v)`, never a bare pair.
+2. The **RUN-5 non-regression criterion** is measured against **41.77 / 41.88** (`step18000`),
+   n=1,545, `T_a=896`, corrected harness, 3 batch-order seeds, gallery `data/vggsound_eval_1545.txt`,
+   checkpoint sha256 `27b33c8cebe656f26e51987cc49a5b8bf4452845f14d9e8a41eb9d1a6c1848a4`.
+3. **`42.27 / 41.68` in `EVIDENCE_LEDGER.md` and `ICLR_RESULTS.md` is NOT RUN-4.** It is the
+   July VGGSound-60k+Ego4D-17.1k scaling datapoint, a different run on a different corpus. The
+   shared `41.68` is a coincidence. Do not cite it as a RUN-4 number.
+
+**Defect found and fixed (2026-09-14).** §7.3 quoted `41.68/41.35` while the caveat immediately
+below it said "the figures above are `step18000`" — a direct self-contradiction. Cause: an edit
+whose search string no longer matched after an earlier rename pass, so the replacement silently
+did nothing and was not verified. The lesson is recorded because the same failure mode would be
+invisible in any other document edited the same way.
+
 ## 2. Baselines — same gallery, n = 1,545
 
 Canonical values are the per-model JSONs, **not** `docs/ICLR_RESULTS.md` §2, which is stale
@@ -298,10 +325,11 @@ every document; it was never measured on the same footing as anything it was com
 ### 7.3 How to state this
 
 > Removing the length-derived shortcut from M2's training — by fixing the ambient sequence to
-> a constant 896 tokens — raises held-out VGGSound retrieval from **28.28/29.90** to
-> **41.68/41.35** R@1 (n=1,545, each model evaluated at its own training length), and roughly
-> doubles the scene representation's effective rank. A control run isolates the cause: masking the
-> padding contributes nothing measurable once the length is fixed.
+> a constant 896 tokens — raises held-out VGGSound retrieval from **29.90 (v→a) / 28.28 (a→v)**
+> to **41.77 (v→a) / 41.88 (a→v)** R@1 (n=1,545, each model evaluated at its own training
+> length), and roughly doubles the scene representation's effective rank (74.26 vs 37.72).
+> A control run isolates the cause: masking the padding contributes nothing measurable once the
+> length is fixed.
 
 **Caveats that must travel with it:** RUN-2 and RUN-4 see different amounts of audio
 (~996 vs 896 tokens, ≈1 s), which is why the control row and the P2.2 decomposition are part
