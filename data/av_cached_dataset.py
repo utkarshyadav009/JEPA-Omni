@@ -169,7 +169,13 @@ class AVCachedDataset(Dataset):
             if alt == idx:
                 alt = (idx + 1) % len(self.clip_ids)
             return self.__getitem__(alt)
+        return self.transform(d, vid)
 
+    def transform(self, d: Dict, vid: str) -> Dict:
+        """Cached dict -> model inputs. Split out of __getitem__ (2026-09-15) with NO change in
+        behaviour, so TemporalPairDataset can reuse the EXACT same transform instead of
+        restating it. Restating it is how build_both drifted from the shared builder, which is
+        why that one carries an equivalence gate; this avoids needing one."""
         clip_dur = float(d.get("clip_duration_s", 10.0))
 
         # ── Vision: (32, 16, 1024) → flatten → (512, 1024) ─────────────

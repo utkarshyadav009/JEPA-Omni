@@ -811,6 +811,7 @@ def save_checkpoint(
     vision_proj: Optional[nn.Module] = None,
     ambient_proj: Optional[nn.Module] = None,
     fusion_bridge: Optional[nn.Module] = None,
+    future_head: Optional[nn.Module] = None,
 ) -> None:
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     payload = {
@@ -825,6 +826,7 @@ def save_checkpoint(
     if vision_proj   is not None: payload["vision_proj"]   = vision_proj.state_dict()
     if ambient_proj  is not None: payload["ambient_proj"]  = ambient_proj.state_dict()
     if fusion_bridge is not None: payload["fusion_bridge"] = fusion_bridge.state_dict()
+    if future_head   is not None: payload["future_head"]   = future_head.state_dict()
     torch.save(payload, path)
 
 
@@ -842,6 +844,13 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
           w_neg: float = 1.0,
           margin: float = 0.03,
           lam_sigreg_override: Optional[float] = None,
+          lam_future: float = 0.0,
+          future_delta_s: float = 10.0,
+          future_ws_dir: str = "/home/utkarsh/JEPA-Omni/data/epic_kitchens_ws",
+          future_feat_dirs: str = ("/home/utkarsh/JEPA-Omni/data/feature_cache_epic_kitchens,"
+                                   "/mnt/Raid-Storage-2/utkarsh-data/feature_cache_epic_kitchens"),
+          future_batch_size: int = 16,
+          future_eval_videos: str = "",
           lam_pred: float = 1.0,
           lam_contrastive: float = 0.0,
           contrast_dim: int = 256,
@@ -939,8 +948,53 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
                   f"layers={fusion_layers} lam_fusion={lam_fusion} "
                   f"(AUXILIARY ONLY -- does not feed the retrieval head)", flush=True)
 
+    # ── RUN-5 v2: predictive FUSION objective (docs/RUN5_SPEC_V2.md) ───
+    # lam_future == 0.0 is a strict no-op: no head, no loader, no term, so RUN-4's
+    # behaviour is reproduced bit-for-bit.
+    future_head = None
+    future_batches = None
+    if lam_future > 0.0:
+        d_model = int(cfg_get(cfg, "model.d_model", default=1024))
+        future_head = nn.Sequential(
+            nn.LayerNorm(d_model), nn.Linear(d_model, 2 * d_model), nn.GELU(),
+            nn.Linear(2 * d_model, 1024),            # -> frozen V-JEPA2 mean-pooled dim
+        ).to(device)
+        from data.temporal_pair_dataset import TemporalPairDataset, temporal_pair_collate
+        held = {v.strip() for v in future_eval_videos.split(",") if v.strip()}
+        allv = sorted(f[:-3] for f in os.listdir(future_ws_dir) if f.endswith(".pt"))
+        train_v = [v for v in allv if v not in held]
+        fds = TemporalPairDataset(
+            feat_dirs=[d for d in future_feat_dirs.split(",") if d],
+            ws_dir=future_ws_dir, delta_s=future_delta_s, video_ids=train_v,
+            max_tdm_bins=int(cfg_get(cfg, "model.max_tdm_bins", default=512)),
+            audio_mode=str(cfg_get(cfg, "model.audio_mode", default="mean")))
+        # Per-rank generator seed. Without it every rank draws the SAME shuffled order, so
+        # DDP would average four identical future gradients -- 4x the compute for 1x the data.
+        _fg = torch.Generator(); _fg.manual_seed(1234 + get_rank())
+        fdl = torch.utils.data.DataLoader(
+            fds, batch_size=future_batch_size, shuffle=True, drop_last=True, generator=_fg,
+            num_workers=(0 if is_distributed() else 3),
+            collate_fn=temporal_pair_collate, pin_memory=True,
+            persistent_workers=not is_distributed())
+        def _cycle(dl):
+            while True:
+                for b in dl:
+                    yield b
+        future_batches = _cycle(fdl)
+        if is_main_process():
+            n_fh = sum(p.numel() for p in future_head.parameters())
+            print(f"[train_m2] RUN-5 v2 future head params={n_fh:,} lam_future={lam_future} "
+                  f"delta={future_delta_s}s pairs={len(fds):,} "
+                  f"held-out videos={len(held)} target=dV (frozen V-JEPA2)", flush=True)
+
     # ── optimiser / scheduler ─────────────────────────────────────────
     optimizer    = build_optimizer(predictor, cfg)
+    if future_head is not None:
+        wd = float(cfg_get(cfg, "optim.weight_decay", default=0.05))
+        optimizer.add_param_group({"params": [p for p in future_head.parameters() if p.ndim > 1],
+                                   "weight_decay": wd})
+        optimizer.add_param_group({"params": [p for p in future_head.parameters() if p.ndim <= 1],
+                                   "weight_decay": 0.0})
     if pooled_heads is not None:
         # add pooled head params to the same optimizer
         wd = float(cfg_get(cfg, "optim.weight_decay", default=0.05))
@@ -1233,6 +1287,29 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
                     sr_loss = sigreg(ws.float(), global_step=step, num_slices=num_slices)
                 total_loss = lam_pred * pred_loss
 
+            # ── RUN-5 v2: the predictive FUSION term ───────────────
+            # This is the whole point of v2. world_state() is grad-enabled, so this
+            # gradient reaches _embed -> backbone -> pool_query, i.e. the FUSION itself.
+            # v1 attached its predictor to a FROZEN W and could only read what the fusion
+            # had already discarded; that is why it could not have worked.
+            # Target is dV from a FROZEN encoder, so this term cannot be satisfied by
+            # collapse and needs no stop-gradient or EMA teacher.
+            future_loss_val = 0.0
+            if future_head is not None:
+                fb = next(future_batches)
+                _cap_ambient_len(fb["feats"], fb["tbins"], fb.get("padding_mask"))
+                f_f = {k: v.to(device) for k, v in fb["feats"].items()}
+                t_f = {k: v.to(device) for k, v in fb["tbins"].items()}
+                p_f = {k: v.to(device) for k, v in fb["padding_mask"].items()}
+                k_f = flat_pad(p_f, f_f)
+                if no_pad_mask:
+                    k_f = None
+                ws_f = predictor.world_state(f_f, t_f, key_padding_mask=k_f)   # grad -> fusion
+                dv_hat = future_head(ws_f.float())
+                fut_loss = F.mse_loss(dv_hat, fb["dv"].to(device).float())
+                total_loss = total_loss + lam_future * fut_loss
+                future_loss_val = float(fut_loss.detach())
+
             # ── pooled cross-modal auxiliary (STEP 3, optional) ───
             pooled_loss_val = 0.0
             if pooled_heads is not None and lam_pooled > 0.0:
@@ -1373,6 +1450,8 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
 
         if grad_clip > 0:
             params_to_clip = list(predictor.parameters())
+            if future_head is not None:
+                params_to_clip += list(future_head.parameters())
             if pooled_heads is not None:
                 params_to_clip += list(pooled_heads.parameters())
             if vision_proj is not None:
@@ -1424,6 +1503,8 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
                 log_parts.append(f"pooled={pooled_loss_val:.4f}")
             if fusion_bridge is not None:
                 log_parts.append(f"fusion={fusion_loss_val:.4f}")
+            if future_head is not None:
+                log_parts.append(f"future={future_loss_val:.4f}")
                 log_parts.append(f"fusion_acc={fusion_acc:.3f}")
             if p_neg > 0.0:
                 log_parts.append(f"mismatch={mismatch_loss_val:.4f}")
@@ -1445,7 +1526,7 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
                     predictor, step, best_loss,
                     pooled_heads=pooled_heads,
                     vision_proj=vision_proj, ambient_proj=ambient_proj,
-                    fusion_bridge=fusion_bridge,
+                    fusion_bridge=fusion_bridge, future_head=future_head,
                 )
 
         # ── STEP-3 / contrastive retrieval eval ─────────────────────────
@@ -1502,7 +1583,7 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
                 loss_ema=loss_ema,
                 pooled_heads=pooled_heads,
                 vision_proj=vision_proj, ambient_proj=ambient_proj,
-                fusion_bridge=fusion_bridge,
+                fusion_bridge=fusion_bridge, future_head=future_head,
             )
             if tag_ckpts:
                 save_checkpoint(
@@ -1511,7 +1592,7 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
                     loss_ema=loss_ema,
                     pooled_heads=pooled_heads,
                     vision_proj=vision_proj, ambient_proj=ambient_proj,
-                    fusion_bridge=fusion_bridge,
+                    fusion_bridge=fusion_bridge, future_head=future_head,
                 )
 
     # ── final checkpoint ──────────────────────────────────────────────
@@ -1523,7 +1604,7 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
             loss_ema=loss_ema,
             pooled_heads=pooled_heads,
             vision_proj=vision_proj, ambient_proj=ambient_proj,
-            fusion_bridge=fusion_bridge,
+            fusion_bridge=fusion_bridge, future_head=future_head,
         )
         print(
             f"[train_m2] done. best_loss={best_loss:.4f} "
@@ -1608,6 +1689,18 @@ def main() -> None:
                              "which raises how often batches hit the cap and can push sustained "
                              "GPU memory close to the ceiling even with the cap correctly applied "
                              "before the .to(device) transfer.")
+    parser.add_argument("--lam-future", type=float, default=0.0,
+                        help="RUN-5 v2 predictive FUSION term (docs/RUN5_SPEC_V2.md). "
+                             "0.0 = strict no-op, reproducing RUN-4 bit-for-bit.")
+    parser.add_argument("--future-delta-s", type=float, default=10.0,
+                        help="prediction horizon; >= the 10s window or query and target share input")
+    parser.add_argument("--future-ws-dir", default="/home/utkarsh/JEPA-Omni/data/epic_kitchens_ws")
+    parser.add_argument("--future-feat-dirs",
+                        default="/home/utkarsh/JEPA-Omni/data/feature_cache_epic_kitchens,"
+                                "/mnt/Raid-Storage-2/utkarsh-data/feature_cache_epic_kitchens")
+    parser.add_argument("--future-batch-size", type=int, default=16)
+    parser.add_argument("--future-eval-videos", default="",
+                        help="comma list held OUT of the future term (participant-held-out split)")
     parser.add_argument("--lam-fusion", type=float, default=0.0,
                         help="STEP 2: weight for the CrossAttnFusionBridge auxiliary real-pair "
                              "vs shuffled-pair matching loss. 0.0 (default) = off. This branch "
@@ -1651,6 +1744,10 @@ def main() -> None:
           save_every_override=args.save_every, eval_subset_path=args.eval_subset,
           p_neg=args.p_neg, w_neg=args.w_neg, margin=args.margin,
           lam_sigreg_override=args.lam_sigreg,
+          lam_future=args.lam_future, future_delta_s=args.future_delta_s,
+          future_ws_dir=args.future_ws_dir, future_feat_dirs=args.future_feat_dirs,
+          future_batch_size=args.future_batch_size,
+          future_eval_videos=args.future_eval_videos,
           lam_pred=args.lam_pred, lam_contrastive=args.lam_contrastive,
           contrast_dim=args.contrast_dim, contrast_temp=args.contrast_temp,
           batch_size_override=args.batch_size, tag_ckpts=args.tag_ckpts,
