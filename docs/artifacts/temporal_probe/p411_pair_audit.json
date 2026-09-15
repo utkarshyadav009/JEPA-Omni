@@ -1,59 +1,78 @@
 {
- "n_files": 288,
+ "n_files": 648,
  "n_unreadable": 0,
  "n_nonfinite": 0,
- "windows_kept": 129043,
- "windows_attempted": 129043,
+ "windows_kept": 308897,
+ "windows_attempted": 308897,
  "delta": {
   "5": {
-   "pairs": 127611,
-   "files": 284,
+   "pairs": 305665,
+   "files": 644,
    "input_overlap_s": 5.0,
    "fused_valid": false,
    "audio_only_valid": true
   },
   "10": {
-   "pairs": 126200,
-   "files": 280,
+   "pairs": 302459,
+   "files": 638,
    "input_overlap_s": 0.0,
    "fused_valid": true,
    "audio_only_valid": true
   },
   "20": {
-   "pairs": 123451,
-   "files": 268,
+   "pairs": 296173,
+   "files": 615,
    "input_overlap_s": 0.0,
    "fused_valid": true,
    "audio_only_valid": true
   },
   "30": {
-   "pairs": 120817,
-   "files": 258,
+   "pairs": 290108,
+   "files": 594,
    "input_overlap_s": 0.0,
    "fused_valid": true,
    "audio_only_valid": true
   },
   "60": {
-   "pairs": 113330,
-   "files": 240,
+   "pairs": 272828,
+   "files": 545,
    "input_overlap_s": 0.0,
    "fused_valid": true,
    "audio_only_valid": true
   }
  },
- "participants": 9,
- "held_out_participants": [
-  "P01",
-  "P06"
- ],
- "train_videos": 237,
- "eval_videos": 51,
- "usable_pairs_delta10": {
-  "train": 91498,
-  "eval": 34702
- },
- "usable_pairs_delta20": {
-  "train": 89249,
-  "eval": 34202
+ "participants": 34,
+ "splits": {
+  "participant_held_out": {
+   "train_videos": 478,
+   "eval_videos": 170,
+   "train_pairs_d10": 239136,
+   "eval_pairs_d10": 63323,
+   "train_pairs_d20": 234494,
+   "eval_pairs_d20": 61679,
+   "train_participants": 27,
+   "eval_participants": 7,
+   "participant_overlap": 0,
+   "held_out": [
+    "P01",
+    "P06",
+    "P11",
+    "P16",
+    "P21",
+    "P26",
+    "P31"
+   ]
+  },
+  "video_held_out": {
+   "train_videos": 518,
+   "eval_videos": 130,
+   "train_pairs_d10": 244205,
+   "eval_pairs_d10": 58254,
+   "train_pairs_d20": 239193,
+   "eval_pairs_d20": 56980,
+   "train_participants": 34,
+   "eval_participants": 31,
+   "participant_overlap": 31
+  }
  }
 }

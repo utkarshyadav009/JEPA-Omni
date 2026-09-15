@@ -96,30 +96,52 @@ def main():
     leak = in_train & in_val
     print(f"[audit] train/val video overlap: {len(leak)}  -> {'LEAK' if leak else 'CLEAN'}")
 
-    # usable pairs under a participant-held-out split at the fused floor
-    ps = sorted(parts)
-    hold = set(ps[::5])                       # 20% of participants held out
-    tr = [v for v in ext if v.split("_")[0] not in hold]
-    ev = [v for v in ext if v.split("_")[0] in hold]
+    # ---- BOTH splits, per the RUN-5 spec review: a participant split may be harsher than
+    # anything RUN-4 was measured on, and a pilot failure under it must not be read as
+    # "prediction does not work". Report both so the difference is itself measurable.
     def pairs_for(vs, D):
         t = 0
         for vid in vs:
             st = per_file[vid]["starts"]
-            s = set(round(float(x), 3) for x in st.tolist())
-            t += sum(1 for x in st.tolist() if round(float(x) + D, 3) in s)
+            ss = set(round(float(x), 3) for x in st.tolist())
+            t += sum(1 for x in st.tolist() if round(float(x) + D, 3) in ss)
         return t
-    print(f"[audit] participant-held-out split: {len(tr)} train videos ({len(ps)-len(hold)} participants), "
-          f"{len(ev)} eval videos ({len(hold)} participants)")
-    for D in (10, 20):
-        print(f"[audit]   usable pairs at Delta={D}s -> train {pairs_for(tr,D):,}  eval {pairs_for(ev,D):,}")
+
+    ps = sorted(parts)
+    hold_p = set(ps[::5])                                   # every 5th participant -> ~20%
+    tr_p = [v for v in ext if v.split("_")[0] not in hold_p]
+    ev_p = [v for v in ext if v.split("_")[0] in hold_p]
+
+    vids_sorted = sorted(ext)                               # video-level, 20% held out
+    hold_v = set(vids_sorted[::5])
+    tr_v = [v for v in ext if v not in hold_v]
+    ev_v = [v for v in ext if v in hold_v]
+
+    splits = {}
+    for name, tr, ev, heldout in (("participant_held_out", tr_p, ev_p, sorted(hold_p)),
+                                  ("video_held_out", tr_v, ev_v, None)):
+        d = {"train_videos": len(tr), "eval_videos": len(ev)}
+        for D in (10, 20):
+            d[f"train_pairs_d{D}"] = pairs_for(tr, D)
+            d[f"eval_pairs_d{D}"] = pairs_for(ev, D)
+        # scene diversity proxy: distinct participants (kitchens) on each side
+        d["train_participants"] = len({v.split("_")[0] for v in tr})
+        d["eval_participants"] = len({v.split("_")[0] for v in ev})
+        d["participant_overlap"] = len({v.split("_")[0] for v in tr} & {v.split("_")[0] for v in ev})
+        if heldout: d["held_out"] = heldout
+        splits[name] = d
+        print(f"[audit] SPLIT {name}:")
+        print(f"[audit]   videos      train {d['train_videos']:>4}  eval {d['eval_videos']:>4}")
+        print(f"[audit]   kitchens    train {d['train_participants']:>4}  eval {d['eval_participants']:>4}"
+              f"  OVERLAP {d['participant_overlap']}"
+              f"  {'<- scene identity SHARED across the split' if d['participant_overlap'] else '<- no shared kitchen'}")
+        for D in (10, 20):
+            print(f"[audit]   Delta={D:>2}s   train {d[f'train_pairs_d{D}']:>9,}  eval {d[f'eval_pairs_d{D}']:>9,}")
 
     out = {"n_files": len(per_file), "n_unreadable": len(bad), "n_nonfinite": n_nonfinite,
            "windows_kept": tot_win, "windows_attempted": tot_att,
            "delta": {str(k): v for k, v in res_delta.items()},
-           "participants": len(parts), "held_out_participants": sorted(hold),
-           "train_videos": len(tr), "eval_videos": len(ev),
-           "usable_pairs_delta10": {"train": pairs_for(tr,10), "eval": pairs_for(ev,10)},
-           "usable_pairs_delta20": {"train": pairs_for(tr,20), "eval": pairs_for(ev,20)}}
+           "participants": len(parts), "splits": splits}
     os.makedirs(os.path.dirname(a.out), exist_ok=True)
     json.dump(out, open(a.out,"w"), indent=1)
     print(f"[audit] wrote {a.out}")
