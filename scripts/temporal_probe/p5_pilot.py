@@ -172,12 +172,31 @@ def collapse_metrics(data, vids, dev, fn=None):
             "min_dim_std": round(float(W.std(0).min().item()), 6)}
 
 
-def train_predictor(data, vids, pairs, dev, steps, bs, lr, temp, seed, log_every=500):
-    """InfoNCE: P_phi(W_t) must retrieve stopgrad(W_{t+D}) among OTHER VIDEOS' futures.
+def train_predictor(data, vids, pairs, dev, steps, bs, lr, temp, seed, log_every=2000,
+                    negatives="cross_video", n_per_video=8, min_sep_s=10.0):
+    """InfoNCE: P_phi(W_t) must retrieve stopgrad(W_{t+D}).
 
-    Negatives are drawn from different videos by construction -- one pair per video per batch.
-    A same-video negative at a nearby offset is a near-duplicate of the positive (persistence
-    cosine 0.78 at 10 s) and would make the loss dominated by an impossible discrimination.
+    NEGATIVE CONSTRUCTION -- the variable this experiment exists to change.
+
+      cross_video : the PRE-REGISTERED scheme. One pair per video per batch, so every negative
+                    is another video's future. Rationale at spec time: a same-video negative at
+                    a nearby offset is a near-duplicate of the positive (persistence cosine 0.78
+                    at 10 s). RESULT: the pilot failed, and the diagnosis was that these
+                    negatives are separable by scene identity alone -- a kitchen is not another
+                    kitchen -- so the task saturates (95-98% in-batch accuracy) while the
+                    evaluation, which ranks the true future against ~52 moments of the SAME
+                    recording, gets worse.
+
+      mixed       : n_per_video pairs from each of bs//n_per_video videos. Each positive now
+                    competes against (n_per_video-1) same-video futures AND the cross-video
+                    ones. Query times within a video are forced >= min_sep_s apart by rejection
+                    sampling, so a "hard" negative is never merely an overlapping window.
+
+      same_video  : as `mixed`, but cross-video logits are MASKED OUT, so negatives are
+                    exclusively same-video. This is the purest match to the evaluation task.
+
+    EXPLORATORY. The pre-registered pilot is cross_video and it FAILED; per spec 2.3 these two
+    schemes are a new experiment and their results may never be presented as that outcome.
     """
     torch.manual_seed(seed)
     model = Predictor().to(dev)
@@ -185,23 +204,51 @@ def train_predictor(data, vids, pairs, dev, steps, bs, lr, temp, seed, log_every
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=steps)
     by_vid = {}
     for k, (vi, i, j) in enumerate(pairs): by_vid.setdefault(vi, []).append(k)
-    vid_list = sorted(by_vid)
+    vid_list = [v for v in sorted(by_vid) if len(by_vid[v]) >= n_per_video]
     g = torch.Generator().manual_seed(seed)
     t0, losses = time.time(), []
+
+    def sample_from_video(v, m):
+        """m pair-indices from video v with query start times >= min_sep_s apart."""
+        cand = by_vid[v]
+        order = torch.randperm(len(cand), generator=g).tolist()
+        st = data[vids[pairs[cand[0]][0]]][1]
+        chosen, times = [], []
+        for o in order:
+            k = cand[o]; t = float(st[pairs[k][1]])
+            if all(abs(t - u) >= min_sep_s - 1e-6 for u in times):
+                chosen.append(k); times.append(t)
+                if len(chosen) == m: break
+        return chosen
+
     for step in range(steps):
-        take = min(bs, len(vid_list))
-        vs = [vid_list[x] for x in torch.randperm(len(vid_list), generator=g)[:take].tolist()]
-        idx = [by_vid[v][torch.randint(len(by_vid[v]), (1,), generator=g).item()] for v in vs]
+        if negatives == "cross_video":
+            take = min(bs, len(vid_list))
+            vs = [vid_list[x] for x in torch.randperm(len(vid_list), generator=g)[:take].tolist()]
+            idx = [by_vid[v][torch.randint(len(by_vid[v]), (1,), generator=g).item()] for v in vs]
+            block = None
+        else:
+            nv = max(2, bs // n_per_video)
+            vs = [vid_list[x] for x in torch.randperm(len(vid_list), generator=g)[:nv].tolist()]
+            idx, block = [], []
+            for bi, v in enumerate(vs):
+                ch = sample_from_video(v, n_per_video)
+                idx += ch; block += [bi] * len(ch)
+            block = torch.tensor(block, device=dev)
         A = torch.stack([data[vids[pairs[k][0]]][0][pairs[k][1]] for k in idx]).float().to(dev)
         B = torch.stack([data[vids[pairs[k][0]]][0][pairs[k][2]] for k in idx]).float().to(dev)
         P = model(A)
-        logits = F.normalize(P, dim=1) @ F.normalize(B, dim=1).T / temp   # B is already detached
-        loss = F.cross_entropy(logits, torch.arange(logits.shape[0], device=dev))
+        logits = F.normalize(P, dim=1) @ F.normalize(B, dim=1).T / temp
+        if negatives == "same_video":
+            same = block[:, None] == block[None, :]
+            logits = logits.masked_fill(~same, -1e4)      # negatives ONLY from the same video
+        tgt = torch.arange(logits.shape[0], device=dev)
+        loss = F.cross_entropy(logits, tgt)
         opt.zero_grad(set_to_none=True); loss.backward(); opt.step(); sched.step()
         losses.append(loss.item())
         if (step + 1) % log_every == 0:
-            acc = (logits.argmax(1) == torch.arange(logits.shape[0], device=dev)).float().mean()
-            print(f"[pilot] step {step+1}/{steps} loss {sum(losses[-log_every:])/log_every:.4f} "
+            acc = (logits.argmax(1) == tgt).float().mean()
+            print(f"[pilot]   step {step+1}/{steps} loss {sum(losses[-log_every:])/log_every:.4f} "
                   f"in-batch acc {100*acc:.1f}% ({time.time()-t0:.0f}s)", flush=True)
     return model
 
@@ -215,6 +262,9 @@ if __name__ == "__main__":
     ap.add_argument("--temp", type=float, default=0.05)
     ap.add_argument("--seeds", default="0,1,2")
     ap.add_argument("--split", default="participant", choices=["participant", "video"])
+    ap.add_argument("--negatives", default="cross_video",
+                    choices=["cross_video", "mixed", "same_video"])
+    ap.add_argument("--n-per-video", type=int, default=8)
     ap.add_argument("--out", default="docs/artifacts/temporal_probe/p5_pilot.json")
     a = ap.parse_args()
     dev = torch.device("cuda")
@@ -265,9 +315,11 @@ if __name__ == "__main__":
     # -- i.e. "is the future more predictable than the past?", which is the actual question.
     bwd_pairs = [(vi, j, i) for (vi, i, j) in pairs]      # same pairs, roles swapped
     for sd in [int(x) for x in a.seeds.split(",")]:
-        m = train_predictor(data, tr_v, pairs, dev, a.steps, a.bs, a.lr, a.temp, sd)
+        m = train_predictor(data, tr_v, pairs, dev, a.steps, a.bs, a.lr, a.temp, sd,
+                            negatives=a.negatives, n_per_video=a.n_per_video)
         m.eval(); fn = lambda x: m(x)
-        mb = train_predictor(data, tr_v, bwd_pairs, dev, a.steps, a.bs, a.lr, a.temp, sd)
+        mb = train_predictor(data, tr_v, bwd_pairs, dev, a.steps, a.bs, a.lr, a.temp, sd,
+                             negatives=a.negatives, n_per_video=a.n_per_video)
         mb.eval(); fnb = lambda x: mb(x)
         with torch.no_grad():
             res["arms"][f"pilot_forward_s{sd}"] = evaluate(data, ev_v, a.delta, fn, dev, seed=sd)
