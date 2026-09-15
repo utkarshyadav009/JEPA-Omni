@@ -11,6 +11,17 @@ Epic-Kitchens pairs is **1.45 points worse than doing nothing at all.**
 > **The tested post-hoc predictors did not recover directional future information from `W`
 > beyond persistence.**
 
+**Interpretation, after the fusion diagnosis (`docs/FUSION_BOTTLENECK.md`):**
+
+> The failure of post-hoc future prediction is **not adequately explained** by predictor
+> capacity, negative construction, or participant-held-out splitting — all three were tested and
+> rejected. Capacity-controlled linear probes instead indicate that **directional future
+> information is present in the pre-fusion features but is substantially attenuated in the
+> learned fusion into `W`**: vision alone predicts forward change with backward prediction at
+> *exactly zero*, while `W` predicts backward change almost as well as forward (1.14×). This
+> **localises the bottleneck to the fusion**. It is an observational comparison, not a causal
+> demonstration.
+
 **This does NOT show that future prediction is impossible.** It shows that *the current
 representation* and *the tested prediction objective* did not provide measurable directional
 prediction. It is a statement about two specific things we built, not about the problem.
