@@ -171,7 +171,67 @@ def persistence_pred(name, Wi, Vi, VJ, AJ):
     return None
 
 
-def run(data, tr_v, ev_v, delta, dev, grid_train=None, grid_eval=10.0):
+class MLPProbe(torch.nn.Module):
+    def __init__(self, din, dout, h=2048):
+        super().__init__()
+        self.net = torch.nn.Sequential(torch.nn.LayerNorm(din), torch.nn.Linear(din, h),
+                                       torch.nn.GELU(), torch.nn.Linear(h, dout))
+    def forward(self, x): return self.net(x)
+
+
+def mlp_fit(X, Y, dev, steps=15000, bs=4096, lr=1e-4, seed=0, val_frac=0.15, patience=10):
+    """Small MLP, MSE, with EARLY STOPPING on a held-out slice of TRAIN.
+
+    The first version had no early stopping and OVERFIT badly: held-out R2 got WORSE with more
+    training (-0.026 at 3k steps, -0.270 at 15k), while ridge -- which picks lambda on a
+    train-internal split -- reached +0.227 on the same data. Comparing an unregularised MLP
+    against a regularised ridge is rigged, and the resulting "no non-linear signal" reading would
+    have been an artifact of that. The MLP now gets the SAME discipline: a train-internal
+    validation split, with the best checkpoint restored.
+
+    Run ONLY where the linear probe already found signal (predeclared rule).
+    """
+    torch.manual_seed(seed)
+    n = X.shape[0]; nv = int(n * val_frac)
+    perm = torch.randperm(n, generator=torch.Generator().manual_seed(seed))
+    tr_i, va_i = perm[nv:], perm[:nv]
+    Xt, Yt = X[tr_i], Y[tr_i]
+    Xv, Yv = X[va_i].to(dev), Y[va_i].to(dev)
+    mx, my = Xt.mean(0, keepdim=True).to(dev), Yt.mean(0, keepdim=True).to(dev)
+    sy = torch.ones_like(my)   # centre only -- see note above; scaling misaligns the objective
+    m = MLPProbe(X.shape[1], Y.shape[1]).to(dev)
+    opt = torch.optim.AdamW(m.parameters(), lr=lr, weight_decay=0.01)
+    g = torch.Generator().manual_seed(seed); N = Xt.shape[0]
+    best, best_state, bad, check = float("inf"), None, 0, max(200, steps // 50)
+    for step in range(steps):
+        idx = torch.randint(N, (min(bs, N),), generator=g)
+        loss = torch.nn.functional.mse_loss(m((Xt[idx].to(dev) - mx)), (Yt[idx].to(dev) - my) / sy)
+        opt.zero_grad(set_to_none=True); loss.backward(); opt.step()
+        if (step + 1) % check == 0:
+            with torch.no_grad():
+                v = torch.nn.functional.mse_loss(m(Xv - mx), (Yv - my) / sy).item()
+            if v < best - 1e-5:
+                best, bad = v, 0
+                best_state = {k: t.detach().clone() for k, t in m.state_dict().items()}
+            else:
+                bad += 1
+                if bad >= patience: break
+    if best_state is not None: m.load_state_dict(best_state)
+    m.eval()
+    return lambda Xe: (m((Xe.to(dev) - mx)) * sy + my)
+
+
+def pca_reduce(train_M, dims, dev):
+    """Fit PCA on TRAIN, return a projection to `dims`. Capacity control: VA has 1792 dims vs
+    W's 1024, so part of VA's advantage could be CAPACITY rather than CONTENT."""
+    mu = train_M.mean(0, keepdim=True)
+    Mc = (train_M - mu).to(dev)
+    V = torch.linalg.svd(Mc, full_matrices=False)[2][:dims].T.cpu()
+    return mu, V
+
+
+def run(data, tr_v, ev_v, delta, dev, grid_train=None, grid_eval=10.0,
+        va_dims=None, probe="ridge", mlp_targets=None):
     tr = gather(data, tr_v, delta, grid_train)
     ev = gather(data, ev_v, delta, grid_eval)
     ev_bwd = gather(data, ev_v, -delta, grid_eval)
@@ -186,26 +246,46 @@ def run(data, tr_v, ev_v, delta, dev, grid_train=None, grid_eval=10.0):
         return torch.linalg.svd(Mc, full_matrices=False)[2][:8].T.cpu()
     pca_W = pca8(tr[2]); pca_dW = pca8(tr[5])
 
+    # CAPACITY CONTROL: reduce VA to va_dims so it is matched to W's 1024.
+    va_proj = None
+    if va_dims is not None:
+        mu, V = pca_reduce(tr[1], va_dims, dev)
+        va_proj = (mu, V)
+        print(f"[p6] CAPACITY CONTROL: VA {tr[1].shape[1]} -> {va_dims} dims via train-fitted PCA",
+              flush=True)
+
+    def maybe_reduce(name, M):
+        if name == "VA" and va_proj is not None:
+            mu, V = va_proj
+            return (M - mu) @ V
+        return M
+
     out = {}
+    tgt_list = TARGETS if mlp_targets is None else mlp_targets
     for inp_name, ti, ei, ebi, tsi, esi in (("W", 0, 0, 0, 0, 0), ("VA", 1, 1, 1, 1, 1)):
-        for tgt in TARGETS:
+        for tgt in tgt_list:
             Ytr = make_target(tgt, tr[0], tr[2], tr[3], tr[4], pca_W, pca_dW, tr[5])
             Yev = make_target(tgt, ev[0], ev[2], ev[3], ev[4], pca_W, pca_dW, ev[5])
             Ybw = make_target(tgt, ev_bwd[0], ev_bwd[2], ev_bwd[3], ev_bwd[4], pca_W, pca_dW, ev_bwd[5])
             Yts = make_target(tgt, tr_shuf[0], tr_shuf[2], tr_shuf[3], tr_shuf[4], pca_W, pca_dW, tr_shuf[5])
             Yes = make_target(tgt, ev_shuf[0], ev_shuf[2], ev_shuf[3], ev_shuf[4], pca_W, pca_dW, ev_shuf[5])
-            Xtr, Xev, Xbw, Xts, Xes = tr[ti], ev[ei], ev_bwd[ebi], tr_shuf[tsi], ev_shuf[esi]
-
-            Wm, mx, my = ridge_fit(Xtr, Ytr, dev)
+            Xtr = maybe_reduce(inp_name, tr[ti]); Xev = maybe_reduce(inp_name, ev[ei])
+            Xbw = maybe_reduce(inp_name, ev_bwd[ebi]); Xts = maybe_reduce(inp_name, tr_shuf[tsi])
+            Xes = maybe_reduce(inp_name, ev_shuf[esi])
             tmean = Ytr.mean(0, keepdim=True).to(dev)
-            P = (Xev.to(dev) - mx) @ Wm + my; Y = Yev.to(dev)
+            Y = Yev.to(dev); Yb = Ybw.to(dev); Ys = Yes.to(dev)
+
+            if probe == "ridge":
+                Wm, mx, my = ridge_fit(Xtr, Ytr, dev)
+                P = (Xev.to(dev) - mx) @ Wm + my
+                Pb = (Xbw.to(dev) - mx) @ Wm + my
+                Wm2, mx2, my2 = ridge_fit(Xts, Yts, dev)
+                Ps = (Xes.to(dev) - mx2) @ Wm2 + my2
+            else:
+                f = mlp_fit(Xtr, Ytr, dev); P = f(Xev); Pb = f(Xbw)
+                fs = mlp_fit(Xts, Yts, dev); Ps = fs(Xes)
             r_f = r2(P, Y, tmean); se_f = boot_se(P, Y, tmean)
-
-            Pb = (Xbw.to(dev) - mx) @ Wm + my; Yb = Ybw.to(dev)
             r_b = r2(Pb, Yb, tmean)
-
-            Wm2, mx2, my2 = ridge_fit(Xts, Yts, dev)
-            Ps = (Xes.to(dev) - mx2) @ Wm2 + my2; Ys = Yes.to(dev)
             r_s = r2(Ps, Ys, Yts.mean(0, keepdim=True).to(dev))
 
             pp = persistence_pred(tgt, ev[0], ev[1], ev[3], ev[4])
@@ -231,6 +311,9 @@ if __name__ == "__main__":
     ap.add_argument("--delta", type=float, default=10.0)
     ap.add_argument("--grid-train", type=float, default=2.0,
                     help="train-pair lattice in s; 2.0 keeps ~150k pairs without 90%% overlap")
+    ap.add_argument("--va-dims", type=int, default=0, help="PCA-reduce VA to this many dims (capacity control)")
+    ap.add_argument("--probe", default="ridge", choices=["ridge", "mlp"])
+    ap.add_argument("--targets", default="", help="comma list; default all")
     ap.add_argument("--out", default="docs/artifacts/temporal_probe/p6_information_probes.json")
     a = ap.parse_args()
     dev = torch.device("cuda")
@@ -241,7 +324,10 @@ if __name__ == "__main__":
     print(f"[p6] SIGNAL CRITERION (predeclared): R2_fwd - R2_shuf >= 0.05 AND R2_fwd >= 3*SE;"
           f"  BEYOND-PERSISTENCE additionally R2_fwd - R2_persist >= 0.05", flush=True)
     res = {"delta": a.delta, "grid_train": a.grid_train, "held_out": held,
-           "probes": run(data, tr_v, ev_v, a.delta, dev, a.grid_train, 10.0)}
+           "va_dims": a.va_dims or None, "probe": a.probe,
+           "probes": run(data, tr_v, ev_v, a.delta, dev, a.grid_train, 10.0,
+                         va_dims=(a.va_dims or None), probe=a.probe,
+                         mlp_targets=([t for t in a.targets.split(",") if t] or None))}
     os.makedirs(os.path.dirname(a.out), exist_ok=True)
     json.dump(res, open(a.out, "w"), indent=1)
     print(f"[p6] wrote {a.out}", flush=True)

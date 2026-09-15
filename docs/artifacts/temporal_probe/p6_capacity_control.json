@@ -1,0 +1,257 @@
+{
+ "delta": 10.0,
+ "grid_train": 2.0,
+ "held_out": [
+  "P01",
+  "P06",
+  "P11",
+  "P16",
+  "P21",
+  "P26",
+  "P31"
+ ],
+ "va_dims": 1024,
+ "probe": "ridge",
+ "probes": {
+  "W:W_full": {
+   "R2_fwd": 0.3873,
+   "se": 0.0034,
+   "R2_bwd": 0.3626,
+   "R2_shuf": 0.1462,
+   "R2_persist": 0.2083,
+   "signal": true,
+   "beyond_persistence": true,
+   "dim": 1024
+  },
+  "W:W_norm": {
+   "R2_fwd": 0.1993,
+   "se": 0.012,
+   "R2_bwd": 0.1695,
+   "R2_shuf": 0.0262,
+   "R2_persist": -0.066,
+   "signal": true,
+   "beyond_persistence": true,
+   "dim": 1
+  },
+  "W:W_mean": {
+   "R2_fwd": 0.4214,
+   "se": 0.009,
+   "R2_bwd": 0.3815,
+   "R2_shuf": 0.1327,
+   "R2_persist": 0.2154,
+   "signal": true,
+   "beyond_persistence": true,
+   "dim": 1
+  },
+  "W:W_std": {
+   "R2_fwd": 0.1993,
+   "se": 0.012,
+   "R2_bwd": 0.1695,
+   "R2_shuf": 0.0262,
+   "R2_persist": -0.066,
+   "signal": true,
+   "beyond_persistence": true,
+   "dim": 1
+  },
+  "W:W_pca8": {
+   "R2_fwd": 0.5003,
+   "se": 0.0049,
+   "R2_bwd": 0.4463,
+   "R2_shuf": 0.1809,
+   "R2_persist": null,
+   "signal": true,
+   "beyond_persistence": false,
+   "dim": 8
+  },
+  "W:dW_full": {
+   "R2_fwd": 0.2267,
+   "se": 0.0035,
+   "R2_bwd": 0.1952,
+   "R2_shuf": -0.0022,
+   "R2_persist": -0.0,
+   "signal": true,
+   "beyond_persistence": true,
+   "dim": 1024
+  },
+  "W:dW_norm": {
+   "R2_fwd": 0.2352,
+   "se": 0.0099,
+   "R2_bwd": 0.1383,
+   "R2_shuf": 0.0404,
+   "R2_persist": null,
+   "signal": true,
+   "beyond_persistence": false,
+   "dim": 1
+  },
+  "W:dW_pca8": {
+   "R2_fwd": 0.2433,
+   "se": 0.0059,
+   "R2_bwd": 0.1653,
+   "R2_shuf": -0.0021,
+   "R2_persist": null,
+   "signal": true,
+   "beyond_persistence": false,
+   "dim": 8
+  },
+  "W:vis_full": {
+   "R2_fwd": 0.3319,
+   "se": 0.0033,
+   "R2_bwd": 0.2922,
+   "R2_shuf": 0.0977,
+   "R2_persist": 0.2931,
+   "signal": true,
+   "beyond_persistence": false,
+   "dim": 1024
+  },
+  "W:vis_norm": {
+   "R2_fwd": 0.1818,
+   "se": 0.0153,
+   "R2_bwd": 0.1838,
+   "R2_shuf": 0.0767,
+   "R2_persist": 0.0553,
+   "signal": true,
+   "beyond_persistence": true,
+   "dim": 1
+  },
+  "W:aud_full": {
+   "R2_fwd": 0.4769,
+   "se": 0.0034,
+   "R2_bwd": 0.456,
+   "R2_shuf": 0.2237,
+   "R2_persist": 0.4873,
+   "signal": true,
+   "beyond_persistence": false,
+   "dim": 768
+  },
+  "W:aud_norm": {
+   "R2_fwd": 0.5353,
+   "se": 0.0096,
+   "R2_bwd": 0.4943,
+   "R2_shuf": 0.1779,
+   "R2_persist": 0.4387,
+   "signal": true,
+   "beyond_persistence": true,
+   "dim": 1
+  },
+  "VA:W_full": {
+   "R2_fwd": 0.2923,
+   "se": 0.0025,
+   "R2_bwd": 0.2452,
+   "R2_shuf": 0.1168,
+   "R2_persist": 0.2083,
+   "signal": true,
+   "beyond_persistence": true,
+   "dim": 1024
+  },
+  "VA:W_norm": {
+   "R2_fwd": 0.1075,
+   "se": 0.0139,
+   "R2_bwd": 0.0767,
+   "R2_shuf": 0.0324,
+   "R2_persist": -0.066,
+   "signal": true,
+   "beyond_persistence": true,
+   "dim": 1
+  },
+  "VA:W_mean": {
+   "R2_fwd": 0.3523,
+   "se": 0.0093,
+   "R2_bwd": 0.2916,
+   "R2_shuf": 0.102,
+   "R2_persist": 0.2154,
+   "signal": true,
+   "beyond_persistence": true,
+   "dim": 1
+  },
+  "VA:W_std": {
+   "R2_fwd": 0.1075,
+   "se": 0.0139,
+   "R2_bwd": 0.0767,
+   "R2_shuf": 0.0324,
+   "R2_persist": -0.066,
+   "signal": true,
+   "beyond_persistence": true,
+   "dim": 1
+  },
+  "VA:W_pca8": {
+   "R2_fwd": 0.4572,
+   "se": 0.0045,
+   "R2_bwd": 0.3607,
+   "R2_shuf": 0.1508,
+   "R2_persist": null,
+   "signal": true,
+   "beyond_persistence": false,
+   "dim": 8
+  },
+  "VA:dW_full": {
+   "R2_fwd": 0.0558,
+   "se": 0.0028,
+   "R2_bwd": -0.0004,
+   "R2_shuf": -0.0014,
+   "R2_persist": -0.0,
+   "signal": true,
+   "beyond_persistence": true,
+   "dim": 1024
+  },
+  "VA:dW_norm": {
+   "R2_fwd": 0.2534,
+   "se": 0.0104,
+   "R2_bwd": 0.063,
+   "R2_shuf": 0.0191,
+   "R2_persist": null,
+   "signal": true,
+   "beyond_persistence": false,
+   "dim": 1
+  },
+  "VA:dW_pca8": {
+   "R2_fwd": 0.1374,
+   "se": 0.006,
+   "R2_bwd": 0.0097,
+   "R2_shuf": -0.0015,
+   "R2_persist": null,
+   "signal": true,
+   "beyond_persistence": false,
+   "dim": 8
+  },
+  "VA:vis_full": {
+   "R2_fwd": 0.4807,
+   "se": 0.0033,
+   "R2_bwd": 0.373,
+   "R2_shuf": 0.1435,
+   "R2_persist": 0.2931,
+   "signal": true,
+   "beyond_persistence": true,
+   "dim": 1024
+  },
+  "VA:vis_norm": {
+   "R2_fwd": 0.3444,
+   "se": 0.0138,
+   "R2_bwd": 0.2876,
+   "R2_shuf": 0.1054,
+   "R2_persist": 0.0553,
+   "signal": true,
+   "beyond_persistence": true,
+   "dim": 1
+  },
+  "VA:aud_full": {
+   "R2_fwd": 0.556,
+   "se": 0.0034,
+   "R2_bwd": 0.5289,
+   "R2_shuf": 0.2306,
+   "R2_persist": 0.4873,
+   "signal": true,
+   "beyond_persistence": true,
+   "dim": 768
+  },
+  "VA:aud_norm": {
+   "R2_fwd": 0.5797,
+   "se": 0.009,
+   "R2_bwd": 0.5201,
+   "R2_shuf": 0.1532,
+   "R2_persist": 0.4387,
+   "signal": true,
+   "beyond_persistence": true,
+   "dim": 1
+  }
+ }
+}

@@ -110,6 +110,55 @@ far more **directional** change information. The natural reading:
 directionality.** That is exactly the failure mode the pilot would exhibit: plenty of information,
 almost none of it directional, so a forward predictor cannot beat a symmetric persistence baseline.
 
+## 3.3 CAPACITY CONTROL — the directional gap is **not** dimensionality
+
+`VA` has 1,792 dims against `W`'s 1,024, so part of its advantage could have been capacity rather
+than content. `VA` PCA-reduced to **1,024** on train, everything else identical:
+
+| target | **W** fwd / bwd | ratio | **VA@1024** fwd / bwd | ratio |
+|---|---:|---:|---:|---:|
+| ΔW full | 0.2267 / 0.1952 | 1.16× | 0.0558 / **−0.0004** | **∞** |
+| ΔW pca8 | 0.2433 / 0.1653 | 1.47× | 0.1374 / 0.0097 | **14.2×** |
+| ‖ΔW‖ | 0.2352 / 0.1383 | 1.70× | 0.2534 / 0.0630 | **4.0×** |
+| vis_full | 0.3319 | | **0.4807** | |
+| aud_full | 0.4769 | | **0.5560** | |
+
+**The gap survives matching and sharpens.** At equal dimensionality the pre-fusion features
+predict forward change at R² 0.056 and backward change at **−0.0004 — exactly zero**. That is a
+clean arrow of time. `W`, built from the same windows, predicts backward change almost as well as
+forward (1.16×). The modality-prediction advantage also survives (+0.149 vision, +0.079 audio).
+
+**Case C is established: the information entering the fusion has a temporal direction, and what
+leaves the fusion has largely lost it.**
+
+## 3.4 MLP probe — **INCONCLUSIVE. Do not read its numbers as a result.**
+
+The predeclared rule licensed a small MLP wherever the linear probe found signal, to test whether
+`W`'s directional content is **non-linearly** recoverable (which would shift weight back to
+Case B). **That probe does not work, and its outputs are not interpretable.**
+
+**The bar: an MLP can represent a linear map, so it must at least match ridge on the same data
+before any of its numbers mean anything.** Ridge scores **0.2267** on `W → ΔW`. The MLP never got
+there:
+
+| fix attempted | best R² | vs ridge 0.2267 |
+|---|---:|---|
+| as first written (no early stopping) | −0.026 | fails; *worse* with more steps (−0.270 at 15k) — overfitting |
+| + early stopping on a train-internal split (the same discipline ridge's λ gets) | **+0.083** | still 2.7× short |
+| + objective aligned to the metric (centre targets, don't scale — standardising made it optimise a different quantity from R²) | −0.085 | still fails |
+
+Each fix was a correctness issue, not a hyper-parameter: the first comparison was rigged
+(unregularised MLP vs regularised ridge), and the second optimised per-dimension standardised MSE
+while R² pools raw squared error.
+
+**Stopping here deliberately.** Continuing would become the hyper-parameter sweep this
+investigation is explicitly not allowed to run, and a probe that needs sweeping to beat ridge
+cannot support a clean claim either way.
+
+**Consequence for the conclusions:** the question "is `W`'s directional content non-linearly
+recoverable?" is **OPEN**, not answered negatively. Case C rests on the linear evidence in §3.1–3.3,
+which is sound and capacity-controlled. **Case B is neither confirmed nor excluded.**
+
 ## 4. What each result rules in and out
 
 | finding | rules OUT | rules IN |
@@ -118,7 +167,9 @@ almost none of it directional, so a forward predictor cannot beat a symmetric pe
 | `W` change prediction nearly symmetric (1.16×) | that `W` holds strong directional structure | why an InfoNCE forward predictor cannot beat persistence |
 | `VA` change prediction 9.83× directional | that directionality is absent from the system | **Case C** — fusion discards it |
 | VA > W on future modality targets by +0.07…+0.15 | that `W` is a lossless summary for prediction | compression is costing predictive content |
-| Null at −0.002, all controls clean | measurement artifacts | the probe is sound |
+| Null at −0.002, all controls clean | measurement artifacts | the linear probe is sound |
+| VA@1024 backward ΔW = −0.0004 vs forward 0.0558 | that the gap is dimensionality | **Case C established** — capacity-controlled |
+| MLP never matches ridge (0.083 vs 0.227 best) | *nothing* — the probe is invalid | only that this instrument does not work |
 
 **Classification: Case B *and* Case C, with C the more actionable.** The InfoNCE future-state
 objective was a poor extractor (B), *and* the representation it was extracting from has had its
@@ -150,16 +201,18 @@ Ordered by cost:
    key rows with `VA` PCA-reduced to 1,024 dims. **If the directional gap survives, Case C is
    established; if it collapses, §3.2 is an artifact and the recommendation changes.** This should
    run before anything else.
-2. **A small MLP probe on the rows where linear found signal** — licensed by the predeclared
-   rule. Tests whether the directional content in `W` is non-linearly recoverable, which would
-   move weight back toward Case B.
-3. **Only then**, if Case C survives, a redesigned RUN-5 whose objective preserves predictive
-   information through the fusion — not simply a bigger predictor bolted onto the existing `W`.
+2. ~~A small MLP probe~~ — **attempted, INCONCLUSIVE (§3.4).** If the Case B question is worth
+   settling, it needs a probe that demonstrably matches ridge first; that is a methods task, not
+   a result, and it is not a prerequisite for the decision below.
+3. **A redesigned RUN-5 is now justified** — Case C survived the capacity control. Its objective
+   must preserve predictive information *through the fusion*, not bolt a larger predictor onto the
+   existing `W`, because §3.3 locates the loss at the fusion itself.
 
-**If step 1 collapses the gap and step 2 finds nothing**, the honest outcome is the clean negative
-already written up in `RUN5_PILOT_RESULT.md`, plus this probe suite as the evidence that the
-information exists but is not directionally organised. That is a publishable pair and does not
-require manufacturing a RUN-5.
+**Step 1 did not collapse the gap — it sharpened it.** The clean negative in
+`RUN5_PILOT_RESULT.md` stands as written, and this probe suite explains *why* it happened: the
+information exists, but the fusion strips its direction before any downstream predictor sees it.
+That pair is publishable on its own, and it also identifies a specific, testable architectural
+cause rather than leaving the failure unexplained.
 
 ## 7. Provenance
 

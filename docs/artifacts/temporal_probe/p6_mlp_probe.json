@@ -1,0 +1,97 @@
+{
+ "delta": 10.0,
+ "grid_train": 2.0,
+ "held_out": [
+  "P01",
+  "P06",
+  "P11",
+  "P16",
+  "P21",
+  "P26",
+  "P31"
+ ],
+ "va_dims": 1024,
+ "probe": "mlp",
+ "probes": {
+  "W:dW_full": {
+   "R2_fwd": -0.0259,
+   "se": 0.0067,
+   "R2_bwd": -0.0831,
+   "R2_shuf": -0.3698,
+   "R2_persist": -0.0,
+   "signal": false,
+   "beyond_persistence": false,
+   "dim": 1024
+  },
+  "W:dW_pca8": {
+   "R2_fwd": -0.1454,
+   "se": 0.0138,
+   "R2_bwd": -0.2632,
+   "R2_shuf": -0.667,
+   "R2_persist": null,
+   "signal": false,
+   "beyond_persistence": false,
+   "dim": 8
+  },
+  "W:dW_norm": {
+   "R2_fwd": -0.0799,
+   "se": 0.0146,
+   "R2_bwd": -0.2586,
+   "R2_shuf": -0.3101,
+   "R2_persist": null,
+   "signal": false,
+   "beyond_persistence": false,
+   "dim": 1
+  },
+  "W:W_full": {
+   "R2_fwd": 0.1524,
+   "se": 0.0037,
+   "R2_bwd": 0.1053,
+   "R2_shuf": -0.1208,
+   "R2_persist": 0.2083,
+   "signal": true,
+   "beyond_persistence": false,
+   "dim": 1024
+  },
+  "VA:dW_full": {
+   "R2_fwd": -0.6501,
+   "se": 0.0117,
+   "R2_bwd": -0.72,
+   "R2_shuf": -1.3093,
+   "R2_persist": -0.0,
+   "signal": false,
+   "beyond_persistence": false,
+   "dim": 1024
+  },
+  "VA:dW_pca8": {
+   "R2_fwd": -0.8024,
+   "se": 0.0238,
+   "R2_bwd": -0.911,
+   "R2_shuf": -2.7323,
+   "R2_persist": null,
+   "signal": false,
+   "beyond_persistence": false,
+   "dim": 8
+  },
+  "VA:dW_norm": {
+   "R2_fwd": -0.7094,
+   "se": 0.0332,
+   "R2_bwd": -0.9214,
+   "R2_shuf": -1.7433,
+   "R2_persist": null,
+   "signal": false,
+   "beyond_persistence": false,
+   "dim": 1
+  },
+  "VA:W_full": {
+   "R2_fwd": -0.1493,
+   "se": 0.0044,
+   "R2_bwd": -0.2,
+   "R2_shuf": -0.7502,
+   "R2_persist": 0.2083,
+   "signal": false,
+   "beyond_persistence": false,
+   "dim": 1024
+  }
+ }
+}
