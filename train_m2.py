@@ -1287,29 +1287,6 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
                     sr_loss = sigreg(ws.float(), global_step=step, num_slices=num_slices)
                 total_loss = lam_pred * pred_loss
 
-            # ── RUN-5 v2: the predictive FUSION term ───────────────
-            # This is the whole point of v2. world_state() is grad-enabled, so this
-            # gradient reaches _embed -> backbone -> pool_query, i.e. the FUSION itself.
-            # v1 attached its predictor to a FROZEN W and could only read what the fusion
-            # had already discarded; that is why it could not have worked.
-            # Target is dV from a FROZEN encoder, so this term cannot be satisfied by
-            # collapse and needs no stop-gradient or EMA teacher.
-            future_loss_val = 0.0
-            if future_head is not None:
-                fb = next(future_batches)
-                _cap_ambient_len(fb["feats"], fb["tbins"], fb.get("padding_mask"))
-                f_f = {k: v.to(device) for k, v in fb["feats"].items()}
-                t_f = {k: v.to(device) for k, v in fb["tbins"].items()}
-                p_f = {k: v.to(device) for k, v in fb["padding_mask"].items()}
-                k_f = flat_pad(p_f, f_f)
-                if no_pad_mask:
-                    k_f = None
-                ws_f = predictor.world_state(f_f, t_f, key_padding_mask=k_f)   # grad -> fusion
-                dv_hat = future_head(ws_f.float())
-                fut_loss = F.mse_loss(dv_hat, fb["dv"].to(device).float())
-                total_loss = total_loss + lam_future * fut_loss
-                future_loss_val = float(fut_loss.detach())
-
             # ── pooled cross-modal auxiliary (STEP 3, optional) ───
             pooled_loss_val = 0.0
             if pooled_heads is not None and lam_pooled > 0.0:
@@ -1407,6 +1384,33 @@ def train(cfg: AttrDict, max_steps: Optional[int] = None,
                 global_negatives = c_metrics.get("global_B", z_v.shape[0])
 
         total_loss.backward()
+
+        # ── RUN-5 v2: the predictive FUSION term ─────────────────────────
+        # SEPARATE forward+backward, deliberately AFTER total_loss.backward().
+        # Inside total_loss the two graphs coexist and peak memory OOMs at AV batch 50:
+        # RUN-4 already used 94.9 of 95 GB. Backwarding separately means the AV graph is
+        # freed before the future graph is built, at no cost to correctness -- gradients
+        # accumulate into .grad exactly as the GradCache path below already does, and
+        # sync_grads() still fires EXACTLY ONCE after every backward in this step.
+        # world_state() is grad-enabled, so this reaches _embed -> backbone -> pool_query,
+        # i.e. the FUSION itself. That is the whole point of v2: RUN-5 v1 attached its
+        # predictor to a FROZEN W and could only read what the fusion had already discarded.
+        # The target dV comes from a FROZEN encoder, so this term cannot be satisfied by
+        # collapse and needs no stop-gradient or EMA teacher.
+        future_loss_val = 0.0
+        if future_head is not None:
+            fb = next(future_batches)
+            _cap_ambient_len(fb["feats"], fb["tbins"], fb.get("padding_mask"))
+            f_f = {k: v.to(device) for k, v in fb["feats"].items()}
+            t_f = {k: v.to(device) for k, v in fb["tbins"].items()}
+            p_f = {k: v.to(device) for k, v in fb["padding_mask"].items()}
+            k_f = None if no_pad_mask else flat_pad(p_f, f_f)
+            with torch.autocast(device_type=device.type, dtype=torch.bfloat16,
+                                enabled=amp_enabled):
+                ws_f = predictor.world_state(f_f, t_f, key_padding_mask=k_f)
+                fut_loss = F.mse_loss(future_head(ws_f.float()), fb["dv"].to(device).float())
+            (lam_future * fut_loss).backward()
+            future_loss_val = float(fut_loss.detach())
 
         # ── GradCache contrastive path (composes with the differentiable
         # all_gather in gathered_info_nce -- see gradcache_contrastive_step's

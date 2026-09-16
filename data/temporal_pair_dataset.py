@@ -87,12 +87,18 @@ class TemporalPairDataset(Dataset):
     def __len__(self) -> int:
         return len(self.items)
 
-    def __getitem__(self, idx: int) -> Dict:
+    def __getitem__(self, idx: int, _tries: int = 0) -> Dict:
         it = self.items[idx]
         try:
             d = torch.load(it["path"], map_location="cpu", weights_only=True)
-        except (FileNotFoundError, RuntimeError):
-            return self.__getitem__((idx + 1) % len(self.items))
+        except (FileNotFoundError, RuntimeError, OSError):
+            # BOUNDED retry. The unbounded recursive version blew the Python recursion limit
+            # when many files were missing at once (a feature-cache migration moved them out
+            # from under a running job), turning a recoverable miss into a RecursionError that
+            # nothing caught and that killed the rank.
+            if _tries >= 16:
+                raise RuntimeError(f"temporal pair cache unreadable near idx {idx}: {it['path']}")
+            return self.__getitem__((idx + 1) % len(self.items), _tries + 1)
         out = self._tx.transform(d, f"{it['vid']}_w{it['i']:05d}")
         vm = self.dv_cache[it["vid"]]
         out["dv"] = (vm[it["j"]] - vm[it["i"]])      # (1024,) float32
