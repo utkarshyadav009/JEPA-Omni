@@ -44,7 +44,7 @@ Galleries:
 Deterministic single run: v→a 29.90 / 56.83 / 68.67, a→v 28.28 / 56.25 / 68.16.
 
 * Source: `docs/artifacts/temporal_probe/p02_summary.json`, `p02_cell{3,4}_fix_*.json`
-* Command: `python scripts/temporal_probe/bin_scramble_eval.py --arms A0 --no-scene representation --fix-padding --out <path>`
+* Command: `python scripts/temporal_probe/bin_scramble_eval.py --arms A0 --no-world-state --fix-padding --out <path>`
 * **Supersedes the published 53.27/53.72** (ERRATA E-1). Those were inflated ≈24 points by a
   padding-derived shared-nuisance leak, established three ways: batch-size-1 agreement,
   a uniform-pad control that *hurts*, and a random-pad control that reproduces the gain.
