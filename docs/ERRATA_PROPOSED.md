@@ -497,3 +497,44 @@ is no plateau to notice, it may go uncaught.
 `stepN000.pt` checkpoints by held-out R@1, ignoring `best.pt` — zero code change, preserves
 RUN-4's single-variable design; or (b) fix the selection criterion, which adds a second
 change to a run scoped as padding-fix-only. (a) is recommended. Not applied either way.
+
+---
+
+## E-15 — `docs/ICLR_RESULTS.md` §15, the abstract crib, is stale in 6 of its rows
+
+**SEVERITY: HIGH — this section is titled "the numbers most likely to go in the abstract",
+so it is the most likely route for a retracted number to reach a submission.**
+
+`docs/ICLR_RESULTS.md` was last written 2026-09-09 (`4a83912`). It therefore predates the
+padding-leak discovery (E-1), the contamination re-measurement (E-13), the baseline
+reconciliation (E-12), RUN-4 in its entirety, the naming retirement, and RUN-5. E-12 already
+covers §2; **§15 has never been covered by any errata entry**, and it is the section a paper
+draft would be written from.
+
+| § 15 row | published | status | corrected source |
+|---|---|---|---|
+| M2 AV congruency R@1 | a→v **53.27** / v→a **53.72** | **E-1 — padding leak, ≈24 pts** | RUN-2 corrected **28.28 / 29.90**; the system result is now RUN-4 `step18000` **41.88 (a→v) / 41.77 (v→a)** (`CANONICAL_NUMBERS.md` §1.1) |
+| vs chance | **823×** | **arithmetic on the leaked number** | chance = 0.0647 %; corrected RUN-2 **437×**, RUN-4 **647× (a→v) / 645× (v→a)** |
+| best same-gallery baseline | ImageBind **29.70** @ n=1532 | **E-12 — stale, and n differs** | **29.45** a→v @ **n=1545** (`data/imagebind_retrieval_results.json`) |
+| gallery contamination | **≥15.4 pts**, "state as a LOWER BOUND, never an estimate" | **E-13 — superseded, and the framing now misleads** | **+9.58 / +9.26 R@1** and **+17.80 / +17.60 R@5**. Under the leak the contaminated gallery was near ceiling (94.85/97.86), which compressed R@1. Reporting R@1 alone inverts the finding — see `PAPER_ASSETS.md` asset 2 |
+| corpus scale, matched steps | 33.46 → **44.27** @ 6,000 steps | **in-training evals on the leaked path** — not re-measured | do not quote until re-measured through the corrected harness |
+| Ego4D batch share | 18.40 → 11.57 → 27.60 | same leaked path for the VGGSound column | the 27.60 / 27.00 Ego4D figure itself stands, but see E-8 |
+| Ego4D transfer | 27.60 / 27.00 | **numerically stands**; E-8 caveat missing | **PERMANENTLY UNREPRODUCIBLE.** If the caveat cannot travel in the table, cut the row |
+| "World-State" (§15 AudioSet row, and throughout) | — | **name retired** | "audio-visual scene representation" (`FORWARD_INFORMATION_PROBE.md`) |
+
+**Rows that survive unchanged:** the 90.0 % test-split overlap (re-derived, `CANONICAL_NUMBERS.md`
+§3.1); the SigLIP2 / WavJEPA-nat / ears-following / query-predictor ablations (E-6 confirmed
+clean, batch-size-1 re-scored); the AudioSet mAP values; the latency progression.
+
+### Second finding: there is no abstract document
+
+`find -iname "*abstract*"` returns nothing. §15 is a *crib for* an abstract; no abstract has been
+written. So there is no drafted abstract carrying these numbers — the exposure is prospective,
+not already-published.
+
+**Proposed:** do not edit §15 in place. Supersede it. `docs/CANONICAL_NUMBERS.md` (single source,
+with provenance per row) and `docs/PAPER_ASSETS.md` (per-claim inventory with the caveat that must
+travel) were written for exactly this purpose and are current. Add a banner at the head of
+`ICLR_RESULTS.md` pointing there, and draft any abstract from those two files.
+
+**Not applied.**

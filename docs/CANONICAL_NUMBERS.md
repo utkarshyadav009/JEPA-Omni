@@ -5,7 +5,7 @@ draft and not here, it is not canonical. Where a dispute is live it is marked **
 and both sides are given — nothing is silently resolved.
 
 Last updated 2026-09-13. Corrections proposed against published tables live in
-`docs/ERRATA_PROPOSED.md` (14 entries); **none has been applied to a published table.**
+`docs/ERRATA_PROPOSED.md` (15 entries); **none has been applied to a published table.**
 
 **Primary system checkpoint (RUN-4), selected post hoc by held-out R@1 in P3.0:**
 `checkpoints/m2_run4_padfix_ta896/step18000.pt`,
@@ -387,4 +387,5 @@ Write-up: `docs/R1_SATURATION.md`. Source: `docs/artifacts/temporal_probe/p30_sh
 | E-12 | ICLR §2 stale for 7 of 8 baseline rows | correction **proposed**, not applied |
 | §13.2 | Wav2CLIP contamination: table says in-distribution, JSON says held-out | **unresolved** |
 | §13.3 | RUN-2 step20000 direction order conflicts between two docs | **unresolved** |
-| E-14 | `best.pt` still selected on training `loss_ema`; `0eb3337` never touched `train_m2.py` | **live bug**; RUN-4 selects post hoc instead |
+| E-14 | `best.pt` still selected on training `loss_ema`; `0eb3337` never touched `train_m2.py` | **live bug**; RUN-4/RUN-5 select post hoc instead |
+| **E-15** | **`ICLR_RESULTS.md` §15 — the abstract crib — stale in 6 rows, incl. the 53.27 headline and the ≥15.4 contamination framing** | correction **proposed**, not applied. **Draft any abstract from this file and `PAPER_ASSETS.md`, not from §15.** |
