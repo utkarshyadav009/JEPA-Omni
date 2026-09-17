@@ -19,6 +19,49 @@ resolved.
 
 ---
 
+> # ⚠ STATUS 2026-09-17 — READ BEFORE QUOTING ANY NUMBER FROM THIS FILE
+>
+> This file was assembled **2026-09-08/09**. It therefore predates the padding-leak discovery,
+> the contamination re-measurement, the baseline reconciliation, **RUN-4 in its entirety**, the
+> naming retirement, and RUN-5. Several of its headline numbers are **superseded**.
+>
+> **For drafting the paper or the abstract, use these instead:**
+>
+> | need | file |
+> |---|---|
+> | any single number, with provenance | **`docs/CANONICAL_NUMBERS.md`** — the single source |
+> | per-claim inventory + the caveat that must travel | **`docs/PAPER_ASSETS.md`** |
+> | the abstract itself | **`docs/ABSTRACT.md`** (two framings + claim ledger) |
+> | what changed and why | **`docs/ERRATA_PROPOSED.md`** (15 entries) |
+>
+> **Superseded numbers are NOT deleted below.** They are marked `SUPERSEDED` in place with the
+> corrected value and the errata ID, because they were previously circulated and the paper must
+> present them as corrections rather than silently swap them (`PAPER_ASSETS.md` asset 8).
+>
+> **Marking is section-level, not line-level — this matters.** Corrected in this pass: **§1.1,
+> §2, §5, §15**. But `53.27` / `53.72` and the `≥15.4` contamination figure recur **21 further
+> times** in discussion prose that carries no local marker:
+>
+> | section | unmarked mentions | what they are |
+> |---|---|---|
+> | §12 (protocol-mismatch register) | 7 | prose *about* the published numbers |
+> | §13 (conflicts between sources) | 7 | prose *about* the published numbers |
+> | §5 (contamination) | 3 | body text under the corrected banner |
+> | §4 (corpus-scale / batch-share) | 2 | **in-training evals on the leaked path — never re-measured** |
+> | §1, §14 | 2 | cross-references |
+>
+> **Rule: any `53.27`, `53.72` or `≥15.4` anywhere in this file is superseded, whether or not the
+> nearest heading says so.** §4's retrieval figures are the ones to watch — they were never
+> re-measured through the corrected harness, so do not quote them at all.
+>
+> Sections **not** re-verified against the corrected harness: **§4, §6–§8, §11**.
+>
+> **The system result is now RUN-4 `step18000`: 41.77 (v→a) / 41.88 (a→v) R@1**, n=1,545,
+> sha256 `27b33c8c…`. Everything below describing "our system" as 53.27/53.72 is RUN-2 on the
+> leaked path.
+
+---
+
 ## 1. M2 audio-visual congruency — retrieval on the 1,545-clip held-out VGGSound gallery
 
 **Protocol (all rows).** Full N×N cosine-similarity retrieval over the fixed gallery
@@ -30,6 +73,22 @@ on the gallery. Direction labels are taken verbatim from the log's own key names
 (`ambient→vision` = a→v, `vision→ambient` = v→a).
 
 ### 1.1 Primary (training-time eval, the number every other doc cites)
+
+> **⚠ SUPERSEDED — ERRATA E-1. Do not quote the R@k rows below as a result.**
+>
+> These were measured on the **leaked** eval path: `av_collate_fn` pads ambient to the longest
+> clip *in the batch* and no consumer passed the resulting mask, so a per-clip pad count entered
+> both embeddings as a shared nuisance variable that retrieval could match on.
+>
+> | | published below | corrected (RUN-2, same checkpoint) | **system result (RUN-4 `step18000`)** |
+> |---|---|---|---|
+> | v→a R@1 | 53.72 | **29.90** | **41.77** |
+> | a→v R@1 | 53.27 | **28.28** | **41.88** |
+>
+> Established three ways: batch-size-1 agreement, a uniform-pad control that *hurts*, and a
+> random-pad control that reproduces the gain. The cure is **length normalisation, not masking**
+> (`CANONICAL_NUMBERS.md` §7.2). The rows below are retained as the record of what was
+> circulated, not as a claim.
 
 | metric | value | n | protocol | gallery | source file | key / line | measured/published |
 |---|---|---|---|---|---|---|---|
@@ -58,7 +117,8 @@ Same six R@k values are mirrored, byte-consistent, in `docs/BASELINE_1545_PROVEN
 | chance R@5 | 0.32% (5/1545 = 0.3236%) | 1545 | same | 1,545 | `docs/BASELINE_1545.md` | "Chance level" row | measured (arithmetic) |
 | chance R@10 | 0.65% (10/1545 = 0.6472%) | 1545 | same | 1,545 | `docs/BASELINE_1545.md` | "Chance level" row | measured (arithmetic) |
 
-R@1 is **823×** chance (53.27 / 0.0647). Not stated in any source doc; computed here, flagged as
+R@1 is **823×** chance (53.27 / 0.0647). **⚠ SUPERSEDED (E-1/E-15): arithmetic on the leaked
+number.** Corrected: RUN-2 **437×**, RUN-4 **647× (a→v) / 645× (v→a)**. Not stated in any source doc; computed here, flagged as
 derived arithmetic.
 
 ### 1.3 Two independent re-runs of the SAME checkpoint on the SAME gallery (run-to-run spread)
@@ -93,6 +153,17 @@ than ~0.9 pt on this gallery is inside our own measurement noise.**
 ---
 
 ## 2. Eight-baseline comparison — same gallery, our code, our measurement
+
+> **⚠ SUPERSEDED for 7 of 8 rows — ERRATA E-12.** This section cites source files that no longer
+> contain its numbers. **Canonical baselines are the per-model JSONs** (`data/{model}_retrieval_results.json`),
+> tabulated in `CANONICAL_NUMBERS.md` §2. Notably ImageBind is **29.45 a→v @ n=1,545**, not
+> 29.70 @ n=1,532.
+>
+> **And the head-to-head must NOT be written as a win (`CANONICAL_NUMBERS.md` §2.1).** We train
+> on 197k VGGSound clips; ImageBind and EquiAV have never seen VGGSound. The gallery is held out
+> at the *clip* level, not the *distribution* level, so the ~12-point margin is **in-domain vs
+> zero-shot transfer** and confounds representation quality with domain adaptation. No
+> parameter-efficiency claim may be built on it.
 
 **Every number in this section is `measured` by us.** No number here is copied from a paper; that
 is the entire point of the table (`docs/BASELINE_1545.md`, Purpose ¶). Each baseline uses **its
@@ -271,6 +342,20 @@ RUN-2 "a clean two-lever result" — i.e. it explicitly is **not** a single-vari
 ---
 
 ## 5. Gallery contamination — a LOWER BOUND of ≥15.4 points
+
+> **⚠ SUPERSEDED — ERRATA E-13. The "lower bound" framing now actively misleads.**
+>
+> Re-measured on the padding-corrected path, against a better-controlled pair (clean vs the
+> **official test split**, 0% vs 100% overlap, matched on source split, size and class structure):
+>
+> | | v→a Δ R@1 | v→a Δ R@5 | a→v Δ R@1 | a→v Δ R@5 |
+> |---|---|---|---|---|
+> | **E-13 (primary)** | **+9.58** | **+17.80** | **+9.26** | **+17.60** |
+> | E-5 (corroborating) | +9.36 ± 0.08 | +18.43 ± 0.04 | +9.97 ± 0.00 | +16.95 ± 0.00 |
+>
+> **R@1 shrinks and R@5 grows.** Under the leak the contaminated gallery ran near ceiling
+> (94.85 / 97.86), which compressed the R@1 gap. **Quoting R@1 alone inverts the finding**, and
+> "the effect shrank 40%" is a false summary. Report R@1 **and** R@5 together.
 
 **This must be stated as a lower bound, not an estimate.** The measurement is a single pair of
 galleries; it establishes that ≥15.4 pts of a VGGSound retrieval figure can come from
@@ -1158,31 +1243,48 @@ pts within one re-run pair", or the doc's own "+15.4 points" quoted as the doc's
 | the "7,415/20,371 = 36.40%" AudioSet overlap cross-check, as a separate artifact | **prose-only** | `docs/AUDIOSET_BENCHMARK.md`'s two independent verification methods ("feature-cache listing" and "the VGGSound CSV label files") are described but not saved as JSON/log; only the headline 6,569/17,141=38.3% figure was independently re-derived in this pass (§9.2, from `eval.pt` + `docs/artifacts/audioset_eval_clean_ids.json` directly). |
 
 ---
-
 ## 15. One-page crib: the numbers most likely to go in the abstract
 
-All `measured`. Every row's caveat is the §12/§13 entry named.
+> **⚠ REWRITTEN 2026-09-17 — ERRATA E-15.** The previous version of this section was assembled
+> 2026-09-09 and was stale in **six rows**, including the headline R@1 and the contamination
+> framing. Because it is titled "the numbers most likely to go in the abstract", it was the most
+> direct route for a retracted number to reach a submission.
+>
+> The superseded table is preserved in git (`git show 2cbff16:docs/ICLR_RESULTS.md`), not here —
+> keeping a stale abstract crib next to a corrected one is how the wrong row gets copied.
+>
+> **The drafted abstract itself is `docs/ABSTRACT.md`** (two framings, a per-number claim ledger,
+> and a list of sentences that must never appear). This table is its input.
 
-| claim | number | n | gallery | source | must-carry caveat |
-|---|---|---|---|---|---|
-| M2 AV congruency retrieval, held-out | a→v **53.27%** / v→a **53.72%** R@1 (R@5 81.62/80.32, R@10 88.67/88.09) | 1545 | 1,545 clips, 0/1,545 training overlap | `logs/m2_run2_final.log:1325-1334` | §12.1 not protocol-matched to AV-JEPA; §1.3 ±0.9 pt run noise |
-| vs chance | **823×** chance (0.0647%) | 1545 | same | arithmetic | derived here |
-| best same-gallery baseline we could run | ImageBind **29.70%** a→v R@1 (HELD-OUT, 1532/1545) | 1532 | same list minus 13 | `data/imagebind_retrieval_results.json` | §12.3 different corpora/params; §12.4 N differs |
-| best in-distribution baseline | CAV-MAE **12.23%** a→v R@1 | 1545 | different video source | `data/cavmae_retrieval_results.json` | §13.1 source dir gone; §12.2 IN-DISTRIBUTION favours it |
-| Ego4D transfer, file-disjoint + sibling-excluded | **27.60% / 27.00%** R@1 vs a **2.82% / 1.78%** pre-retrain baseline | 674 | 674 windows / 350 files | `EGO4D_HELDOUT_RUN2_STEP19000_RESULT.json`, `…BASELINE_V2.json` | §12.5 held-out in-domain, **not** zero-shot |
-| corpus scale, matched steps | **33.46 → 44.27%** R@1 for 51,508 → 199,007 clips at 6,000 steps | 1545 | 1,545 | `docs/EVIDENCE_LEDGER.md` TABLE 3 | §12.9 retrospective re-read; no direction labels |
-| Ego4D batch share | share 22.2→8.0% dropped transfer 18.40→11.57; restoring to 40.5% gave 27.60 | 674 | 674 | `docs/EVIDENCE_LEDGER.md` TABLE 3 | §12.9 RUN-1→RUN-2 also moved negatives 192→200 |
-| **gallery contamination lower bound** | **≥15.4 pts** (53.14→68.61 a→v; +14.95 v→a), same checkpoint & script, 0/1,545 → 1,404/1,545 overlap | 1545 | both galleries N=1,545 | `docs/GALLERY_CONTAMINATION.md` | must be stated as a **LOWER BOUND**, never an estimate; §13.10 on the 53.14 vs 53.27 base |
-| 90% of the official test split is inside our training corpus | **13,894 / 15,446 (90.0%)**; only 1,552 outside | 15,446 | official test split | `docs/GALLERY_CONTAMINATION.md`, re-derived §10 | reproducibility observation, not an accusation |
-| SigLIP2 scene stream earns its place | cross-clip R@1 **0.4407 → 0.5641** (+28.0% rel), holds at all 6 eval steps | 624 | 624 clips | `abl_A`/`abl_B` `train_log.json` | §12.8 clean; never compare to `sig_run*` numbers |
-| WavJEPA-nat buys nothing | **+0.16 pts** (0.5641 → 0.5657); congruency 0.608 vs 0.609 | 624 / 640 | 624 / 640 trials | `abl_B`/`abl_C`; `AV_CONGRUENCE_runD.json` | §12.8 clean |
-| audio is genuinely read | ears-following **0.650 → 0.070** when audio streams are dropped, matched control stays 0.956 → 0.923 | 640 | 640 trials | `checkpoints/AV_CONGRUENCE_EVAL.json` | frozen-target arms are at chance on the control (0.502/0.541) and uninterpretable |
-| query is genuinely read | correct-query **0.8178** vs swapped-query **0.0045**, chance 0.1667 (37× *below* chance) | 624 | 6 fields × 624 clips | `sig_runD_proj768/train_log.json` step 1249 | §13.5 these are the deployed weights; 0.811/0.737 is step 1499 |
-| frozen target space fails | **0.4888** vs **0.6811** reference — the one genuinely controlled comparison, and it is negative | 624 | 624 | `sig_runA`/`query_predictor_ddp_lw0.3` `train_log.json` | root cause: the trainable projection is the load-bearing part (§6.3, prose-only ablation) |
-| restoring the projection | within-clip **0.688 → 0.811**, R@1 **0.627 → 0.737** (B→D, single variable) | 624 | 624 | `sig_runB`/`sig_runD` `train_log.json` | §12.8 clean |
-| SigLIP2 vs EmbeddingGemma | **+8.2% rel** (0.681 → 0.737) as reported | 624 | 624 | `JEPA_MEMORY_PLAN.md:1861` | §12.8/§8.5 **three** variables differ; and a 3,000-step EmbeddingGemma run reaches **0.7147**, cutting the margin to +3.1% |
-| interface latency, generation → retrieval | **1–6 s** (M3→Qwen, on-Jetson) → **403.8 ms** (EmbeddingGemma, 24k bank) → **24.9–33.1 ms** (SigLIP2 pre-encoded, 4-stream, 1,372-tag bank) | — | — | `falsifier_tracking.md:2296`; `jetson_perception_query_results.json`; `fit_2026-08-15/fit_{final,nonat}.json` | §12.7 — **the 8 ms figure is a different model with a 30-caption bank; do not label it SigLIP2** |
-| where the EmbeddingGemma time went | **263.5 ms of 403.8 ms (65.3%)** is encoding the question; bank lookup over **24,000** candidates is **2.6 ms (0.6%)** | — | 24,000 | `jetson_perception_query_results.json` | the motivation for pre-encoding; §12.7 bank sizes differ across the progression |
-| bank-size collapse (why Attempt 2 was abandoned) | correct-clip F1 **0.4417 → 0.1889** for an 8× bank (6,000 → 48,000 captions); field-level F1 flat 0.9458 → 0.9528 | 240 / 360 | 6,000 / 48,000 captions | `PERCEPTION_QUERY_E2E{,_bank48k}.json` | §12.6 not comparable to Attempt 3's R@1 |
-| AudioSet zero-shot audio-only probe (M2 never trained on AudioSet) | linear mAP **18.59**, attentive mAP **20.00** (World-State, vision zeroed); controls at chance, mAP 0.56–0.62 | 10,572 | 498/527 classes scored, 38.3% of the eval mirror excluded for VGGSound overlap | `docs/artifacts/audioset_probe_ours.json` | §12.11 — frozen-zero-shot vs published frozen-in-domain (Table 9.3a, up to 38.89 A) and vs published fine-tuned (Table 9.3b, 32.7–51.2); **no V or A-V column exists**; world-state-vision-zeroed is audio-only, not an A-V number |
+**All `measured`. Every value traces to `docs/CANONICAL_NUMBERS.md` (CN), which is the single source.**
 
+| claim | number | n | source | must-carry caveat |
+|---|---|---|---|---|
+| **system result** — held-out VGGSound retrieval | **41.77 (v→a) / 41.88 (a→v)** R@1; R@5 71.97 / 72.10 | 1,545 | CN §1.1 — RUN-4 `step18000`, sha256 `27b33c8c…`, 3 seeds, range 0.06 | **always write the direction.** `41.35/41.68` is `step20000`, a different checkpoint (CN §1.2) |
+| vs chance | **647× (a→v) / 645× (v→a)** chance (0.0647%) | 1,545 | arithmetic on CN §1.1 | the published **823×** was arithmetic on the leaked number |
+| **the padding leak** | 53.72 → **29.90** (v→a), 53.27 → **28.28** (a→v); ≈24 pts | 1,545 | CN §1, E-1 | this is **RUN-2 corrected**, not the system number — do not conflate with row 1 |
+| leak mechanism | **length normalisation, not masking** | — | CN §7.2 (P2.2 control) | the mask-off control is within noise; "we fixed it by masking" is wrong |
+| effective rank | **74.26** (RUN-4) vs **37.72** (RUN-2) | 1,545 | CN §7.1, full-gallery, corrected harness | ≈2×, **not 6×**. The in-training ~12.5 figure is withdrawn |
+| **gallery contamination** | **+9.58 R@1 / +17.80 R@5** (v→a); +9.26 / +17.60 (a→v) | 1,545 | CN §3, E-13 primary | **quote R@1 AND R@5.** R@1 shrinks only because the contaminated gallery saturates; "shrank 40%" is a false summary |
+| official test split inside our corpus | **13,894 / 15,446 (90.0%)** | 15,446 | CN §3.1 | reproducibility observation, not an accusation |
+| best same-gallery baseline | ImageBind **29.45 (a→v) / 29.64 (v→a)** | 1,545 | CN §2 | **NON-EQUIVALENT (CN §2.1).** We train on VGGSound; ImageBind never has. In-domain vs zero-shot. **Never "beats ImageBind"; no parameter-efficiency claim** |
+| R@1 saturation | R@1 flat 16k–20k (41.34–41.77) while R@5 +2.00 and eff_rank +4.52 rise monotonically | 1,545 | CN §9, `R1_SATURATION.md` | **never quote R@1 alone anywhere in the paper** |
+| **naming verdict** | forward−backward gap **−0.04 ± 0.15** (RUN-4); IDENTITY beats every learned map | 5,101 q | `FORWARD_INFORMATION_PROBE.md` | pre-registered threshold ≥2.0 at ≥3×SE; IDENTITY's artifact floor is ≈0.6. Use **"audio-visual scene representation"**, never "world state" |
+| **fusion bottleneck** | pre-fusion vision → ΔW: forward **0.0446**, backward **−0.0009** (exactly zero); fused `W`: **1.14×** fwd/bwd | 6,409 | `FUSION_BOTTLENECK.md`, capacity-matched 768d | the directional signal is **real but small** (R² 0.045). Observational — "localises to the fusion", not "the fusion destroys" |
+| **predictive objective (RUN-5)** | recovers 70% of the deficit at 3k steps, decays to 9% by 20k; **r = −0.75** vs retrieval | 6 ckpts | `RUN5_DECAY_ANALYSIS.md` | **the mechanism gate FAILED.** `step1000` clears every mechanism criterion and retrieves at **9.26** vs RUN-4's 41.77 — a Pareto frontier, not a gain |
+| Ego4D transfer | **27.60 / 27.00** R@1 | 674 | CN §4 | **PERMANENTLY UNREPRODUCIBLE (E-8).** If the caveat cannot travel in the table, **cut the row** |
+| query predictor | cross-clip R@1 **0.7372** (`sig_runD`), **0.4888** (`sig_runA`) | 624 | CN §5, E-6 clean | **RUN-2-based**, no downstream retrain planned — say so, or a reader assumes they sit on RUN-4 |
+| audio is genuinely read | ears-following **0.650 → 0.070** when audio is dropped | 640 | CN §5 | reproduced exactly at 0.6500; moved +0.0031 when the one unmasked op was masked |
+| SigLIP2 scene stream earns its place | cross-clip R@1 **0.4407 → 0.5641** (+28.0% rel) | 624 | §7 `abl_A`/`abl_B` | §12.8 clean; never compare to `sig_run*` numbers |
+| WavJEPA-nat buys nothing | **+0.16 pts** (0.5641 → 0.5657) | 624 / 640 | §7 `abl_B`/`abl_C` | §12.8 clean |
+| AudioSet zero-shot audio-only probe | linear mAP **18.59**, attentive **20.00** | 10,572 | `audioset_probe_ours.json` | audio-only (vision zeroed), **not an A-V number**; §12.11 |
+| interface latency | **1–6 s → 403.8 ms → 24.9–33.1 ms** | — | §6 | §12.7 — the 8 ms figure is a different model with a 30-caption bank |
+
+### Rows deliberately NOT in the abstract
+
+* **Ego4D 27.60 / 27.00** — real, but E-8 unreproducible; an abstract cannot carry that caveat.
+* **Query predictor 0.7372 / 0.4888** — clean, but RUN-2-based; beside a RUN-4 headline they
+  imply they sit on it.
+* **RUN-5 retrieval 42.59 / 42.14** — higher than RUN-4, but from a run whose mechanism gate
+  **failed**, and under 1 point against a 0.13 seed range.
+* **Corpus-scale 33.46 → 44.27** — in-training evals on the leaked path, never re-measured.

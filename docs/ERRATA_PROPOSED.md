@@ -537,4 +537,18 @@ with provenance per row) and `docs/PAPER_ASSETS.md` (per-claim inventory with th
 travel) were written for exactly this purpose and are current. Add a banner at the head of
 `ICLR_RESULTS.md` pointing there, and draft any abstract from those two files.
 
-**Not applied.**
+**APPLIED 2026-09-17 on explicit user instruction** ("update iclr results ... so that I can use
+it to draft the abstract and the final paper"). This is the **only** errata entry applied to a
+published table; E-1 … E-14 remain **proposed**.
+
+What was done to `ICLR_RESULTS.md`:
+* a **STATUS banner** at the head, routing the reader to `CANONICAL_NUMBERS.md`,
+  `PAPER_ASSETS.md` and `ABSTRACT.md`, and naming which sections were *not* re-verified;
+* `SUPERSEDED` blocks in place at **§1.1** (E-1), the **823× chance** line, **§2** (E-12, plus
+  the non-equivalence of the ImageBind comparison) and **§5** (E-13, incl. the R@1-alone
+  inversion) — superseded values **retained**, not deleted, per `PAPER_ASSETS.md` asset 8;
+* **§15 rewritten** against `CANONICAL_NUMBERS.md`. The stale crib is **not** kept alongside the
+  corrected one — a reader copying from two adjacent tables will copy the wrong row. It is in
+  git at `2cbff16:docs/ICLR_RESULTS.md`.
+
+All 32 numbers in the rewritten §15 were verified present in their cited source by script.
